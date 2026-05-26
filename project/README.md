@@ -1,12 +1,26 @@
 # 🏨 Predicción de cancelaciones de reservas hoteleras
 
-> Sistema automático de **entrenamiento, evaluación y comparación** de modelos de
-> clasificación binaria, desarrollado como entrega final del módulo de
-> **Machine Learning y Deep Learning** (Máster en IA, Cloud Computing y DevOps).
+> Sistema automático que **entrena, evalúa y compara** varios modelos de *Machine
+> Learning* para predecir si una reserva de hotel se cancelará. Entrega final del
+> módulo de **Machine Learning y Deep Learning** (Máster en IA, Cloud Computing y
+> DevOps).
 
-El proyecto entrena cinco algoritmos distintos para predecir si una reserva de
-hotel será **cancelada** (`is_canceled = 1`) o no (`is_canceled = 0`), los compara
-con un conjunto común de métricas y selecciona automáticamente el mejor modelo.
+**¿Qué hace este proyecto, en una frase?** A partir de los datos de una reserva
+(antelación, tipo de hotel, país del cliente, precio, etc.) estima la
+**probabilidad de que esa reserva se cancele**.
+
+> 📖 **¿Eres nuevo/a en Machine Learning?** Cada término técnico se explica en el
+> [**Glosario**](docs/glosario.md). Empieza por ahí si algo no te suena.
+
+Vocabulario mínimo para entender este README (todo ampliado en el glosario):
+
+- **Machine Learning (ML):** que un programa **aprenda de ejemplos** en lugar de
+  seguir reglas escritas a mano.
+- **Clasificación binaria:** predecir una respuesta de **dos valores**; aquí,
+  cancelada (`is_canceled = 1`) o no cancelada (`is_canceled = 0`).
+- **Modelo:** el "programa que ha aprendido" y hace las predicciones.
+- **Característica (*feature*):** cada dato de entrada (una columna).
+- **Variable objetivo (*target*):** lo que queremos predecir (`is_canceled`).
 
 ---
 
@@ -14,155 +28,192 @@ con un conjunto común de métricas y selecciona automáticamente el mejor model
 
 | Autor | Rol principal |
 |-------|---------------|
-| **Manuel Pérez** (manugijon@gmail.com) | Ingeniería del pipeline, modelado y documentación |
+| **Manuel Pérez** (manugijon@gmail.com) | Ingeniería del sistema, modelado y documentación |
 | **[Nombre compañero/a]** (*[email]*) | *[Pendiente de completar — ver `docs/informe_final.md`]* |
 
-> ℹ️ La práctica es por parejas. El reparto detallado de roles está en
-> [`docs/informe_final.md`](docs/informe_final.md). Sustituid el placeholder por
-> los datos reales del/de la segundo/a integrante.
+> ℹ️ La práctica es por parejas. El reparto detallado de tareas está en
+> [`docs/informe_final.md`](docs/informe_final.md). Sustituid el texto entre
+> corchetes por los datos reales del/de la segundo/a integrante.
 
 ---
 
-## 🎯 Descripción del problema y de los datos
+## 🎯 El problema y los datos
 
-**Problema.** Las cancelaciones son uno de los mayores quebraderos de cabeza del
-sector hotelero: afectan a la planificación de ocupación, a la política de
-*overbooking* y a los ingresos. Anticipar qué reservas tienen alto riesgo de
-cancelación permite tomar decisiones proactivas (overbooking controlado,
-incentivos de retención, exigencia de depósito).
+**¿Por qué predecir cancelaciones?** Una cancelación deja una habitación vacía que
+muchas veces ya no se vuelve a vender. Si el hotel sabe **con antelación qué
+reservas tienen alto riesgo de cancelarse**, puede reaccionar (aceptar algo de
+*overbooking*, pedir un depósito, ofrecer incentivos para que el cliente no anule).
+Es, por tanto, un problema **real y con valor de negocio**.
 
-**Datos.** Dataset real de reservas hoteleras (~119 000 registros de un *City
-Hotel* y un *Resort Hotel* en Portugal, 2015–2017). La variable objetivo
-`is_canceled` está **moderadamente desbalanceada** (~37 % de cancelaciones). El
-fichero original incluye 31 variables predictoras: temporales (`lead_time`,
-`arrival_date_*`), de la reserva (`deposit_type`, `market_segment`,
-`customer_type`...), del cliente (`country`, `is_repeated_guest`...) y económicas
-(`adr`).
+**Los datos.** Un fichero **CSV** (una tabla de texto separada por comas) con
+**~119 000 reservas** de un *City Hotel* y un *Resort Hotel* en Portugal
+(2015–2017). Cada fila es una reserva; cada columna, una característica. La columna
+`is_canceled` es la respuesta a predecir.
 
-Dos aspectos detectados en el EDA condicionan el diseño:
+Un dato importante: **las clases están desbalanceadas** — alrededor del **37 % de
+las reservas se cancelan** y el 63 % no. Esto influye en cómo evaluamos (ver más
+abajo).
 
-- **Fuga de información (*data leakage*):** `reservation_status` y
-  `reservation_status_date` describen el desenlace de la reserva y filtran el
-  target → **se eliminan siempre**.
-- **Valores ausentes y alta cardinalidad:** `company` (~94 % nulos) se descarta;
-  `agent`, `country` y `children` se tratan/imputan; las categóricas de alta
-  cardinalidad se codifican con un tope de categorías.
+### Dos decisiones clave que tomamos al mirar los datos
 
-El análisis completo está en [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb).
+1. **Eliminar columnas que "hacen trampa" (*fuga de información* o *data
+   leakage*).** Las columnas `reservation_status` y `reservation_status_date`
+   describen lo que **ya pasó** con la reserva (su estado final). Incluirlas sería
+   como dejar ver la respuesta al modelo: acertaría casi el 100 %, pero de forma
+   inútil. **Se eliminan siempre.**
+2. **Tratar los huecos y las columnas poco útiles.** `company` está vacía en el
+   ~94 % de las filas → se descarta. Los valores que faltan en otras columnas se
+   **rellenan** (*imputación*) y las variables de texto se convierten en números.
+
+El estudio completo de los datos está en
+[`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) (*EDA = análisis exploratorio de
+datos*).
 
 ---
 
 ## 🗂️ Estructura del proyecto
 
-```
+Separamos el código en módulos (en vez de meter todo en un único notebook) para que
+sea más claro, reutilizable y fácil de ejecutar:
+
+```text
 project/
 ├── data/
-│   ├── raw/            # Dataset original (dataset_practica_final.csv)
-│   └── processed/      # Datos intermedios (regenerables)
+│   ├── raw/            # Datos originales (dataset_practica_final.csv)
+│   └── processed/      # Datos intermedios (se regeneran solos)
 ├── docs/
-│   └── informe_final.md     # Informe final (roles, EDA, diseño, reflexión)
-├── models/             # Modelos entrenados (.pkl, regenerables)
-│   └── best_model.pkl  # Mejor modelo seleccionado para producción
+│   ├── glosario.md          # 📖 Explicación de todos los términos técnicos
+│   └── informe_final.md     # Informe (roles, EDA, diseño, resultados, mejoras)
+├── models/             # Modelos entrenados y guardados (ficheros .pkl)
+│   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
 ├── notebooks/
-│   ├── 01_eda.ipynb              # Análisis exploratorio de datos
-│   └── 02_comparativa_modelos.ipynb  # Comparativa y visualizaciones
-├── outputs/            # Gráficos y tabla de métricas generados por el pipeline
-│   ├── roc_curves.png
-│   ├── confusion_matrices.png
-│   ├── confusion_matrix_best.png
-│   ├── feature_importance.png
-│   └── metricas_modelos.csv
-├── src/                # Código fuente (paquete Python)
-│   ├── config.py          # Configuración y constantes
-│   ├── data_loader.py     # Carga, limpieza y partición de datos
-│   ├── preprocessing.py   # ColumnTransformer (imputación + escala + one-hot)
-│   ├── model_trainer.py   # Clase ModelTrainer + envoltorio Keras
-│   ├── evaluator.py       # Métricas y visualizaciones
-│   ├── train.py           # 🚀 Script principal del pipeline
-│   └── predict.py         # Inferencia con el mejor modelo
-├── requirements.txt
+│   ├── 01_eda.ipynb              # Exploración y entendimiento de los datos
+│   └── 02_comparativa_modelos.ipynb  # Comparación de modelos y gráficos
+├── outputs/            # Gráficos y tablas que genera el sistema
+├── src/                # Código fuente (el "motor" del proyecto)
+│   ├── config.py          # Configuración: rutas, ajustes y constantes
+│   ├── data_loader.py     # Cargar, limpiar y dividir los datos
+│   ├── preprocessing.py   # Preparar los datos para el modelo
+│   ├── model_trainer.py   # Definir y entrenar los modelos
+│   ├── evaluator.py       # Calcular métricas y crear gráficos
+│   ├── train.py           # 🚀 Programa principal (ejecuta todo el proceso)
+│   └── predict.py         # Hacer predicciones con el mejor modelo
+├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
 └── README.md
 ```
 
+> Un **módulo** es simplemente un fichero `.py` con código que cumple una función
+> concreta. Juntos forman el **paquete** `src`.
+
 ---
 
-## ⚙️ Instalación y configuración del entorno virtual
+## ⚙️ Preparar el entorno (paso a paso)
 
-Requisitos: **Python 3.12** (probado en 3.12.3).
+Necesitas **Python 3.12** (probado en 3.12.3).
+
+Usamos un **entorno virtual** (*venv*): una "caja" aislada donde instalamos las
+librerías de este proyecto sin afectar al resto de tu ordenador. Así todos usamos
+exactamente las mismas versiones y el código funciona igual en cualquier máquina.
 
 ```bash
-# 1) Situarse en la carpeta del proyecto
+# 1) Entrar en la carpeta del proyecto
 cd project
 
-# 2) Crear y activar el entorno virtual
+# 2) Crear el entorno virtual (crea la carpeta .venv)
 python3 -m venv .venv
+
+# 3) Activarlo
 source .venv/bin/activate          # Linux / macOS
 # .venv\Scripts\activate           # Windows (PowerShell)
 
-# 3) Instalar las dependencias
+# 4) Instalar las librerías necesarias
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+> Cuando el entorno está activado verás `(.venv)` al principio de la línea de tu
+> terminal. Para salir de él: `deactivate`.
+
 ---
 
-## ▶️ Ejecución
+## ▶️ Cómo ejecutar el proyecto
 
-Todos los comandos se ejecutan desde la carpeta `project/` con el entorno activado.
+Ejecuta todo desde la carpeta `project/` con el entorno virtual activado.
 
-### 1. Entrenar y comparar todos los modelos (pipeline completo)
+### 1. Entrenar y comparar todos los modelos (proceso completo)
 
 ```bash
 python -m src.train
 ```
 
-Este comando ejecuta el flujo de principio a fin: **carga → preprocesado →
-entrenamiento de los 5 modelos → evaluación → selección del mejor**, y guarda:
+Este único comando ejecuta el flujo de principio a fin:
+**cargar los datos → prepararlos → entrenar los 5 modelos → evaluarlos →
+elegir el mejor**. Al terminar guarda automáticamente:
 
-- `models/*.pkl` (un modelo por algoritmo) y `models/best_model.pkl`.
-- `outputs/metricas_modelos.csv` y `.md` (tabla comparativa).
-- `outputs/roc_curves.png`, `confusion_matrices.png`,
-  `confusion_matrix_best.png`, `feature_importance.png`.
+- En `models/`: un fichero `.pkl` por modelo y `best_model.pkl` (el ganador).
+  *(Un `.pkl` es un modelo ya entrenado guardado en disco para reutilizarlo.)*
+- En `outputs/`: la tabla de métricas (`metricas_modelos.csv`) y los gráficos
+  (curva ROC, matrices de confusión e importancia de variables).
 
-### 2. Hacer inferencia con el mejor modelo
+### 2. Predecir con el mejor modelo
 
 ```bash
-# Sobre una muestra del dataset original (demostración)
+# Demostración rápida: usa 10 reservas de ejemplo del propio dataset
 python -m src.predict --sample 10
 
-# Sobre un CSV propio con reservas
+# Sobre tu propio fichero CSV de reservas
 python -m src.predict --input mis_reservas.csv --output predicciones.csv
 ```
 
-### 3. Explorar los notebooks
+Devuelve, para cada reserva, la predicción (0/1) y la **probabilidad** de
+cancelación (un número entre 0 y 1).
+
+### 3. Abrir los notebooks (para explorar y aprender)
 
 ```bash
-# Registrar el kernel del entorno (una sola vez) y abrir Jupyter
+# Registrar el entorno como "kernel" de Jupyter (solo la primera vez)
 python -m ipykernel install --user --name pontia-ml --display-name "Python (pontia-ml)"
-jupyter lab    # o jupyter notebook
+jupyter lab    # o: jupyter notebook
 ```
 
-- `notebooks/01_eda.ipynb` — análisis exploratorio y decisiones de modelado.
-- `notebooks/02_comparativa_modelos.ipynb` — consume los artefactos del pipeline
-  y muestra la comparativa, las visualizaciones y la inferencia.
+> Un **notebook** es un documento interactivo que combina texto, código y
+> resultados. El **kernel** es el "motor" de Python que ejecuta su código.
+
+- `notebooks/01_eda.ipynb` — exploramos los datos y explicamos cada decisión.
+- `notebooks/02_comparativa_modelos.ipynb` — comparamos los modelos y mostramos los
+  gráficos.
 
 ---
 
 ## 📊 Resultados
 
-Métricas sobre el conjunto de **test** (20 %, partición estratificada,
-`random_state=42`). Métrica principal de selección: **ROC-AUC**.
+Medimos cada modelo sobre el **conjunto de prueba** (*test*): un 20 % de los datos
+que el modelo **no vio durante el entrenamiento**, para comprobar que generaliza a
+casos nuevos. La métrica con la que elegimos el ganador es **ROC-AUC** (explicada
+justo debajo).
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
 | **XGBoost** ⭐ | 0.8826 | 0.8575 | 0.8195 | 0.8380 | **0.9548** |
-| Neural Network (Keras) | 0.8746 | 0.8502 | 0.8034 | 0.8262 | 0.9483 |
+| Red neuronal (Keras) | 0.8746 | 0.8502 | 0.8034 | 0.8262 | 0.9483 |
 | Random Forest | 0.8611 | 0.8871 | 0.7165 | 0.7927 | 0.9431 |
-| Decision Tree | 0.8542 | 0.8264 | 0.7680 | 0.7961 | 0.9337 |
-| Logistic Regression | 0.8246 | 0.8045 | 0.6960 | 0.7464 | 0.9072 |
+| Árbol de decisión | 0.8542 | 0.8264 | 0.7680 | 0.7961 | 0.9337 |
+| Regresión logística | 0.8246 | 0.8045 | 0.6960 | 0.7464 | 0.9072 |
 
-⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.955), persistido como
+⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.955). Se guarda como
 `models/best_model.pkl`.
+
+**¿Qué significan estas métricas?** (todas explicadas en el [glosario](docs/glosario.md)):
+
+- **Accuracy (exactitud):** % de aciertos totales. Cuidado: con clases
+  desbalanceadas puede engañar.
+- **Precision (precisión):** de las que predije como cancelaciones, cuántas lo eran
+  de verdad (pocas falsas alarmas).
+- **Recall (sensibilidad):** de las cancelaciones reales, cuántas detecté (se
+  escapan pocas).
+- **F1:** equilibrio entre precisión y recall.
+- **ROC-AUC:** número de 0.5 (azar) a 1 (perfecto) que mide cómo de bien **ordena**
+  el modelo las reservas por riesgo, **sin depender de un umbral concreto**.
 
 <p align="center">
   <img src="outputs/roc_curves.png" width="48%" alt="Curva ROC comparativa">
@@ -172,38 +223,45 @@ Métricas sobre el conjunto de **test** (20 %, partición estratificada,
   <img src="outputs/feature_importance.png" width="70%" alt="Importancia de variables">
 </p>
 
-### ¿Por qué ROC-AUC como métrica principal?
+> - La **curva ROC** muestra el equilibrio entre detectar cancelaciones y generar
+>   falsas alarmas; cuanto más pegada a la esquina superior izquierda, mejor.
+> - La **matriz de confusión** cruza lo predicho con lo real (aciertos en la
+>   diagonal).
+> - La **importancia de variables** indica qué características pesan más en las
+>   predicciones.
 
-1. **Robusta al desbalance** de clases (~37 % de positivos): a diferencia del
-   *accuracy*, no se ve inflada por la clase mayoritaria.
-2. **Independiente del umbral** de decisión: mide la capacidad de *ranking* del
-   modelo, lo que da flexibilidad para ajustar el umbral según la política de
-   *overbooking* del hotel.
-3. **Comparable** entre algoritmos de naturaleza muy distinta.
+### ¿Por qué elegimos ROC-AUC como métrica principal?
 
-Como métricas secundarias de negocio se reportan **recall** (proporción de
-cancelaciones detectadas) y **F1** (equilibrio precisión/recall).
+1. **No se deja engañar por el desbalance** (~37 % de cancelaciones): a diferencia
+   de la *accuracy*, no se infla por la clase mayoritaria.
+2. **No depende del umbral** de decisión: mide la capacidad de ordenar bien las
+   reservas, dejando libertad para fijar el corte según la política del hotel.
+3. **Permite comparar** modelos de naturaleza muy distinta con un único número.
+
+Como métricas secundarias, de interés para el negocio, reportamos **recall**
+(cuántas cancelaciones detectamos) y **F1** (equilibrio precisión/recall).
 
 ---
 
 ## ✅ Conclusiones
 
-- Los modelos de **gradient boosting (XGBoost)** y la **red neuronal** lideran la
-  comparativa, confirmando su idoneidad para datos tabulares con interacciones
-  no lineales. XGBoost gana además en eficiencia de entrenamiento.
-- Las variables más predictivas (`deposit_type=Non Refund`, `lead_time`, `adr`,
-  `country`, `total_of_special_requests`) coinciden con la intuición de negocio
-  observada en el EDA.
-- El sistema queda **productivizado**: un único comando entrena, evalúa,
-  selecciona y persiste el mejor modelo, y otro permite hacer inferencia.
+- Los modelos basados en **árboles potenciados** (*XGBoost*) y la **red neuronal**
+  son los mejores: capturan relaciones complejas entre variables. XGBoost, además,
+  entrena en muy poco tiempo.
+- Las características más decisivas (tipo de depósito no reembolsable, antelación de
+  la reserva, precio, país, peticiones especiales) coinciden con lo que se observó
+  al explorar los datos.
+- El sistema queda **automatizado**: un comando entrena, evalúa, elige y guarda el
+  mejor modelo; otro permite usarlo para predecir.
 
-La discusión detallada, las limitaciones y las líneas de mejora están en
+El análisis detallado, las limitaciones y las posibles mejoras están en
 [`docs/informe_final.md`](docs/informe_final.md).
 
 ---
 
-## 🧰 Stack tecnológico
+## 🧰 Tecnologías utilizadas
 
 Python 3.12 · scikit-learn · XGBoost · TensorFlow/Keras · pandas · NumPy ·
-matplotlib · seaborn · plotly · Jupyter. Versiones exactas en
-[`requirements.txt`](requirements.txt).
+matplotlib · seaborn · plotly · Jupyter. Las versiones exactas están en
+[`requirements.txt`](requirements.txt). ¿No sabes qué es alguna? Mírala en el
+[**glosario**](docs/glosario.md).

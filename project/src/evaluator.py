@@ -39,14 +39,27 @@ sns.set_theme(style="whitegrid")
 def compute_metrics(y_true, y_pred, y_proba) -> dict[str, float]:
     """Calcula el conjunto de métricas de clasificación binaria.
 
+    Qué mide cada métrica (más detalle en ``docs/glosario.md``):
+
+    - **accuracy** (exactitud): porcentaje de aciertos totales. Engaña cuando hay
+      desbalance de clases.
+    - **precision** (precisión): de las predichas como cancelación, cuántas lo eran
+      de verdad → mide las "falsas alarmas".
+    - **recall** (sensibilidad): de las cancelaciones reales, cuántas se detectaron
+      → mide las cancelaciones que "se escapan".
+    - **f1**: media equilibrada (armónica) entre precisión y recall.
+    - **roc_auc**: área bajo la curva ROC (de 0.5 = azar a 1 = perfecto). Mide la
+      capacidad de **ordenar** las reservas por riesgo, sin depender del umbral. Es
+      la métrica principal del proyecto.
+
     Parameters
     ----------
     y_true:
-        Etiquetas reales.
+        Etiquetas reales (lo que pasó de verdad).
     y_pred:
-        Etiquetas predichas (umbral 0.5).
+        Etiquetas predichas por el modelo (aplicando el umbral 0.5).
     y_proba:
-        Probabilidad estimada de la clase positiva (cancelación).
+        Probabilidad estimada de la clase positiva (que la reserva se cancele).
 
     Returns
     -------

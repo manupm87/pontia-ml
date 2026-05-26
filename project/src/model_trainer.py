@@ -82,12 +82,32 @@ class KerasMLPClassifier(BaseEstimator, ClassifierMixin):
         self.verbose = verbose
 
     def _build_model(self, n_features: int):
-        """Construye y compila la arquitectura Sequential de Keras."""
+        """Construye y compila la red neuronal (arquitectura Sequential de Keras).
+
+        Glosario rápido de los términos que aparecen (más detalle en
+        ``docs/glosario.md``):
+
+        - *Capa densa (Dense)*: capa donde cada neurona se conecta con todas las
+          de la capa anterior.
+        - *ReLU*: función de activación de las capas internas (deja pasar los
+          positivos, pone a 0 los negativos); aporta "no linealidad".
+        - *Dropout*: apaga neuronas al azar durante el entrenamiento para evitar
+          el sobreajuste (que la red "se memorice" los datos).
+        - *Sigmoide*: activación de la capa final; convierte la salida en una
+          probabilidad entre 0 y 1.
+        - *Adam*: algoritmo que ajusta los pesos de la red (el "optimizador").
+        - *binary_crossentropy*: función de error (pérdida) para clasificación
+          binaria; el entrenamiento intenta minimizarla.
+        """
         import tensorflow as tf
         from tensorflow.keras import layers, models
 
+        # Fijar la semilla aleatoria de TensorFlow para que el entrenamiento sea
+        # reproducible (mismos resultados al repetir la ejecución).
         tf.keras.utils.set_random_seed(self.random_state)
 
+        # `Input`: define cuántas características entran. Luego, capas densas con
+        # ReLU y dropout intercalado.
         capas = [layers.Input(shape=(n_features,), name="entrada")]
         for i, unidades in enumerate(self.hidden_units, start=1):
             capas.append(layers.Dense(unidades, activation="relu", name=f"oculta_{i}"))
