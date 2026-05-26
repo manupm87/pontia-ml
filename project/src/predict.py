@@ -1,0 +1,104 @@
+"""Inferencia con el mejor modelo seleccionado.
+
+Carga ``models/best_model.pkl`` (el ``Pipeline`` completo: preprocesado + modelo)
+y genera predicciones de cancelación para nuevas reservas. Como el modelo es un
+``Pipeline``, recibe el DataFrame en crudo y aplica internamente el mismo
+preprocesado que en entrenamiento.
+
+Uso::
+
+    # Predecir sobre un CSV propio
+    python -m src.predict --input mis_reservas.csv --output predicciones.csv
+
+    # Demostración: toma una muestra del dataset original
+    python -m src.predict --sample 10
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+
+import joblib
+import pandas as pd
+
+from . import config
+from .data_loader import load_raw_data, normalize_categoricals
+
+logger = logging.getLogger(__name__)
+
+
+def load_best_model(path=config.BEST_MODEL_PATH):
+    """Carga el mejor modelo persistido por el pipeline de entrenamiento."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"No se encontró {path}. Ejecuta primero 'python -m src.train'."
+        )
+    logger.info("Cargando mejor modelo desde %s", path)
+    return joblib.load(path)
+
+
+def prepare_for_inference(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica las transformaciones necesarias para predecir (sin descartar filas).
+
+    A diferencia del entrenamiento, aquí NO se eliminan registros: se conserva
+    una predicción por cada fila de entrada. Solo se normalizan las categóricas y
+    se descarta el target si viniera incluido.
+    """
+    df = normalize_categoricals(df)
+    if config.TARGET_COLUMN in df.columns:
+        df = df.drop(columns=[config.TARGET_COLUMN])
+    return df
+
+
+def predict_dataframe(df: pd.DataFrame, model=None) -> pd.DataFrame:
+    """Genera predicciones para un DataFrame de reservas.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columnas ``prediction`` (0/1) y ``probability_canceled`` (probabilidad).
+    """
+    if model is None:
+        model = load_best_model()
+    X = prepare_for_inference(df)
+    proba = model.predict_proba(X)[:, 1]
+    pred = (proba >= 0.5).astype(int)
+    return pd.DataFrame(
+        {"prediction": pred, "probability_canceled": proba.round(4)},
+        index=df.index,
+    )
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+    parser = argparse.ArgumentParser(description="Inferencia de cancelaciones de reservas.")
+    parser.add_argument("--input", type=str, help="CSV de entrada con reservas.")
+    parser.add_argument("--output", type=str, help="CSV de salida con predicciones.")
+    parser.add_argument(
+        "--sample",
+        type=int,
+        default=0,
+        help="Si se indica, usa N filas de muestra del dataset original.",
+    )
+    args = parser.parse_args()
+
+    if args.input:
+        df = pd.read_csv(args.input, na_values=config.NA_TOKENS, keep_default_na=True)
+    else:
+        n = args.sample or 10
+        df = load_raw_data().sample(n=n, random_state=config.RANDOM_STATE)
+        logger.info("Usando %d filas de muestra del dataset original.", n)
+
+    model = load_best_model()
+    resultado = predict_dataframe(df, model=model)
+
+    if args.output:
+        resultado.to_csv(args.output, index=False)
+        logger.info("Predicciones guardadas en %s", args.output)
+    else:
+        print(resultado.to_string())
+
+
+if __name__ == "__main__":
+    main()
