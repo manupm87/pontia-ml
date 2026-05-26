@@ -1,0 +1,32 @@
+# Dependencias del proyecto — Python 3.12
+# Instalación: pip install -r requirements.txt
+#
+# Nota sobre TensorFlow: se usa la variante CPU (tensorflow-cpu), suficiente para
+# la red neuronal de este proyecto y de instalación más ligera. Si dispones de
+# GPU puedes sustituirla por "tensorflow==2.21.0".
+
+# --- Núcleo de datos y ML clásico ---
+numpy==2.4.6
+pandas==3.0.3
+scikit-learn==1.8.0
+scipy==1.17.1
+joblib==1.5.3
+
+# --- Gradient Boosting ---
+xgboost==3.2.0
+
+# --- Deep Learning (red neuronal con Keras) ---
+tensorflow-cpu==2.21.0
+keras==3.14.1
+
+# --- Visualización ---
+matplotlib==3.10.9
+seaborn==0.13.2
+plotly==6.7.0
+
+# --- Notebooks (EDA y comparativa) ---
+jupyter==1.1.1
+ipykernel==7.2.0
+nbformat==5.10.4
+nbconvert==7.17.1
+notebook==7.5.6

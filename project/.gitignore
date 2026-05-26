@@ -1,0 +1,26 @@
+# --- Entornos virtuales ---
+.venv/
+venv/
+env/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Datos procesados (regenerables) ---
+data/processed/
+
+# --- Modelos entrenados (regenerables con `python -m src.train`) ---
+# Se ignoran por tamaño; basta con ejecutar el pipeline para reconstruirlos.
+models/*.pkl
+!models/.gitkeep
+
+# --- Artefactos temporales de Keras ---
+*.keras
+
+# --- Sistema operativo / editores ---
+.DS_Store
+.idea/
+.vscode/
