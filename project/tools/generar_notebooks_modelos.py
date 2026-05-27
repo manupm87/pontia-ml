@@ -284,6 +284,29 @@ SPECS = [
 ]
 
 
+VIZ_DESC = {
+    "LogisticRegression": "sus **coeficientes**: el peso y el signo con que cada variable empuja la predicción. *Eso* es el modelo: una suma ponderada de las variables.",
+    "DecisionTreeClassifier": "el **árbol** entrenado (primeros niveles): las preguntas sí/no que hace y cómo va separando las clases.",
+    "RandomForestClassifier": "**uno** de sus árboles (el bosque tiene muchos): ilustra el tipo de reglas; la predicción real promedia todos los árboles.",
+    "XGBClassifier": "la **importancia de variables**. El modelo son ~cientos de árboles encadenados, así que no se dibuja entero; la importancia resume en qué se apoya.",
+    "KerasMLPClassifier": "un **esquema de su arquitectura**: las capas y cuántas neuronas tiene cada una.",
+}
+
+VIZ_CODE = (
+    "from src.model_viz import visualizar_modelo\n"
+    "visualizar_modelo(modelo, X_train)"
+)
+
+
+def _viz_md(spec) -> str:
+    clase = spec["ctor_base"].split("(")[0]
+    return (
+        "## 5. Visualización del modelo\n\n"
+        "Visualizamos " + VIZ_DESC[clase] + " (lo dibuja `src/model_viz.py`, que elige "
+        "la representación adecuada según el tipo de modelo)."
+    )
+
+
 def _hiperparam_md(spec) -> str:
     filas = "\n".join(f"| {p} | {d} |" for p, d in spec["hiperparametros"])
     return (
@@ -297,7 +320,7 @@ def _hiperparam_md(spec) -> str:
 def _search_md(spec) -> str:
     if spec["search"] == "nn":
         return (
-            "## 5. Regularización y *early stopping*\n\n"
+            "## 6. Regularización y *early stopping*\n\n"
             "Ajustar una red por **búsqueda en rejilla** sería desproporcionadamente "
             "costoso. En su lugar, la red se **autorregula** durante el entrenamiento "
             "con **dropout** (apaga neuronas al azar) y **early stopping** (para cuando "
@@ -306,7 +329,7 @@ def _search_md(spec) -> str:
         )
     tecnica = "GridSearchCV (búsqueda exhaustiva)" if spec["search"] == "grid" else "RandomizedSearchCV (muestreo aleatorio de combinaciones)"
     return (
-        "## 5. Optimización de hiperparámetros\n\n"
+        "## 6. Optimización de hiperparámetros\n\n"
         f"Buscamos la mejor combinación con **{tecnica}**, optimizando **ROC-AUC** por "
         "validación cruzada. (Es el mismo procedimiento, por modelo, que automatiza "
         "`src/tuning.py` para todo el proyecto.)"
@@ -350,13 +373,15 @@ def build_notebook(spec) -> nbf.NotebookNode:
            "conjunto de prueba (datos que no vio al entrenar)."),
         code(EVAL_BASE_CODE.replace("__IMPORT__", spec["import"]).replace("__CTOR_BASE__", spec["ctor_base"])),
         code(PLOT_CODE),
+        md(_viz_md(spec)),
+        code(VIZ_CODE),
         md(_search_md(spec)),
         code(NN_HISTORY_CODE if spec["search"] == "nn" else _search_code(spec)),
     ]
     if spec["search"] == "nn":
-        cells.append(md("## 6. Resultado final y cuándo usar este modelo\n\n" + spec["cuando_usar"]))
+        cells.append(md("## 7. Resultado final y cuándo usar este modelo\n\n" + spec["cuando_usar"]))
     else:
-        cells.append(md("## 6. Resultado final y cuándo usar este modelo\n\n"
+        cells.append(md("## 7. Resultado final y cuándo usar este modelo\n\n"
                         "Comparamos el rendimiento en test **antes y después** de optimizar:"))
         cells.append(code(EVAL_TUNED_CODE))
         cells.append(md(spec["cuando_usar"]))
