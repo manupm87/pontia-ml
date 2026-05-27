@@ -32,10 +32,21 @@ leerlos y compararlos con facilidad:
 
 1. **Copia** `_PLANTILLA_modelo.ipynb` y renómbralo (p. ej. `10_modelo_lightgbm.ipynb`).
 2. Rellena los `TODO` manteniendo las 7 secciones.
-3. Reutiliza los **helpers compartidos** (no dupliques lógica):
-   - `src/notebook_utils.py` → `evaluar(...)` y `plot_confusion_roc(...)`.
-   - `src/model_viz.py` → `visualizar_modelo(...)` (añade el caso de tu modelo si es nuevo).
 
-> Estos notebooks se **editan a mano** (no se generan). Mantener la consistencia es
-> responsabilidad de la plantilla + esta convención + los helpers de `src/`, no de un
-> generador de código.
+### Qué se importa de `src` y qué va inline (importante)
+
+La regla: **de `src` se importa solo el _contrato_; la exploración y la
+presentación quedan _inline_ y visibles** en el notebook.
+
+- **Importar de `src` (única fuente de verdad, lo que también usa el pipeline):**
+  `config`, `load_and_prepare` (`data_loader`), `build_preprocessor`
+  (`preprocessing`) y la **definición del modelo**. Así el notebook analiza
+  *exactamente* los mismos datos y preprocesado que `train.py`/`predict.py`
+  (no hay *drift*).
+- **Dejar inline en el notebook (es lo que el notebook debe mostrar):** la
+  evaluación, la matriz de confusión / ROC y la **visualización del modelo**
+  (árbol, coeficientes, importancia, arquitectura…). Es código de exploración y
+  enseñanza: debe verse, no esconderse en `src`.
+
+> Estos notebooks se **editan a mano** (no se generan). La consistencia la dan la
+> **plantilla + esta convención** (la *forma*), no compartir código de presentación.

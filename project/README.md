@@ -107,8 +107,6 @@ project/
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
 │   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
 │   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
-│   ├── model_viz.py       # Visualización de cada modelo (árbol, coeficientes, arquitectura…)
-│   ├── notebook_utils.py  # Helpers compartidos por los notebooks (evaluar, gráficos)
 │   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
 │   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
