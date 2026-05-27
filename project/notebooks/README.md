@@ -13,6 +13,7 @@ Cuadernos del proyecto. Orden de lectura recomendado:
 | `07_comparativa_modelos.ipynb` | Comparación de los 5 modelos + visualización 2D (PLS, t-SNE). |
 | `08_balanceo_clases.ipynb` | Desbalance de clases: `class_weight` vs SMOTE. |
 | `09_no_supervisado.ipynb` | Clustering (K-Means): segmentos de reserva. |
+| `10_interpretabilidad_shap.ipynb` | **Interpretabilidad (bonus)**: SHAP (global y local) + importancia por permutación del mejor modelo. |
 | `_PLANTILLA_modelo.ipynb` | **Plantilla** para crear un nuevo notebook de modelo. |
 
 ## Convención de los notebooks de modelo
