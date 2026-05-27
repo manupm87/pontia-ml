@@ -33,3 +33,7 @@ ipykernel==7.2.0
 nbformat==5.10.4
 nbconvert==7.17.1
 notebook==7.5.6
+
+# --- API REST (bonus): FastAPI ---
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
