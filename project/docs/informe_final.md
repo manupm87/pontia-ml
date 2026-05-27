@@ -196,6 +196,27 @@ Cada uno representa una "familia" distinta de algoritmos (todos explicados en el
    activación ReLU, salida *sigmoide* (da una probabilidad) y **early stopping**
    (para de entrenar cuando deja de mejorar).
 
+### 4.5. Herramientas de producción y su equivalente en clase (`recursos/`)
+
+El paquete `src/` está pensado como **sistema de producción**, así que en varios
+puntos usa utilidades de scikit-learn más robustas que las vistas en los notebooks
+de clase (`recursos/`). Cada una **hace lo mismo** que su equivalente de clase,
+pero de forma reproducible y segura para la inferencia. Esta tabla las mapea (es la
+documentación explícita de por qué `src/` se aparta de `recursos/`):
+
+| Herramienta en `src/` (producción) | Equivalente en `recursos/` | Qué añade la versión de producción |
+|---|---|---|
+| `Pipeline(preprocessor, modelo)` | entrenar el modelo directamente sobre el DataFrame ya preparado a mano | Empaqueta preprocesado + modelo en **un único objeto**: el preprocesado se **aprende solo del train** (sin fugas) y se persiste junto al modelo para predecir. |
+| `ColumnTransformer` | preparar cada grupo de columnas por separado con pandas | Aplica transformaciones distintas a numéricas y categóricas de forma declarativa dentro del `Pipeline`. |
+| `OneHotEncoder(handle_unknown=…, max_categories=25)` | `pd.get_dummies(X)` | Recuerda las categorías del *train*, **tolera categorías no vistas** al predecir y **limita la cardinalidad** (evita cientos de columnas). |
+| `SimpleImputer(strategy=…)` | `.fillna()` / `.dropna()` | Aprende el valor de relleno (p. ej. la mediana) **en train** y lo reaplica idéntico en test/predicción. |
+| `StandardScaler` (todas las numéricas) | `StandardScaler` (solo KNN/SVM en clase) | Es la **misma** herramienta; en producción se aplica a todas las numéricas dentro del `Pipeline` por consistencia. |
+| `RandomizedSearchCV` (Random Forest, XGBoost) | `GridSearchCV` | Muestrea combinaciones al azar cuando el espacio es grande, donde una búsqueda exhaustiva sería inviable. En los espacios pequeños (regresión logística, árbol) sí usamos `GridSearchCV`, **igual que en clase**. |
+
+> El notebook `notebooks/playground/` replica el flujo **solo con las herramientas
+> de `recursos/`** (`pd.get_dummies`, `GridSearchCV`, etc.), de modo que sirve de
+> puente entre la versión "de clase" y la versión "de producción" de `src/`.
+
 ---
 
 ## 5. Resultados y elección final
@@ -205,15 +226,14 @@ que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8886 | 0.8637 | 0.8304 | 0.8468 | **0.9579** |
+| **XGBoost** ⭐ | 0.8934 | 0.8701 | 0.8374 | 0.8535 | **0.9614** |
 | Red neuronal (Keras) | 0.8718 | 0.8427 | 0.8045 | 0.8231 | 0.9460 |
 | Random Forest | 0.8644 | 0.8828 | 0.7313 | 0.8000 | 0.9455 |
 | Árbol de decisión | 0.8551 | 0.8191 | 0.7819 | 0.8000 | 0.9329 |
 | Regresión logística | 0.8190 | 0.7312 | 0.8093 | 0.7683 | 0.9064 |
 
 > Estas cifras se obtienen con los **hiperparámetros optimizados** por validación
-> cruzada (ver §6, bonus), que el pipeline usa por defecto. Sin optimizar, XGBoost
-> lograba 0.9516 de ROC-AUC.
+> cruzada (ver §6, bonus), que el pipeline usa por defecto.
 
 > **Recordatorio de métricas** (detalle en el [glosario](glosario.md)):
 > *accuracy* = % de aciertos · *precision* = pocas falsas alarmas · *recall* = se
@@ -241,14 +261,14 @@ predicciones del Random Forest.*
   decisión (lo que permite ajustar la "agresividad" del *overbooking*) y es
   comparable entre modelos. Reportamos además *recall* y *F1* por su lectura de
   negocio.
-- **Modelo elegido: XGBoost** (ROC-AUC = 0.958). Supera al resto en la métrica
-  principal y en F1, y además entrena muy rápido (~1.3 s). Se guarda como
+- **Modelo elegido: XGBoost** (ROC-AUC = 0.961). Supera al resto en la métrica
+  principal y en F1, y aun así entrena en pocos segundos (~3.6 s). Se guarda como
   `models/best_model.pkl`.
 
 ### 5.2. Qué significan estos resultados para el hotel
 
-- XGBoost detecta el **83 % de las cancelaciones reales** (*recall* 0.83) con una
-  **precisión del 86 %**: un buen equilibrio para actuar sin generar demasiadas
+- XGBoost detecta el **84 % de las cancelaciones reales** (*recall* 0.84) con una
+  **precisión del 87 %**: un buen equilibrio para actuar sin generar demasiadas
   falsas alarmas.
 - El Random Forest es el más **conservador** (más precisión pero menos recall):
   preferible si una falsa alarma fuese muy costosa.
@@ -272,10 +292,14 @@ Buscamos automáticamente la mejor configuración de cada modelo clásico median
 
 Los mejores hiperparámetros se **persisten** en `outputs/best_hiperparametros.json`
 y el pipeline los **usa por defecto** (`python -m src.train`); rehacer la búsqueda
-es tan simple como `python -m src.train --tune` o `python -m src.tuning`. La
-optimización mejoró el ROC-AUC de test de XGBoost de **0.9516 a 0.9579** (y de
-forma análoga el resto de modelos); el detalle (CV base vs. optimizada) queda en
-`outputs/tuning_hiperparametros.md`. Implementado en `src/tuning.py`.
+es tan simple como `python -m src.train --tune` o `python -m src.tuning`. Partiendo
+de unos valores base ya buenos hallados explorando a mano
+(`max_depth=14, n_estimators=500, learning_rate=0.1`; **0.9573** de ROC-AUC en
+validación cruzada), el finetuning encontró
+`max_depth=16, n_estimators=600, learning_rate=0.03`, subiendo el ROC-AUC de CV a
+**0.9586** y alcanzando **0.9614 en test** (el mejor resultado del proyecto). El
+detalle (CV base vs. optimizada) queda en `outputs/tuning_hiperparametros.md`.
+Implementado en `src/tuning.py`.
 
 > *Nota de hardware:* el código es **GPU-aware** — XGBoost puede entrenar en una
 > GPU NVIDIA con `PONTIA_USE_GPU=1` —, pero por defecto se ejecuta en **CPU**,

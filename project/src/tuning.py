@@ -7,7 +7,8 @@ para los modelos clásicos del proyecto. Demuestra las dos técnicas habituales:
   logística y árbol de decisión.
 - **RandomizedSearchCV** (muestreo aleatorio de combinaciones) para los espacios
   grandes — Random Forest y XGBoost, donde una búsqueda exhaustiva sería
-  inviable.
+  inviable. (`RandomizedSearchCV` no aparece en `recursos/`, que usa
+  `GridSearchCV`; ver el mapeo de herramientas en `docs/informe_final.md` §4.5.)
 
 Se optimiza ROC-AUC (la métrica principal del proyecto). Para cada modelo se
 compara la puntuación de CV de los hiperparámetros **por defecto** del proyecto
@@ -158,11 +159,15 @@ class HyperparameterTuner:
             # modelos (CPU) sí paralelizan la búsqueda.
             njobs = 1 if (nombre == "XGBoost" and gpu.xgboost_device() == "cuda") else -1
             if kind == "grid":
+                # GridSearchCV: búsqueda exhaustiva (la herramienta vista en `recursos/`).
                 search = GridSearchCV(
                     pipe, grid, scoring=self.scoring, cv=self.cv, n_jobs=njobs
                 )
                 tipo = "GridSearchCV"
             else:
+                # RandomizedSearchCV: muestreo aleatorio para espacios grandes (no se ve
+                # en `recursos/`; equivale a un GridSearchCV pero sin recorrerlo entero).
+                # Ver el mapeo de herramientas en `docs/informe_final.md` §4.5.
                 search = RandomizedSearchCV(
                     pipe,
                     grid,

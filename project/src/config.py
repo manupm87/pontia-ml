@@ -156,9 +156,13 @@ RANDOM_FOREST_PARAMS: dict = {
     "random_state": RANDOM_STATE,
 }
 
+# Hiperparámetros por defecto adoptados tras la exploración del notebook
+# `notebooks/playground/`: {learning_rate: 0.1, max_depth: 14, n_estimators: 500}
+# (AUC≈0.957 en validación cruzada). El finetuning (RandomizedSearchCV sobre
+# XGBOOST_GRID) parte de esta zona e intenta mejorarla.
 XGBOOST_PARAMS: dict = {
-    "n_estimators": 300,
-    "max_depth": 6,
+    "n_estimators": 500,
+    "max_depth": 14,
     "learning_rate": 0.1,
     "subsample": 0.9,
     "colsample_bytree": 0.9,
@@ -192,7 +196,9 @@ TUNING_N_ITER: int = 12  # nº de combinaciones que prueba RandomizedSearchCV
 # Espacios de búsqueda. Las claves llevan el prefijo "model__" porque el
 # estimador es el paso llamado "model" dentro del Pipeline. Para espacios
 # pequeños usamos GridSearchCV (exhaustivo); para los grandes, RandomizedSearchCV
-# (muestreo aleatorio), mucho más eficiente.
+# (muestreo aleatorio), mucho más eficiente. (RandomizedSearchCV NO se ve en
+# `recursos/`, que usa GridSearchCV; mapeo de herramientas en
+# docs/informe_final.md §4.5.)
 LOGISTIC_REGRESSION_GRID: dict = {
     "model__C": [0.01, 0.1, 1.0, 10.0],
     "model__class_weight": [None, "balanced"],
@@ -208,10 +214,14 @@ RANDOM_FOREST_GRID: dict = {
     "model__min_samples_leaf": [5, 10, 20],
     "model__max_features": ["sqrt", "log2"],
 }
+# Rejilla CENTRADA en la zona hallada en `notebooks/playground/` (max_depth≈14,
+# n_estimators≈500, learning_rate≈0.1) y CON MARGEN para mejorarla: el
+# RandomizedSearchCV muestrea esta rejilla buscando una combinación aún mejor que
+# los valores por defecto de XGBOOST_PARAMS.
 XGBOOST_GRID: dict = {
-    "model__n_estimators": [200, 300, 400],
-    "model__max_depth": [4, 6, 8],
-    "model__learning_rate": [0.05, 0.1, 0.2],
+    "model__n_estimators": [300, 400, 500, 600],
+    "model__max_depth": [8, 10, 12, 14, 16],
+    "model__learning_rate": [0.03, 0.05, 0.1],
     "model__subsample": [0.8, 0.9, 1.0],
     "model__colsample_bytree": [0.8, 0.9, 1.0],
 }

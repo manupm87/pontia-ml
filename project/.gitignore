@@ -20,6 +20,10 @@ models/*.pkl
 # --- Artefactos temporales de Keras ---
 *.keras
 
+# --- Figuras interactivas de Plotly (se generan al ejecutar; ~5 MB cada una
+#     porque incrustan plotly.js). Se regeneran solas; no se versionan. ---
+iframe_figures/
+
 # --- Sistema operativo / editores ---
 .DS_Store
 .idea/

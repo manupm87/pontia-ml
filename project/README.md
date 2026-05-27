@@ -182,8 +182,10 @@ python -m src.tuning              # solo la búsqueda (escribe el JSON y el info
 
 Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
 (Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. La
-búsqueda mejoró el ROC-AUC de test de XGBoost de **0.9516** (valores base) a
-**0.9579**; el detalle queda en `outputs/tuning_hiperparametros.md`.
+búsqueda parte de unos valores base ya buenos (`max_depth=14, n_estimators=500,
+learning_rate=0.1`) y los mejora hasta `max_depth=16, n_estimators=600,
+learning_rate=0.03`, alcanzando **0.9614** de ROC-AUC en test; el detalle queda en
+`outputs/tuning_hiperparametros.md`.
 
 #### Balanceo de clases (bonus)
 
@@ -262,13 +264,13 @@ justo debajo).
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8886 | 0.8637 | 0.8304 | 0.8468 | **0.9579** |
+| **XGBoost** ⭐ | 0.8934 | 0.8701 | 0.8374 | 0.8535 | **0.9614** |
 | Red neuronal (Keras) | 0.8718 | 0.8427 | 0.8045 | 0.8231 | 0.9460 |
 | Random Forest | 0.8644 | 0.8828 | 0.7313 | 0.8000 | 0.9455 |
 | Árbol de decisión | 0.8551 | 0.8191 | 0.7819 | 0.8000 | 0.9329 |
 | Regresión logística | 0.8190 | 0.7312 | 0.8093 | 0.7683 | 0.9064 |
 
-⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.958). Se guarda como
+⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.961). Se guarda como
 `models/best_model.pkl`. *(Estas cifras son con los hiperparámetros optimizados,
 que el pipeline usa por defecto — ver más abajo.)*
 

@@ -34,6 +34,9 @@ def build_preprocessor() -> ColumnTransformer:
     sklearn.compose.ColumnTransformer
         Preprocesador sin ajustar, listo para insertarse en un ``Pipeline``.
     """
+    # Mapeo con `recursos/` (ver informe §4.5): SimpleImputer ≈ `.fillna(mediana)`,
+    # pero aprende la mediana en train y la reaplica en test/predicción.
+    # StandardScaler: la misma herramienta de clase (allí solo en KNN/SVM).
     numeric_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
@@ -41,6 +44,9 @@ def build_preprocessor() -> ColumnTransformer:
         ]
     )
 
+    # SimpleImputer(constant) ≈ `.fillna("Unknown")`; OneHotEncoder ≈
+    # `pd.get_dummies(X)` de `recursos/`, pero tolera categorías no vistas en
+    # predicción y limita la cardinalidad con `max_categories` (ver informe §4.5).
     categorical_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="constant", fill_value="Unknown")),
@@ -55,6 +61,8 @@ def build_preprocessor() -> ColumnTransformer:
         ]
     )
 
+    # ColumnTransformer: aplica cada rama por tipo de columna (en `recursos/` esto
+    # se haría a mano con pandas). Equivalencias completas en informe §4.5.
     preprocessor = ColumnTransformer(
         transformers=[
             ("num", numeric_transformer, config.NUMERIC_COLUMNS),
