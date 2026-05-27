@@ -11,6 +11,7 @@ Módulos principales:
 - ``evaluator``     : cálculo de métricas y visualizaciones.
 - ``train``         : orquestador del flujo completo (script principal).
 - ``predict``       : inferencia con el mejor modelo seleccionado.
+- ``interpretability``: explicabilidad del modelo (SHAP + importancia por permutación).
 
 ¿No conoces algún término técnico (one-hot, ROC-AUC, Pipeline, dropout...)? Todos
 están explicados en lenguaje sencillo en ``docs/glosario.md``.
