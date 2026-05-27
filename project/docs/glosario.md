@@ -229,6 +229,17 @@ directamente: dan una **probabilidad** (p. ej. 0.73). El **umbral** (por defecto
 característica en las decisiones del modelo. La dibujamos para el Random Forest y
 ayuda a **interpretar** qué factores predicen mejor la cancelación.
 
+**SHAP (SHapley Additive exPlanations).** Técnica de **interpretabilidad** que
+reparte cada predicción entre las variables: dice cuánto ha empujado cada una hacia
+"cancela" o "no cancela". Se basa en los *valores de Shapley* (teoría de juegos).
+Permite una lectura **global** (qué pesa más en todo el conjunto) y **local** (por
+qué una reserva concreta se predice así). Ver `docs/interpretabilidad.md`.
+
+**Importancia por permutación.** Forma sencilla y *agnóstica al modelo* de medir
+importancia: se baraja al azar una variable y se mira cuánto empeora la métrica; si
+empeora mucho, esa variable era importante. Sirve para cualquier modelo (no solo
+árboles).
+
 ---
 
 ## 5. Herramientas, librerías y formatos
@@ -275,3 +286,22 @@ es la herramienta que usamos y `.pkl` la extensión del fichero resultante.
 
 **ADR (Average Daily Rate).** Término del sector hotelero: **precio medio por noche**
 de la reserva (columna `adr`).
+
+**API REST.** Una *API* (Interfaz de Programación de Aplicaciones) es una "puerta de
+entrada" para que **otros programas** usen nuestro modelo sin conocer su código:
+envían datos y reciben una respuesta. *REST* es el estilo más común para APIs web
+(usa peticiones HTTP como `GET`/`POST`). Aquí exponemos la predicción por una API.
+
+**Endpoint.** Cada "dirección" concreta de la API que hace una cosa (p. ej.
+`POST /predict` para predecir, `GET /health` para comprobar el estado).
+
+**FastAPI / Uvicorn.** *FastAPI* es la librería con la que construimos la API en
+Python (rápida y con validación automática de los datos de entrada). *Uvicorn* es el
+servidor que la ejecuta (`uvicorn api.main:app`).
+
+**Swagger / OpenAPI.** Documentación **interactiva** de la API que FastAPI genera
+sola en `/docs`: permite ver los endpoints y probarlos desde el navegador.
+
+**Streamlit.** Librería para crear **aplicaciones web** de datos en Python con muy
+poco código. La usamos para la interfaz visual (`ui/app.py`): tablas, gráficos y un
+formulario de predicción que llama a la API.

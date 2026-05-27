@@ -326,6 +326,61 @@ eso el pipeline principal **no** balancea: como optimizamos ROC-AUC, el compromi
 recall/precisión se ajusta mejor **moviendo el umbral** de decisión según el coste
 de negocio (una cancelación no detectada vs. una falsa alarma).
 
+### 6.3. Interpretabilidad con SHAP
+
+Para entender **por qué** el modelo predice cada cancelación añadimos
+**interpretabilidad** con **SHAP** (*SHapley Additive exPlanations*): una técnica
+que reparte la predicción entre las variables, asignando a cada una cuánto ha
+empujado hacia "cancela" o "no cancela". Lo aplicamos en dos niveles:
+
+- **Global** (todo el conjunto): qué variables pesan más en general.
+- **Local** (una reserva): por qué *esa* reserva concreta se predice como
+  cancelación.
+
+Confirma los hallazgos del EDA: las variables que más empujan hacia la cancelación
+son `deposit_type='Non Refund'`, `country` (Portugal) y `lead_time`; las peticiones
+especiales y el parking **reducen** el riesgo. Como complemento *model-agnóstico*
+(válido para cualquier modelo) incluimos la **importancia por permutación**.
+Implementado en `src/interpretability.py` (`python -m src.interpretability`) y en el
+notebook [`10_interpretabilidad_shap.ipynb`](../notebooks/10_interpretabilidad_shap.ipynb);
+gráficos en `outputs/shap_*.png` y `outputs/permutation_importance.png`. Explicación
+detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
+
+### 6.4. API REST con FastAPI
+
+Para **productivizar** el modelo (poder consumirlo desde otros sistemas) creamos una
+**API REST** con **FastAPI** (`project/api/`). Carga `models/best_model.pkl` una sola
+vez y reutiliza el **mismo preprocesado** del pipeline (`src.predict`), de modo que la
+inferencia es idéntica al entrenamiento. Endpoints:
+
+- `GET /health` — comprobación de estado.
+- `GET /model-info` — modelo, métrica y variables que espera.
+- `POST /predict` — una reserva → `{prediction, label, probability}` (probabilidad de
+  cancelación).
+- `POST /predict/batch` — varias reservas a la vez.
+
+Incluye **documentación interactiva automática** (Swagger UI en `/docs`) y **tests**
+(`pytest`, 6 casos que pasan). Arrancar desde `project/`: `uvicorn api.main:app
+--reload`. Guía completa en [`api/README.md`](../api/README.md).
+
+### 6.5. Interfaz visual con Streamlit
+
+Una **interfaz visual** con **Streamlit** (`project/ui/`) reúne todo el proyecto en una
+web sencilla, con código **modular** (configuración, carga de datos y una sección por
+pantalla). Incluye:
+
+1. **Resumen y resultados:** tabla comparativa de los 5 modelos y sus gráficos.
+2. **Visualización de modelos:** todas las figuras de `outputs/` (ROC, matrices de
+   confusión, importancia, balanceo).
+3. **Predicción:** un formulario con las 27 variables que **llama a la API de FastAPI**
+   y muestra la probabilidad de cancelación.
+4. **Interpretabilidad:** los gráficos SHAP.
+5. **Exploración (EDA):** tasa de cancelación por categoría y balance de clases.
+
+Arrancar desde `project/`: `streamlit run ui/app.py` (con la API levantada para que
+funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
+[`ui/README.md`](../ui/README.md).
+
 ---
 
 ## 7. Reflexión crítica: limitaciones y mejoras
@@ -344,15 +399,18 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
   perdemos parte de la información de las menos frecuentes.
 - **Umbral fijo en 0.5:** no lo hemos ajustado a un objetivo concreto de negocio.
 
+> Varios *bonus* del enunciado ya están implementados (ver §6): optimización de
+> hiperparámetros, balanceo de clases, **interpretabilidad (SHAP)**, **API REST
+> (FastAPI)** e **interfaz visual (Streamlit)**.
+
 **Líneas de mejora (trabajo futuro)**
 
 - **Validación temporal** (entrenar con el pasado y probar con el futuro) para
   cifras más fiables que la división aleatoria actual.
-- **Reequilibrado de clases** (p. ej. `class_weight`, SMOTE).
-- **Interpretabilidad avanzada** con SHAP (explica cada predicción individual).
 - **Calibración de probabilidades** y ajuste del umbral según coste/beneficio.
-- **Productivización:** exponer el modelo mediante una API web y registrar los
-  experimentos (p. ej. con MLflow).
+- **Registro de experimentos con MLflow** (otro *bonus* pendiente).
+- **Embeddings** para las categóricas de alta cardinalidad (`country`, `agent`).
+- **Despliegue** de la API y la interfaz (p. ej. contenedor Docker y *hosting*).
 
 ---
 

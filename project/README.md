@@ -82,8 +82,9 @@ project/
 │   ├── raw/            # Datos originales (dataset_practica_final.csv)
 │   └── processed/      # Datos intermedios (se regeneran solos)
 ├── docs/
-│   ├── glosario.md          # 📖 Explicación de todos los términos técnicos
-│   └── informe_final.md     # Informe (roles, EDA, diseño, resultados, mejoras)
+│   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
+│   ├── informe_final.md      # Informe (roles, EDA, diseño, resultados, mejoras)
+│   └── interpretabilidad.md  # Interpretabilidad del modelo con SHAP (bonus)
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
 ├── notebooks/
@@ -97,6 +98,8 @@ project/
 │   ├── 07_comparativa_modelos.ipynb      # Comparación de los 5 modelos + viz 2D
 │   ├── 08_balanceo_clases.ipynb          # Desbalance: class_weight vs SMOTE
 │   ├── 09_no_supervisado.ipynb           # Clustering: segmentos de reserva
+│   ├── 10_interpretabilidad_shap.ipynb   # Interpretabilidad con SHAP (bonus)
+│   ├── playground/                       # Notebook autónomo estilo `recursos/` (XGBoost end-to-end)
 │   └── _PLANTILLA_modelo.ipynb           # Plantilla para crear un notebook de modelo
 ├── outputs/            # Gráficos y tablas que genera el sistema
 ├── src/                # Código fuente (el "motor" del proyecto)
@@ -107,9 +110,21 @@ project/
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
 │   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
 │   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
+│   ├── interpretability.py # Interpretabilidad con SHAP + importancia por permutación (bonus)
 │   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
 │   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
+├── api/                # 🔌 API REST (FastAPI) que sirve el modelo (bonus)
+│   ├── main.py            # App FastAPI y endpoints (/predict, /health, /model-info)
+│   ├── schemas.py         # Esquemas de entrada/salida (Pydantic)
+│   ├── service.py         # Carga del modelo y lógica de predicción
+│   ├── tests/             # Tests de la API (pytest)
+│   └── README.md          # Cómo arrancar y consumir la API
+├── ui/                 # 🖥️ Interfaz visual (Streamlit) (bonus)
+│   ├── app.py             # Punto de entrada de la app web
+│   ├── config.py / data.py / booking.py  # Configuración, datos y formulario
+│   ├── sections/          # Una pantalla por sección (resumen, predicción, EDA…)
+│   └── README.md          # Cómo arrancar la interfaz
 ├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
 └── README.md
 ```
@@ -252,6 +267,51 @@ jupyter lab    # o: jupyter notebook
   SMOTE y para qué sirven.
 - `notebooks/09_no_supervisado.ipynb` — clustering (K-Means) para descubrir
   segmentos de reserva y su tasa de cancelación.
+- `notebooks/10_interpretabilidad_shap.ipynb` — **interpretabilidad (bonus)**:
+  explica con **SHAP** por qué el modelo predice cada cancelación.
+
+### 4. Interpretabilidad del modelo con SHAP (bonus)
+
+Explica **por qué** el modelo decide, a nivel global (qué variables pesan más) y
+local (una reserva concreta). Genera los gráficos en `outputs/`:
+
+```bash
+python -m src.interpretability
+```
+
+Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el notebook
+`10_interpretabilidad_shap.ipynb`.
+
+### 5. API REST con FastAPI (bonus)
+
+Sirve el mejor modelo por HTTP para consumirlo desde otros sistemas:
+
+```bash
+uvicorn api.main:app --reload      # desde la carpeta project/
+```
+
+Abre la documentación interactiva en <http://127.0.0.1:8000/docs>. Endpoints:
+`GET /health`, `GET /model-info`, `POST /predict`, `POST /predict/batch`. Ejemplo:
+
+```bash
+curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" \
+  -d '{"hotel":"City Hotel","lead_time":100,"arrival_date_month":"August","arrival_date_week_number":33,"arrival_date_day_of_month":15,"stays_in_weekend_nights":2,"stays_in_week_nights":5,"adults":2,"children":0,"babies":0,"meal":"BB","country":"PRT","market_segment":"Online TA","distribution_channel":"TA/TO","is_repeated_guest":0,"previous_cancellations":0,"previous_bookings_not_canceled":0,"reserved_room_type":"A","assigned_room_type":"A","booking_changes":0,"deposit_type":"No Deposit","agent":"9","days_in_waiting_list":0,"customer_type":"Transient","adr":100.0,"required_car_parking_spaces":0,"total_of_special_requests":1}'
+```
+
+Guía completa y contrato en [`api/README.md`](api/README.md).
+
+### 6. Interfaz visual con Streamlit (bonus)
+
+Una web que reúne todo: resultados, gráficos de los modelos, un formulario de
+**predicción que consume la API**, interpretabilidad (SHAP) y exploración:
+
+```bash
+uvicorn api.main:app --reload      # 1) en una terminal: la API (para predecir)
+streamlit run ui/app.py            # 2) en otra terminal: la interfaz
+```
+
+La URL de la API se configura con la variable `PONTIA_API_URL` (por defecto
+`http://localhost:8000`). Guía en [`ui/README.md`](ui/README.md).
 
 ---
 
