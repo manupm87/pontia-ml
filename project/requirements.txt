@@ -1,9 +1,17 @@
-# Dependencias del proyecto — Python 3.12
+# Dependencias del proyecto — Python 3.11–3.13 (recomendado 3.12)
 # Instalación: pip install -r requirements.txt
+#
+# Python mínimo: 3.11 (lo fija numpy==2.4.6).
+# Python máximo: 3.13 (lo fija tensorflow-cpu==2.21.0, sin ruedas para 3.14).
 #
 # Nota sobre TensorFlow: se usa la variante CPU (tensorflow-cpu), suficiente para
 # la red neuronal de este proyecto y de instalación más ligera. Si dispones de
 # GPU puedes sustituirla por "tensorflow==2.21.0".
+#
+# Nota sobre macOS Intel (x86_64): tensorflow-cpu==2.21.0 no publica rueda para
+# esta plataforma. Para desarrollo local en Mac Intel sustituye por
+# tensorflow-cpu==2.16.2 (que además forzará numpy==1.26.4) e instala libomp
+# con `brew install libomp` para que XGBoost pueda cargar libxgboost.dylib.
 
 # --- Núcleo de datos y ML clásico ---
 numpy==2.4.6

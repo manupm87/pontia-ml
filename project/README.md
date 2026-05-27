@@ -136,7 +136,15 @@ project/
 
 ## ⚙️ Preparar el entorno (paso a paso)
 
-Necesitas **Python 3.12** (probado en 3.12.3).
+Necesitas **Python 3.11 – 3.13** (recomendado 3.12; el pipeline se ha
+desarrollado y probado en 3.12.3). El mínimo lo fija `numpy==2.4.6` (requiere
+Python ≥ 3.11) y el máximo `tensorflow-cpu==2.21.0` (no publica ruedas para 3.14).
+
+> ⚠️ **macOS Intel (x86_64):** `tensorflow-cpu==2.21.0` no publica rueda para
+> esta plataforma (solo `manylinux_2_27_x86_64` y `win_amd64`). En un Mac Intel
+> instala en su lugar `tensorflow-cpu==2.16.2` (la última con rueda macOS x86_64),
+> que además fuerza `numpy==1.26.4`. XGBoost necesita también `brew install libomp`.
+> En Linux/CI y Apple Silicon se usan las versiones pinneadas en `requirements.txt`.
 
 Usamos un **entorno virtual** (*venv*): una "caja" aislada donde instalamos las
 librerías de este proyecto sin afectar al resto de tu ordenador. Así todos usamos
@@ -392,7 +400,7 @@ El análisis detallado, las limitaciones y las posibles mejoras están en
 
 ## 🧰 Tecnologías utilizadas
 
-Python 3.12 · scikit-learn · XGBoost · TensorFlow/Keras · pandas · NumPy ·
+Python 3.11–3.13 · scikit-learn · XGBoost · TensorFlow/Keras · pandas · NumPy ·
 matplotlib · seaborn · plotly · Jupyter. Las versiones exactas están en
 [`requirements.txt`](requirements.txt). ¿No sabes qué es alguna? Mírala en el
 [**glosario**](docs/glosario.md).
