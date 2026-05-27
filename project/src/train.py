@@ -55,17 +55,39 @@ def _df_to_markdown(df) -> str:
     return "\n".join([encabezado, separador, *filas])
 
 
-def run_pipeline() -> tuple:
-    """Ejecuta el pipeline completo y devuelve ``(tabla_comparativa, mejor_modelo)``."""
+def run_pipeline(tune: bool = False) -> tuple:
+    """Ejecuta el pipeline completo y devuelve ``(tabla_comparativa, mejor_modelo)``.
+
+    Parameters
+    ----------
+    tune:
+        Si es True, antes de entrenar se optimizan los hiperparámetros de los
+        modelos clásicos por validación cruzada (``src.tuning``) y se usan los
+        mejores encontrados. Por defecto False (hiperparámetros fijos y rápidos).
+    """
+    from . import gpu
+
     config.ensure_directories()
+    gpu.log_status()  # informa de si se usará GPU (XGBoost) o CPU
 
     # 1) Carga + limpieza + partición estratificada.
     logger.info("=== Fase 1: carga y preparación de datos ===")
     X_train, X_test, y_train, y_test = load_and_prepare()
 
+    # 1.5) (Opcional) Optimización de hiperparámetros por CV.
+    param_overrides = None
+    if tune:
+        from .tuning import HyperparameterTuner
+
+        logger.info("=== Fase 1.5: optimización de hiperparámetros (--tune) ===")
+        tuner = HyperparameterTuner()
+        tuner.tune(X_train, y_train)
+        tuner.save_results()
+        param_overrides = tuner.best_params_
+
     # 2 + 3) Construcción de pipelines (preprocesado + modelo) y entrenamiento.
     logger.info("=== Fase 2-3: entrenamiento de modelos ===")
-    trainer = ModelTrainer()
+    trainer = ModelTrainer(param_overrides=param_overrides)
     modelos = trainer.train(X_train, y_train)
     trainer.save_models()
 
@@ -119,8 +141,18 @@ def _print_summary(tabla, mejor: str) -> None:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Pipeline de entrenamiento y comparación de modelos.")
+    parser.add_argument(
+        "--tune",
+        action="store_true",
+        help="Optimiza hiperparámetros por validación cruzada antes de entrenar (más lento).",
+    )
+    args = parser.parse_args()
+
     configure_logging()
-    run_pipeline()
+    run_pipeline(tune=args.tune)
 
 
 if __name__ == "__main__":

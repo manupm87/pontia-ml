@@ -205,8 +205,15 @@ class ModelTrainer:
     con los datos de entrenamiento (evitando *data leakage*).
     """
 
-    def __init__(self, random_state: int = config.RANDOM_STATE):
+    def __init__(
+        self,
+        random_state: int = config.RANDOM_STATE,
+        param_overrides: dict[str, dict] | None = None,
+    ):
         self.random_state = random_state
+        # `param_overrides` permite inyectar hiperparámetros (p. ej. los hallados
+        # por la optimización con `src.tuning`) sin tocar la configuración base.
+        self.param_overrides = param_overrides or {}
         self.models_: dict[str, Pipeline] = {}
         self.train_times_: dict[str, float] = {}
 
@@ -233,13 +240,26 @@ class ModelTrainer:
         from sklearn.tree import DecisionTreeClassifier
         from xgboost import XGBClassifier
 
+        from . import gpu
+
+        def params(nombre: str, base: dict) -> dict:
+            """Combina los parámetros base con los overrides para ese modelo."""
+            return {**base, **self.param_overrides.get(nombre, {})}
+
+        # XGBoost usa GPU (device='cuda') si hay una disponible; si no, CPU.
+        xgb_params = {**params("XGBoost", config.XGBOOST_PARAMS), **gpu.xgboost_gpu_kwargs()}
+
         modelos = {
             "Logistic Regression": LogisticRegression(
-                **config.LOGISTIC_REGRESSION_PARAMS
+                **params("Logistic Regression", config.LOGISTIC_REGRESSION_PARAMS)
             ),
-            "Decision Tree": DecisionTreeClassifier(**config.DECISION_TREE_PARAMS),
-            "Random Forest": RandomForestClassifier(**config.RANDOM_FOREST_PARAMS),
-            "XGBoost": XGBClassifier(**config.XGBOOST_PARAMS),
+            "Decision Tree": DecisionTreeClassifier(
+                **params("Decision Tree", config.DECISION_TREE_PARAMS)
+            ),
+            "Random Forest": RandomForestClassifier(
+                **params("Random Forest", config.RANDOM_FOREST_PARAMS)
+            ),
+            "XGBoost": XGBClassifier(**xgb_params),
             "Neural Network (Keras)": KerasMLPClassifier(
                 hidden_units=config.NN_PARAMS["hidden_units"],
                 dropout=config.NN_PARAMS["dropout"],

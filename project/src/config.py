@@ -8,6 +8,7 @@ principal, hiperparámetros, etc.) se hace desde un único punto.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -34,6 +35,16 @@ METRICS_TABLE_PATH: Path = OUTPUTS_DIR / "metricas_modelos.csv"
 # ---------------------------------------------------------------------------
 RANDOM_STATE: int = 42
 TEST_SIZE: float = 0.2
+
+# ---------------------------------------------------------------------------
+# Aceleración por GPU (opt-in)
+# ---------------------------------------------------------------------------
+# Por defecto, todo se ejecuta en CPU: para este tamaño de datos la GPU no
+# acelera (el coste por modelo es pequeño) y la CPU garantiza resultados
+# reproducibles. El código es "GPU-aware": poniendo la variable de entorno
+# PONTIA_USE_GPU=1 se activa el uso de GPU en XGBoost (device='cuda') cuando
+# haya una disponible, con caída automática a CPU si no funciona.
+USE_GPU: bool = os.getenv("PONTIA_USE_GPU", "false").lower() in {"1", "true", "yes"}
 
 # ---------------------------------------------------------------------------
 # Definición del problema
@@ -154,6 +165,45 @@ NN_PARAMS: dict = {
     "early_stopping_patience": 5,
     "validation_split": 0.2,
 }
+
+# ---------------------------------------------------------------------------
+# Optimización de hiperparámetros (bonus)
+# ---------------------------------------------------------------------------
+# Validación cruzada (CV) y métrica usadas durante la búsqueda. Se optimiza
+# ROC-AUC, la misma métrica principal del proyecto, para ser coherentes.
+TUNING_CV_FOLDS: int = 3
+TUNING_SCORING: str = "roc_auc"
+TUNING_N_ITER: int = 12  # nº de combinaciones que prueba RandomizedSearchCV
+
+# Espacios de búsqueda. Las claves llevan el prefijo "model__" porque el
+# estimador es el paso llamado "model" dentro del Pipeline. Para espacios
+# pequeños usamos GridSearchCV (exhaustivo); para los grandes, RandomizedSearchCV
+# (muestreo aleatorio), mucho más eficiente.
+LOGISTIC_REGRESSION_GRID: dict = {
+    "model__C": [0.01, 0.1, 1.0, 10.0],
+    "model__class_weight": [None, "balanced"],
+}
+DECISION_TREE_GRID: dict = {
+    "model__max_depth": [6, 8, 12, None],
+    "model__min_samples_leaf": [20, 50, 100],
+    "model__criterion": ["gini", "entropy"],
+}
+RANDOM_FOREST_GRID: dict = {
+    "model__n_estimators": [200, 300, 400],
+    "model__max_depth": [12, 18, None],
+    "model__min_samples_leaf": [5, 10, 20],
+    "model__max_features": ["sqrt", "log2"],
+}
+XGBOOST_GRID: dict = {
+    "model__n_estimators": [200, 300, 400],
+    "model__max_depth": [4, 6, 8],
+    "model__learning_rate": [0.05, 0.1, 0.2],
+    "model__subsample": [0.8, 0.9, 1.0],
+    "model__colsample_bytree": [0.8, 0.9, 1.0],
+}
+
+# Artefacto con los resultados de la búsqueda.
+TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 
 
 def ensure_directories() -> None:

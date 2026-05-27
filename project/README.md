@@ -97,7 +97,9 @@ project/
 │   ├── preprocessing.py   # Preparar los datos para el modelo
 │   ├── model_trainer.py   # Definir y entrenar los modelos
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
-│   ├── train.py           # 🚀 Programa principal (ejecuta todo el proceso)
+│   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
+│   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
+│   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
 ├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
 └── README.md
@@ -155,6 +157,33 @@ elegir el mejor**. Al terminar guarda automáticamente:
   *(Un `.pkl` es un modelo ya entrenado guardado en disco para reutilizarlo.)*
 - En `outputs/`: la tabla de métricas (`metricas_modelos.csv`) y los gráficos
   (curva ROC, matrices de confusión e importancia de variables).
+
+#### Optimización de hiperparámetros (bonus)
+
+Por defecto se usan hiperparámetros fijos (rápido y reproducible). Para
+**buscar los mejores hiperparámetros** por validación cruzada antes de entrenar:
+
+```bash
+python -m src.train --tune        # optimiza y luego entrena con lo mejor encontrado
+python -m src.tuning              # solo la búsqueda (escribe outputs/tuning_hiperparametros.md)
+```
+
+Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
+(Random Forest y XGBoost), optimizando ROC-AUC. Mejora las métricas de test
+(p. ej. XGBoost ROC-AUC 0.9548 → ~0.96).
+
+#### Aceleración por GPU (opcional)
+
+El proyecto corre en **CPU por defecto** (para este tamaño de datos la GPU no
+acelera y la CPU es 100 % reproducible). El código es *GPU-aware*: si tienes una
+GPU NVIDIA y quieres que **XGBoost** la use, define la variable de entorno:
+
+```bash
+PONTIA_USE_GPU=1 python -m src.train     # XGBoost con device='cuda' (si hay GPU)
+```
+
+Si la GPU no es utilizable, cae automáticamente a CPU. *(La red neuronal usaría
+GPU solo con un TensorFlow compilado con CUDA; aquí se usa `tensorflow-cpu`.)*
 
 ### 2. Predecir con el mejor modelo
 
