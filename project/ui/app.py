@@ -1,0 +1,114 @@
+"""Interfaz visual del proyecto (Streamlit) — punto de entrada.
+
+Arranque (desde la carpeta `project/`):
+
+    streamlit run ui/app.py
+
+La navegación entre secciones está en la barra lateral. Cada sección vive en su
+propio módulo dentro de `ui/sections/` y expone una función `render()`, de modo
+que este fichero solo se ocupa de la estructura general (layout, navegación,
+estado de la API), no del contenido.
+
+La sección de predicción consume la **API FastAPI** del proyecto; su URL se lee
+de la variable de entorno `PONTIA_API_URL` (por defecto `http://localhost:8000`).
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import streamlit as st
+
+# Permite ejecutar `streamlit run ui/app.py` desde `project/`: añadimos la raíz
+# del proyecto al path para que `import ui...` resuelva al paquete local.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ui import config, data  # noqa: E402
+from ui.sections import (  # noqa: E402
+    eda,
+    interpretabilidad,
+    prediccion,
+    resumen,
+    visualizaciones,
+)
+
+# Mapa de secciones: etiqueta del menú -> función de renderizado.
+SECTIONS: dict[str, callable] = {
+    "Resumen y resultados": resumen.render,
+    "Visualización de los modelos": visualizaciones.render,
+    "Predicción (API)": prediccion.render,
+    "Interpretabilidad": interpretabilidad.render,
+    "Exploración (EDA)": eda.render,
+}
+
+
+def _configure_page() -> None:
+    """Configuración global de la página (debe ir la primera de todo)."""
+    st.set_page_config(
+        page_title="Predicción de cancelaciones — Pontia ML",
+        page_icon="🏨",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+
+def _render_sidebar() -> str:
+    """Dibuja la barra lateral (navegación + estado de la API). Devuelve la
+    sección elegida por el usuario."""
+    st.sidebar.title("🏨 Pontia ML")
+    st.sidebar.markdown(
+        "Escaparate del proyecto de **predicción de cancelaciones** de reservas "
+        "de hotel (clasificación binaria)."
+    )
+
+    choice = st.sidebar.radio(
+        "Secciones", list(SECTIONS.keys()), label_visibility="visible"
+    )
+
+    st.sidebar.divider()
+    st.sidebar.subheader("Estado de la API")
+    ok, info = data.check_api_health()
+    if ok:
+        st.sidebar.success("Conectada", icon="✅")
+    else:
+        st.sidebar.error("No disponible", icon="🚫")
+    st.sidebar.caption(f"URL: `{config.API_BASE_URL}`")
+    st.sidebar.caption(
+        "La predicción requiere la API en marcha "
+        "(`uvicorn api.main:app`). Cambia la URL con `PONTIA_API_URL`."
+    )
+
+    st.sidebar.divider()
+    st.sidebar.caption(
+        f"Mejor modelo: **{config.BEST_MODEL_NAME}** · "
+        f"ROC-AUC {config.BEST_MODEL_ROC_AUC:.4f}"
+    )
+    return choice
+
+
+def main() -> None:
+    _configure_page()
+    choice = _render_sidebar()
+    # Renderiza la sección seleccionada.
+    SECTIONS[choice]()
+
+
+if __name__ == "__main__":
+    main()
+else:
+    # Streamlit importa el script como módulo (`__name__` != "__main__") al
+    # ejecutarlo con `streamlit run`, así que disparamos el renderizado también
+    # en ese caso. Al importarlo desde un test, en cambio, NO se ejecuta porque
+    # Streamlit no está en modo de script (las llamadas a `st.*` no harían nada
+    # útil); para evitar efectos colaterales, comprobamos el contexto.
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is not None:
+            main()
+    except Exception:
+        # Sin runtime de Streamlit (importación normal): no renderizamos nada.
+        pass
