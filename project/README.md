@@ -88,7 +88,8 @@ project/
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
 ├── notebooks/
 │   ├── 01_eda.ipynb              # Exploración y entendimiento de los datos
-│   └── 02_comparativa_modelos.ipynb  # Comparación de modelos y gráficos
+│   ├── 02_comparativa_modelos.ipynb  # Comparación de modelos y gráficos
+│   └── 03_no_supervisado.ipynb   # Clustering: segmentos de reserva (no supervisado)
 ├── outputs/            # Gráficos y tablas que genera el sistema
 ├── src/                # Código fuente (el "motor" del proyecto)
 │   ├── config.py          # Configuración: rutas, ajustes y constantes
@@ -181,7 +182,9 @@ jupyter lab    # o: jupyter notebook
 
 - `notebooks/01_eda.ipynb` — exploramos los datos y explicamos cada decisión.
 - `notebooks/02_comparativa_modelos.ipynb` — comparamos los modelos y mostramos los
-  gráficos.
+  gráficos (incluida la visualización 2D: proyección PLS y t-SNE).
+- `notebooks/03_no_supervisado.ipynb` — clustering (K-Means) para descubrir
+  segmentos de reserva y su tasa de cancelación.
 
 ---
 
