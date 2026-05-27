@@ -211,6 +211,14 @@ TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 # usan por defecto a partir de entonces".
 BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 
+# ---------------------------------------------------------------------------
+# Balanceo de clases (bonus)
+# ---------------------------------------------------------------------------
+# Artefactos de la comparación de estrategias de balanceo (sin balanceo,
+# reponderación por class_weight, y sobremuestreo SMOTE).
+BALANCING_RESULTS_PATH: Path = OUTPUTS_DIR / "balanceo_clases.md"
+BALANCING_PLOT_PATH: Path = OUTPUTS_DIR / "balanceo_clases.png"
+
 
 def ensure_directories() -> None:
     """Crea las carpetas de salida si no existen.

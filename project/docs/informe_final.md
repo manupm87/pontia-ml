@@ -260,6 +260,26 @@ forma análoga el resto de modelos); el detalle (CV base vs. optimizada) queda e
 > porque a esta escala de datos la GPU no acelera y la CPU es plenamente
 > reproducible (`src/gpu.py`).
 
+### 6.2. Balanceo de clases
+
+El problema está moderadamente desbalanceado (~37 % de cancelaciones). Comparamos
+tres estrategias (`src/balancing.py`, resultados en `outputs/balanceo_clases.md`
+y `.png`): **sin balanceo**, **class_weight** (reponderar la clase minoritaria;
+`scale_pos_weight` en XGBoost) y **SMOTE** (sobremuestreo sintético con
+*imbalanced-learn*, aplicado solo al entrenamiento).
+
+| XGBoost | recall | precision | ROC-AUC |
+|---|:--:|:--:|:--:|
+| Sin balanceo | 0.82 | 0.86 | 0.955 |
+| class_weight | **0.88** | 0.81 | 0.955 |
+| SMOTE | 0.84 | 0.84 | 0.953 |
+
+**Conclusión:** el balanceo **sube el recall** (detecta más cancelaciones) a costa
+de **precisión**, y el **ROC-AUC apenas cambia** (es independiente del umbral). Por
+eso el pipeline principal **no** balancea: como optimizamos ROC-AUC, el compromiso
+recall/precisión se ajusta mejor **moviendo el umbral** de decisión según el coste
+de negocio (una cancelación no detectada vs. una falsa alarma).
+
 ---
 
 ## 7. Reflexión crítica: limitaciones y mejoras

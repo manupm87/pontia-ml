@@ -15,6 +15,9 @@ joblib==1.5.3
 # --- Gradient Boosting ---
 xgboost==3.2.0
 
+# --- Balanceo de clases (bonus): SMOTE y similares ---
+imbalanced-learn==0.14.1
+
 # --- Deep Learning (red neuronal con Keras) ---
 tensorflow-cpu==2.21.0
 keras==3.14.1

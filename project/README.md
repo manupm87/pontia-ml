@@ -98,6 +98,7 @@ project/
 │   ├── model_trainer.py   # Definir y entrenar los modelos
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
 │   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
+│   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
 │   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
 │   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
@@ -175,6 +176,21 @@ Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
 (Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. La
 búsqueda mejoró el ROC-AUC de test de XGBoost de **0.9548** (valores base) a
 **0.9603**; el detalle queda en `outputs/tuning_hiperparametros.md`.
+
+#### Balanceo de clases (bonus)
+
+Comparamos cómo afecta tratar el desbalance (~37 % de cancelaciones):
+
+```bash
+python -m src.balancing   # escribe outputs/balanceo_clases.md y .png
+```
+
+Contrasta **sin balanceo**, **class_weight** (reponderar la clase minoritaria) y
+**SMOTE** (sobremuestreo sintético, vía *imbalanced-learn*). Conclusión: ambas
+**suben el recall** (se detectan más cancelaciones) a costa de **precisión**,
+mientras el **ROC-AUC apenas cambia** (es independiente del umbral). Por eso el
+pipeline principal no balancea: optimizamos ROC-AUC y el compromiso
+recall/precisión se ajustaría moviendo el umbral según el coste de negocio.
 
 #### Aceleración por GPU (opcional)
 
