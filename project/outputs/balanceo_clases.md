@@ -4,18 +4,18 @@ Desbalance del problema: ~37 % de cancelaciones. Métricas sobre el conjunto de 
 
 | modelo | estrategia | accuracy | precision | recall | f1 | roc_auc |
 |---|---|---|---|---|---|---|
-| Logistic Regression | baseline | 0.825 | 0.805 | 0.696 | 0.746 | 0.907 |
-| Decision Tree | baseline | 0.854 | 0.826 | 0.768 | 0.796 | 0.934 |
-| Random Forest | baseline | 0.861 | 0.887 | 0.717 | 0.793 | 0.943 |
-| XGBoost | baseline | 0.883 | 0.857 | 0.819 | 0.838 | 0.955 |
-| Logistic Regression | class_weight | 0.822 | 0.735 | 0.813 | 0.772 | 0.908 |
-| Decision Tree | class_weight | 0.836 | 0.732 | 0.878 | 0.799 | 0.929 |
-| Random Forest | class_weight | 0.868 | 0.813 | 0.837 | 0.825 | 0.944 |
-| XGBoost | class_weight | 0.877 | 0.806 | 0.878 | 0.841 | 0.955 |
-| Logistic Regression | SMOTE | 0.822 | 0.735 | 0.812 | 0.772 | 0.907 |
-| Decision Tree | SMOTE | 0.847 | 0.764 | 0.849 | 0.804 | 0.932 |
-| Random Forest | SMOTE | 0.868 | 0.824 | 0.819 | 0.821 | 0.943 |
-| XGBoost | SMOTE | 0.880 | 0.840 | 0.835 | 0.837 | 0.953 |
+| Logistic Regression | baseline | 0.825 | 0.806 | 0.695 | 0.747 | 0.906 |
+| Decision Tree | baseline | 0.850 | 0.819 | 0.764 | 0.791 | 0.930 |
+| Random Forest | baseline | 0.857 | 0.884 | 0.708 | 0.786 | 0.940 |
+| XGBoost | baseline | 0.880 | 0.857 | 0.813 | 0.834 | 0.952 |
+| Logistic Regression | class_weight | 0.819 | 0.731 | 0.810 | 0.768 | 0.906 |
+| Decision Tree | class_weight | 0.846 | 0.795 | 0.789 | 0.792 | 0.925 |
+| Random Forest | class_weight | 0.863 | 0.803 | 0.834 | 0.818 | 0.940 |
+| XGBoost | class_weight | 0.874 | 0.805 | 0.873 | 0.837 | 0.952 |
+| Logistic Regression | SMOTE | 0.820 | 0.734 | 0.807 | 0.769 | 0.906 |
+| Decision Tree | SMOTE | 0.841 | 0.775 | 0.805 | 0.790 | 0.927 |
+| Random Forest | SMOTE | 0.864 | 0.818 | 0.815 | 0.817 | 0.940 |
+| XGBoost | SMOTE | 0.877 | 0.837 | 0.830 | 0.834 | 0.950 |
 
 **Lectura.** El balanceo (class_weight o SMOTE) **sube el recall** —se detectan más cancelaciones— a costa de **bajar la precisión**, mientras que el **ROC-AUC apenas cambia** (es independiente del umbral). Es decir, no hace al modelo "mejor" en capacidad de ordenar, pero sí desplaza el compromiso hacia detectar más positivos, útil si al hotel le cuesta más una cancelación no detectada que una falsa alarma.
 

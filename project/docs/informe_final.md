@@ -95,6 +95,28 @@ rellenarla con un valor razonable.
   **estandarización** (ponerlas todas en una escala comparable, media 0 y
   desviación 1).
 
+**Descartamos `arrival_date_year`.** El dataset tiene cuatro variables de fecha de
+llegada (`year`, `month`, `week_number`, `day_of_month`). Las tres últimas aportan
+**estacionalidad** (épocas del año en que se cancela más o menos), pero el **año**
+no aporta valor real, por tres motivos:
+
+- **Apenas discrimina:** la tasa de cancelación es casi idéntica los tres años
+  (2015: 37.0 %, 2016: 35.9 %, 2017: 38.7 %).
+- **No generaliza:** el modelo debe puntuar reservas *futuras*. Un año que no vio al
+  entrenar (2018 en adelante) no tiene un valor de "año" interpretable: los árboles
+  lo meterían en el último tramo conocido y un modelo lineal extrapolaría una
+  tendencia inexistente.
+- **Va confundido con la estación:** el dataset cubre **años parciales** (2015 solo
+  jul–dic; 2017 solo ene–ago), de ahí que el año tenga una correlación de **−0.54**
+  con `week_number` (la más alta de todas las numéricas). Esa señal estacional ya la
+  recogen `month` y `week_number`, que **sí se repiten** cada año.
+
+*Decisión:* eliminar `arrival_date_year`. En una partición aleatoria, incluirla
+subía el ROC-AUC de XGBoost en ~0.003, pero es una mejora **engañosa** (optimismo
+que no se trasladaría a producción, donde siempre se predice el futuro). Renunciar a
+ella hace el modelo más honesto, en línea con la limitación de *validación temporal*
+de la §7.
+
 ### 3.5. Variables categóricas (de texto)
 
 - `deposit_type = "Non Refund"` (depósito no reembolsable) tiene una tasa de
@@ -183,15 +205,15 @@ que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8925 | 0.8680 | 0.8376 | 0.8525 | **0.9603** |
-| Red neuronal (Keras) | 0.8746 | 0.8502 | 0.8034 | 0.8262 | 0.9483 |
-| Random Forest | 0.8680 | 0.8852 | 0.7399 | 0.8061 | 0.9482 |
-| Árbol de decisión | 0.8588 | 0.8344 | 0.7725 | 0.8023 | 0.9369 |
-| Regresión logística | 0.8211 | 0.7333 | 0.8132 | 0.7712 | 0.9077 |
+| **XGBoost** ⭐ | 0.8886 | 0.8637 | 0.8304 | 0.8468 | **0.9579** |
+| Red neuronal (Keras) | 0.8718 | 0.8427 | 0.8045 | 0.8231 | 0.9460 |
+| Random Forest | 0.8644 | 0.8828 | 0.7313 | 0.8000 | 0.9455 |
+| Árbol de decisión | 0.8551 | 0.8191 | 0.7819 | 0.8000 | 0.9329 |
+| Regresión logística | 0.8190 | 0.7312 | 0.8093 | 0.7683 | 0.9064 |
 
 > Estas cifras se obtienen con los **hiperparámetros optimizados** por validación
 > cruzada (ver §6, bonus), que el pipeline usa por defecto. Sin optimizar, XGBoost
-> lograba 0.9548 de ROC-AUC.
+> lograba 0.9516 de ROC-AUC.
 
 > **Recordatorio de métricas** (detalle en el [glosario](glosario.md)):
 > *accuracy* = % de aciertos · *precision* = pocas falsas alarmas · *recall* = se
@@ -219,14 +241,14 @@ predicciones del Random Forest.*
   decisión (lo que permite ajustar la "agresividad" del *overbooking*) y es
   comparable entre modelos. Reportamos además *recall* y *F1* por su lectura de
   negocio.
-- **Modelo elegido: XGBoost** (ROC-AUC = 0.960). Supera al resto en la métrica
+- **Modelo elegido: XGBoost** (ROC-AUC = 0.958). Supera al resto en la métrica
   principal y en F1, y además entrena muy rápido (~1.3 s). Se guarda como
   `models/best_model.pkl`.
 
 ### 5.2. Qué significan estos resultados para el hotel
 
-- XGBoost detecta el **84 % de las cancelaciones reales** (*recall* 0.84) con una
-  **precisión del 87 %**: un buen equilibrio para actuar sin generar demasiadas
+- XGBoost detecta el **83 % de las cancelaciones reales** (*recall* 0.83) con una
+  **precisión del 86 %**: un buen equilibrio para actuar sin generar demasiadas
   falsas alarmas.
 - El Random Forest es el más **conservador** (más precisión pero menos recall):
   preferible si una falsa alarma fuese muy costosa.
@@ -251,7 +273,7 @@ Buscamos automáticamente la mejor configuración de cada modelo clásico median
 Los mejores hiperparámetros se **persisten** en `outputs/best_hiperparametros.json`
 y el pipeline los **usa por defecto** (`python -m src.train`); rehacer la búsqueda
 es tan simple como `python -m src.train --tune` o `python -m src.tuning`. La
-optimización mejoró el ROC-AUC de test de XGBoost de **0.9548 a 0.9603** (y de
+optimización mejoró el ROC-AUC de test de XGBoost de **0.9516 a 0.9579** (y de
 forma análoga el resto de modelos); el detalle (CV base vs. optimizada) queda en
 `outputs/tuning_hiperparametros.md`. Implementado en `src/tuning.py`.
 
@@ -270,9 +292,9 @@ y `.png`): **sin balanceo**, **class_weight** (reponderar la clase minoritaria;
 
 | XGBoost | recall | precision | ROC-AUC |
 |---|:--:|:--:|:--:|
-| Sin balanceo | 0.82 | 0.86 | 0.955 |
-| class_weight | **0.88** | 0.81 | 0.955 |
-| SMOTE | 0.84 | 0.84 | 0.953 |
+| Sin balanceo | 0.81 | 0.86 | 0.952 |
+| class_weight | **0.87** | 0.81 | 0.952 |
+| SMOTE | 0.83 | 0.84 | 0.950 |
 
 **Conclusión:** el balanceo **sube el recall** (detecta más cancelaciones) a costa
 de **precisión**, y el **ROC-AUC apenas cambia** (es independiente del umbral). Por

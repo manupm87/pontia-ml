@@ -4,7 +4,7 @@
     "class_weight": "balanced"
   },
   "Decision Tree": {
-    "criterion": "entropy",
+    "criterion": "gini",
     "max_depth": null,
     "min_samples_leaf": 50
   },

@@ -81,9 +81,23 @@ CATEGORICAL_COLUMNS: list[str] = [
 ]
 
 # Variables numéricas continuas o discretas.
+#
+# `arrival_date_year` se EXCLUYE a propósito (no se usa como característica):
+#   - Apenas discrimina: la tasa de cancelación es casi plana entre años
+#     (2015: 37.0 %, 2016: 35.9 %, 2017: 38.7 %).
+#   - No generaliza: el objetivo es predecir reservas FUTURAS, y un año no visto
+#     en el entrenamiento (2018 en adelante) no tiene un valor de "año" con
+#     sentido para el modelo (los árboles lo meterían en el último tramo y los
+#     modelos lineales extrapolarían una tendencia inexistente).
+#   - Está confundida con la estación: el dataset cubre años PARCIALES (2015 solo
+#     jul-dic, 2017 solo ene-ago), de ahí su correlación −0.54 con
+#     `arrival_date_week_number`. La señal estacional ya la capturan `month` y
+#     `week_number`, que SÍ se repiten cada año.
+# En una partición aleatoria, incluirla subía el ROC-AUC de XGBoost ~0.003, pero
+# esa mejora es *optimismo* que no se trasladaría a producción. Al no figurar en
+# estas listas, el `ColumnTransformer` la descarta vía `remainder="drop"`.
 NUMERIC_COLUMNS: list[str] = [
     "lead_time",
-    "arrival_date_year",
     "arrival_date_week_number",
     "arrival_date_day_of_month",
     "stays_in_weekend_nights",
