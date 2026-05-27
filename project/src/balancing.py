@@ -27,8 +27,6 @@ from __future__ import annotations
 import logging
 
 import matplotlib
-
-matplotlib.use("Agg")  # backend no interactivo para guardar PNG
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -183,6 +181,7 @@ def main() -> None:
     from .data_loader import load_and_prepare
     from .train import configure_logging
 
+    matplotlib.use("Agg")  # CLI: backend no interactivo para guardar el PNG sin pantalla
     configure_logging()
     config.ensure_directories()
     logger.info("=== Balanceo de clases: baseline vs class_weight vs SMOTE ===")

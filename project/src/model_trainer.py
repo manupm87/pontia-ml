@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Envoltorio de la red neuronal de Keras
 # ---------------------------------------------------------------------------
-class KerasMLPClassifier(BaseEstimator, ClassifierMixin):
+class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
     """Perceptrón multicapa (Keras) con interfaz de scikit-learn.
 
     Implementa ``fit``, ``predict`` y ``predict_proba`` para poder usarse como

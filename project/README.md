@@ -87,9 +87,17 @@ project/
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
 ├── notebooks/
-│   ├── 01_eda.ipynb              # Exploración y entendimiento de los datos
-│   ├── 02_comparativa_modelos.ipynb  # Comparación de modelos y gráficos
-│   └── 03_no_supervisado.ipynb   # Clustering: segmentos de reserva (no supervisado)
+│   ├── 01_eda.ipynb                      # EDA compartido por todos los modelos
+│   ├── 02_modelo_regresion_logistica.ipynb  # Un notebook por modelo: teoría +
+│   ├── 03_modelo_arbol_decision.ipynb        #   hiperparámetros + entrenamiento +
+│   ├── 04_modelo_random_forest.ipynb         #   optimización + evaluación
+│   ├── 05_modelo_xgboost.ipynb
+│   ├── 06_modelo_red_neuronal.ipynb
+│   ├── 07_comparativa_modelos.ipynb      # Comparación de los 5 modelos + viz 2D
+│   ├── 08_balanceo_clases.ipynb          # Desbalance: class_weight vs SMOTE
+│   └── 09_no_supervisado.ipynb           # Clustering: segmentos de reserva
+├── tools/
+│   └── generar_notebooks_modelos.py  # Genera los notebooks de modelo desde una plantilla
 ├── outputs/            # Gráficos y tablas que genera el sistema
 ├── src/                # Código fuente (el "motor" del proyecto)
 │   ├── config.py          # Configuración: rutas, ajustes y constantes
@@ -229,10 +237,18 @@ jupyter lab    # o: jupyter notebook
 > Un **notebook** es un documento interactivo que combina texto, código y
 > resultados. El **kernel** es el "motor" de Python que ejecuta su código.
 
-- `notebooks/01_eda.ipynb` — exploramos los datos y explicamos cada decisión.
-- `notebooks/02_comparativa_modelos.ipynb` — comparamos los modelos y mostramos los
+- `notebooks/01_eda.ipynb` — EDA **compartido**: exploramos los datos y explicamos
+  cada decisión de preprocesado.
+- `notebooks/02`–`06_modelo_*.ipynb` — **un notebook por modelo** (regresión
+  logística, árbol, Random Forest, XGBoost, red neuronal), todos con la misma
+  estructura: cómo funciona, qué controla cada hiperparámetro, entrenamiento,
+  optimización y evaluación. Se generan desde una plantilla común con
+  `tools/generar_notebooks_modelos.py`.
+- `notebooks/07_comparativa_modelos.ipynb` — compara los 5 modelos y muestra los
   gráficos (incluida la visualización 2D: proyección PLS y t-SNE).
-- `notebooks/03_no_supervisado.ipynb` — clustering (K-Means) para descubrir
+- `notebooks/08_balanceo_clases.ipynb` — desbalance de clases: `class_weight` vs
+  SMOTE y para qué sirven.
+- `notebooks/09_no_supervisado.ipynb` — clustering (K-Means) para descubrir
   segmentos de reserva y su tasa de cancelación.
 
 ---
