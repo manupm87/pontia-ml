@@ -30,6 +30,11 @@ xgboost>=2.1,<3.3
 
 # --- Interpretabilidad (bonus): SHAP ---
 shap>=0.46,<0.50
+# numba 0.63+ dejó de publicar ruedas para macOS x86_64; lo capamos para
+# que `pip install` no intente compilar llvmlite desde fuentes (necesitaría
+# cmake + LLVM). 0.62.1 sigue teniendo ruedas para las 4 plataformas.
+numba>=0.59,<0.63
+llvmlite>=0.42,<0.46
 
 # --- Balanceo de clases (bonus): SMOTE y similares ---
 imbalanced-learn>=0.12,<0.14
