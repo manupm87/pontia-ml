@@ -87,17 +87,17 @@ project/
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
 ├── notebooks/
+│   ├── README.md                         # Convención de los notebooks + cómo añadir un modelo
 │   ├── 01_eda.ipynb                      # EDA compartido por todos los modelos
 │   ├── 02_modelo_regresion_logistica.ipynb  # Un notebook por modelo: teoría +
 │   ├── 03_modelo_arbol_decision.ipynb        #   hiperparámetros + entrenamiento +
-│   ├── 04_modelo_random_forest.ipynb         #   optimización + evaluación
+│   ├── 04_modelo_random_forest.ipynb         #   visualización + optimización
 │   ├── 05_modelo_xgboost.ipynb
 │   ├── 06_modelo_red_neuronal.ipynb
 │   ├── 07_comparativa_modelos.ipynb      # Comparación de los 5 modelos + viz 2D
 │   ├── 08_balanceo_clases.ipynb          # Desbalance: class_weight vs SMOTE
-│   └── 09_no_supervisado.ipynb           # Clustering: segmentos de reserva
-├── tools/
-│   └── generar_notebooks_modelos.py  # Genera los notebooks de modelo desde una plantilla
+│   ├── 09_no_supervisado.ipynb           # Clustering: segmentos de reserva
+│   └── _PLANTILLA_modelo.ipynb           # Plantilla para crear un notebook de modelo
 ├── outputs/            # Gráficos y tablas que genera el sistema
 ├── src/                # Código fuente (el "motor" del proyecto)
 │   ├── config.py          # Configuración: rutas, ajustes y constantes
@@ -107,6 +107,8 @@ project/
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
 │   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
 │   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
+│   ├── model_viz.py       # Visualización de cada modelo (árbol, coeficientes, arquitectura…)
+│   ├── notebook_utils.py  # Helpers compartidos por los notebooks (evaluar, gráficos)
 │   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
 │   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
@@ -242,8 +244,8 @@ jupyter lab    # o: jupyter notebook
 - `notebooks/02`–`06_modelo_*.ipynb` — **un notebook por modelo** (regresión
   logística, árbol, Random Forest, XGBoost, red neuronal), todos con la misma
   estructura: cómo funciona, qué controla cada hiperparámetro, entrenamiento,
-  optimización y evaluación. Se generan desde una plantilla común con
-  `tools/generar_notebooks_modelos.py`.
+  visualización del modelo, optimización y evaluación. Para añadir uno, se copia
+  `notebooks/_PLANTILLA_modelo.ipynb` (convención en `notebooks/README.md`).
 - `notebooks/07_comparativa_modelos.ipynb` — compara los 5 modelos y muestra los
   gráficos (incluida la visualización 2D: proyección PLS y t-SNE).
 - `notebooks/08_balanceo_clases.ipynb` — desbalance de clases: `class_weight` vs
