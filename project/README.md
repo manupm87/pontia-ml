@@ -160,17 +160,21 @@ elegir el mejor**. Al terminar guarda automáticamente:
 
 #### Optimización de hiperparámetros (bonus)
 
-Por defecto se usan hiperparámetros fijos (rápido y reproducible). Para
-**buscar los mejores hiperparámetros** por validación cruzada antes de entrenar:
+Los hiperparámetros óptimos **ya están buscados y se usan por defecto**: están
+guardados en `outputs/best_hiperparametros.json`, y `python -m src.train` los
+carga automáticamente. Sin ese fichero, el pipeline recurre a unos valores base.
+
+Para **rehacer la búsqueda** por validación cruzada:
 
 ```bash
-python -m src.train --tune        # optimiza y luego entrena con lo mejor encontrado
-python -m src.tuning              # solo la búsqueda (escribe outputs/tuning_hiperparametros.md)
+python -m src.train --tune        # busca, guarda el JSON y entrena con lo mejor
+python -m src.tuning              # solo la búsqueda (escribe el JSON y el informe .md)
 ```
 
 Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
-(Random Forest y XGBoost), optimizando ROC-AUC. Mejora las métricas de test
-(p. ej. XGBoost ROC-AUC 0.9548 → ~0.96).
+(Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. La
+búsqueda mejoró el ROC-AUC de test de XGBoost de **0.9548** (valores base) a
+**0.9603**; el detalle queda en `outputs/tuning_hiperparametros.md`.
 
 #### Aceleración por GPU (opcional)
 
@@ -226,14 +230,15 @@ justo debajo).
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8826 | 0.8575 | 0.8195 | 0.8380 | **0.9548** |
+| **XGBoost** ⭐ | 0.8925 | 0.8680 | 0.8376 | 0.8525 | **0.9603** |
 | Red neuronal (Keras) | 0.8746 | 0.8502 | 0.8034 | 0.8262 | 0.9483 |
-| Random Forest | 0.8611 | 0.8871 | 0.7165 | 0.7927 | 0.9431 |
-| Árbol de decisión | 0.8542 | 0.8264 | 0.7680 | 0.7961 | 0.9337 |
-| Regresión logística | 0.8246 | 0.8045 | 0.6960 | 0.7464 | 0.9072 |
+| Random Forest | 0.8680 | 0.8852 | 0.7399 | 0.8061 | 0.9482 |
+| Árbol de decisión | 0.8588 | 0.8344 | 0.7725 | 0.8023 | 0.9369 |
+| Regresión logística | 0.8211 | 0.7333 | 0.8132 | 0.7712 | 0.9077 |
 
-⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.955). Se guarda como
-`models/best_model.pkl`.
+⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.960). Se guarda como
+`models/best_model.pkl`. *(Estas cifras son con los hiperparámetros optimizados,
+que el pipeline usa por defecto — ver más abajo.)*
 
 **¿Qué significan estas métricas?** (todas explicadas en el [glosario](docs/glosario.md)):
 

@@ -4,10 +4,10 @@ Métrica optimizada: **roc_auc** · CV de **3** particiones.
 
 | Modelo | busqueda | combinaciones | cv_roc_auc_default | cv_roc_auc_tuned | mejora | segundos |
 |---|---|---|---|---|---|---|
-| XGBoost | RandomizedSearchCV | 12 | 0.9542 | 0.958 | 0.0038 | 18.9 |
-| Random Forest | RandomizedSearchCV | 12 | 0.9408 | 0.9469 | 0.0061 | 56.6 |
-| Decision Tree | GridSearchCV | 24 | 0.9311 | 0.9341 | 0.003 | 8.6 |
-| Logistic Regression | GridSearchCV | 8 | 0.9093 | 0.9097 | 0.0004 | 12.1 |
+| XGBoost | RandomizedSearchCV | 12 | 0.9542 | 0.958 | 0.0038 | 19.7 |
+| Random Forest | RandomizedSearchCV | 12 | 0.9408 | 0.9469 | 0.0061 | 58.7 |
+| Decision Tree | GridSearchCV | 24 | 0.9311 | 0.9341 | 0.003 | 8.4 |
+| Logistic Regression | GridSearchCV | 8 | 0.9093 | 0.9097 | 0.0004 | 12.4 |
 
 ## Mejores hiperparámetros por modelo
 

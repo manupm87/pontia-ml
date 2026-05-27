@@ -202,8 +202,14 @@ XGBOOST_GRID: dict = {
     "model__colsample_bytree": [0.8, 0.9, 1.0],
 }
 
-# Artefacto con los resultados de la búsqueda.
+# Artefacto con los resultados de la búsqueda (informe legible).
 TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
+
+# Mejores hiperparámetros encontrados, persistidos en JSON. Si este fichero
+# existe, el pipeline por defecto (`python -m src.train`) los usa automáticamente;
+# si no, recurre a los valores base definidos arriba. Así "se buscan una vez y se
+# usan por defecto a partir de entonces".
+BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 
 
 def ensure_directories() -> None:

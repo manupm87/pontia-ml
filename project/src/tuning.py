@@ -23,6 +23,7 @@ Uso::
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -48,6 +49,21 @@ def _pipeline(estimator) -> Pipeline:
 def _strip_prefix(params: dict) -> dict:
     """Quita el prefijo ``model__`` de las claves (para reusarlas al reentrenar)."""
     return {k.replace("model__", "", 1): v for k, v in params.items()}
+
+
+def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
+    """Carga los mejores hiperparámetros persistidos (``{}`` si no existen).
+
+    Lo usa el pipeline por defecto para entrenar con los hiperparámetros
+    optimizados una vez que se han buscado (``--tune`` o ``python -m src.tuning``).
+    """
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("No se pudieron leer los hiperparámetros de %s (%s).", path, exc)
+        return {}
 
 
 class HyperparameterTuner:
@@ -236,6 +252,12 @@ class HyperparameterTuner:
         path.write_text("\n".join(lineas) + "\n", encoding="utf-8")
         logger.info("Resultados de la búsqueda guardados en: %s", path)
 
+    def save_best_params(self, path=config.BEST_PARAMS_PATH) -> None:
+        """Persiste los mejores hiperparámetros en JSON para usarlos por defecto."""
+        path.write_text(json.dumps(self.best_params_, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8")
+        logger.info("Mejores hiperparámetros guardados en: %s", path)
+
 
 def main() -> None:
     """Punto de entrada CLI: tuneable de forma independiente al pipeline."""
@@ -250,6 +272,7 @@ def main() -> None:
     tuner = HyperparameterTuner()
     tuner.tune(X_train, y_train)
     tuner.save_results()
+    tuner.save_best_params()  # se usarán por defecto en `python -m src.train`
     print("\n" + "=" * 70)
     print("RESULTADO DE LA OPTIMIZACIÓN DE HIPERPARÁMETROS")
     print("=" * 70)

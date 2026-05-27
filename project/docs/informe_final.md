@@ -183,11 +183,15 @@ que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8826 | 0.8575 | 0.8195 | 0.8380 | **0.9548** |
+| **XGBoost** ⭐ | 0.8925 | 0.8680 | 0.8376 | 0.8525 | **0.9603** |
 | Red neuronal (Keras) | 0.8746 | 0.8502 | 0.8034 | 0.8262 | 0.9483 |
-| Random Forest | 0.8611 | 0.8871 | 0.7165 | 0.7927 | 0.9431 |
-| Árbol de decisión | 0.8542 | 0.8264 | 0.7680 | 0.7961 | 0.9337 |
-| Regresión logística | 0.8246 | 0.8045 | 0.6960 | 0.7464 | 0.9072 |
+| Random Forest | 0.8680 | 0.8852 | 0.7399 | 0.8061 | 0.9482 |
+| Árbol de decisión | 0.8588 | 0.8344 | 0.7725 | 0.8023 | 0.9369 |
+| Regresión logística | 0.8211 | 0.7333 | 0.8132 | 0.7712 | 0.9077 |
+
+> Estas cifras se obtienen con los **hiperparámetros optimizados** por validación
+> cruzada (ver §6, bonus), que el pipeline usa por defecto. Sin optimizar, XGBoost
+> lograba 0.9548 de ROC-AUC.
 
 > **Recordatorio de métricas** (detalle en el [glosario](glosario.md)):
 > *accuracy* = % de aciertos · *precision* = pocas falsas alarmas · *recall* = se
@@ -215,28 +219,55 @@ predicciones del Random Forest.*
   decisión (lo que permite ajustar la "agresividad" del *overbooking*) y es
   comparable entre modelos. Reportamos además *recall* y *F1* por su lectura de
   negocio.
-- **Modelo elegido: XGBoost** (ROC-AUC = 0.955). Supera al resto en la métrica
+- **Modelo elegido: XGBoost** (ROC-AUC = 0.960). Supera al resto en la métrica
   principal y en F1, y además entrena muy rápido (~1.3 s). Se guarda como
   `models/best_model.pkl`.
 
 ### 5.2. Qué significan estos resultados para el hotel
 
-- XGBoost detecta el **82 % de las cancelaciones reales** (*recall* 0.82) con una
-  **precisión del 86 %**: un buen equilibrio para actuar sin generar demasiadas
+- XGBoost detecta el **84 % de las cancelaciones reales** (*recall* 0.84) con una
+  **precisión del 87 %**: un buen equilibrio para actuar sin generar demasiadas
   falsas alarmas.
 - El Random Forest es el más **conservador** (más precisión pero menos recall):
   preferible si una falsa alarma fuese muy costosa.
 
 ---
 
-## 6. Reflexión crítica: limitaciones y mejoras
+## 6. Bonus técnicos implementados
+
+Más allá de los requisitos mínimos, añadimos los siguientes extras (el enunciado
+los puntúa como *bonus*).
+
+### 6.1. Optimización de hiperparámetros
+
+Buscamos automáticamente la mejor configuración de cada modelo clásico mediante
+**validación cruzada** (3 particiones), optimizando ROC-AUC:
+
+- **GridSearchCV** (búsqueda exhaustiva) para los espacios pequeños: regresión
+  logística y árbol de decisión.
+- **RandomizedSearchCV** (muestreo aleatorio) para los grandes: Random Forest y
+  XGBoost.
+
+Los mejores hiperparámetros se **persisten** en `outputs/best_hiperparametros.json`
+y el pipeline los **usa por defecto** (`python -m src.train`); rehacer la búsqueda
+es tan simple como `python -m src.train --tune` o `python -m src.tuning`. La
+optimización mejoró el ROC-AUC de test de XGBoost de **0.9548 a 0.9603** (y de
+forma análoga el resto de modelos); el detalle (CV base vs. optimizada) queda en
+`outputs/tuning_hiperparametros.md`. Implementado en `src/tuning.py`.
+
+> *Nota de hardware:* el código es **GPU-aware** — XGBoost puede entrenar en una
+> GPU NVIDIA con `PONTIA_USE_GPU=1` —, pero por defecto se ejecuta en **CPU**,
+> porque a esta escala de datos la GPU no acelera y la CPU es plenamente
+> reproducible (`src/gpu.py`).
+
+---
+
+## 7. Reflexión crítica: limitaciones y mejoras
 
 Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 
 **Limitaciones actuales**
 
-- **Ajustes (hiperparámetros) fijos:** usamos valores razonables, pero no
-  optimizados de forma sistemática.
 - **Validación temporal pendiente:** dividimos los datos al azar. Como las reservas
   tienen fecha (2015–2017), una división **por tiempo** (entrenar con el pasado y
   probar con el futuro) sería más realista y probablemente daría una cifra algo más
@@ -249,10 +280,8 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 
 **Líneas de mejora (trabajo futuro)**
 
-- **Optimización de hiperparámetros** (probar combinaciones automáticamente, p. ej.
-  con `GridSearchCV`/`RandomizedSearchCV`).
-- **Validación cruzada** y, sobre todo, **validación temporal** para cifras más
-  fiables.
+- **Validación temporal** (entrenar con el pasado y probar con el futuro) para
+  cifras más fiables que la división aleatoria actual.
 - **Reequilibrado de clases** (p. ej. `class_weight`, SMOTE).
 - **Interpretabilidad avanzada** con SHAP (explica cada predicción individual).
 - **Calibración de probabilidades** y ajuste del umbral según coste/beneficio.

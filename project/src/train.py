@@ -74,16 +74,25 @@ def run_pipeline(tune: bool = False) -> tuple:
     logger.info("=== Fase 1: carga y preparación de datos ===")
     X_train, X_test, y_train, y_test = load_and_prepare()
 
-    # 1.5) (Opcional) Optimización de hiperparámetros por CV.
+    # 1.5) Hiperparámetros: si se pide --tune, se buscan (y se persisten) ahora;
+    # si no, se usan los óptimos previamente guardados (si existen).
+    from .tuning import HyperparameterTuner, load_best_params
+
     param_overrides = None
     if tune:
-        from .tuning import HyperparameterTuner
-
         logger.info("=== Fase 1.5: optimización de hiperparámetros (--tune) ===")
         tuner = HyperparameterTuner()
         tuner.tune(X_train, y_train)
         tuner.save_results()
+        tuner.save_best_params()  # quedan como predeterminados para próximas ejecuciones
         param_overrides = tuner.best_params_
+    else:
+        param_overrides = load_best_params() or None
+        if param_overrides:
+            logger.info(
+                "Usando hiperparámetros optimizados guardados en %s",
+                config.BEST_PARAMS_PATH,
+            )
 
     # 2 + 3) Construcción de pipelines (preprocesado + modelo) y entrenamiento.
     logger.info("=== Fase 2-3: entrenamiento de modelos ===")
