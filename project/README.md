@@ -9,6 +9,17 @@
 (antelación, tipo de hotel, país del cliente, precio, etc.) estima la
 **probabilidad de que esa reserva se cancele**.
 
+## 🌐 Demo en vivo
+
+| Componente | URL | Tier |
+|---|---|---|
+| 🖥️ **Interfaz web** (Streamlit) | <https://pontia-ml-cancellations-manupm87.streamlit.app> | Streamlit Community Cloud (free) |
+| 🔌 **API REST** (FastAPI + Swagger) | <https://pontia-api-fi8t.onrender.com/docs> | Render (free) |
+| 🧪 **Experimentos MLflow + Registry** | <https://dagshub.com/manupm87/pontia-ml.mlflow> | DagsHub (free) |
+
+> ⏳ La API se duerme tras 15 min sin uso (tier gratis de Render). La primera
+> petición tarda ~30-50 s en despertarla; la UI lo indica con un aviso amable.
+
 > 📖 **¿Eres nuevo/a en Machine Learning?** Cada término técnico se explica en el
 > [**Glosario**](docs/glosario.md). Empieza por ahí si algo no te suena.
 

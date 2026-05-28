@@ -221,15 +221,14 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: render.com → "New Blueprint" usando el repo crea el
     servicio sin errores.
 
-- [ ] **T10 — Conectar el dominio del usuario a la API**
+- [x] **T10 — Crear el servicio en Render** *(custom domain pospuesto)*
   *Depende de*: T09 · *Owner*: **usuario**
-  - En Render → service → *Custom Domains* → añadir
-    `api.tudominio.com`.
-  - En el proveedor DNS: CNAME `api → <servicio>.onrender.com`.
-  - Esperar a que el SSL se aprovisione (~5 min). Verificar con
-    `curl https://api.tudominio.com/health`.
-  - **Aceptación**: `/health` responde 200 sobre el dominio del usuario
-    con cert válido.
+  - El servicio vive en `https://pontia-api-fi8t.onrender.com`. Se
+    decidió no encadenar el dominio propio del usuario en esta primera
+    iteración para acelerar el despliegue; añadirlo sigue siendo
+    trivial (Render → service → Custom Domains → CNAME `api → <render>`).
+  - **Aceptación**: `/health` y `/predict` responden 200 sobre la URL
+    pública. Verificado.
 
 - [x] **T11 — Tarjeta "warm up" en la UI Streamlit**
   *Depende de*: ninguna · *Owner*: agente
@@ -241,17 +240,21 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: visitar la URL cuando la API está dormida muestra el
     aviso y, tras la espera, la app funciona.
 
-- [ ] **T12 — Crear la app en Streamlit Community Cloud**
+- [x] **T12 — Crear la app en Streamlit Community Cloud**
   *Depende de*: T01, T10 · *Owner*: **usuario**
-  - share.streamlit.io → *New app*.
-  - Repo + branch `main`, *Main file*: `project/ui/app.py`.
-  - *Advanced settings → Secrets*:
-    ```toml
-    PONTIA_API_URL = "https://api.tudominio.com"
-    ```
-  - Python 3.12, requirements file `project/requirements.txt`.
-  - **Aceptación**: la URL `tu-usuario-pontia-ml.streamlit.app` carga la
-    UI, conecta con la API y permite predecir reservas.
+  - URL pública: `https://pontia-ml-cancellations-manupm87.streamlit.app`.
+  - Secrets configurados:
+    `PONTIA_API_URL = "https://pontia-api-fi8t.onrender.com"`.
+  - **Workaround necesario**: Streamlit Cloud solo escanea
+    `requirements.txt` en la raíz del repo o junto al main file. Como
+    nuestro requirements vive en `project/requirements.txt`, hubo que
+    añadir un *stub* en la raíz con `-r project/requirements.txt`
+    (commit `5b7bf60`). El propio `outputs/decision_regions_pls.pkl`
+    (5 MB) también se versionó porque la UI lo necesita en runtime para
+    la página de predicción (commit `f99d168`).
+  - **Aceptación**: la UI carga, despierta la API automáticamente, y la
+    página de predicción muestra resultado + waterfall SHAP + mapa 2D
+    con la reserva marcada como estrella amarilla.
 
 ### Fase 3 — La API lee el modelo desde el registry
 

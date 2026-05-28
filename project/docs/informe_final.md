@@ -443,6 +443,39 @@ fallback en `GET /model-info`:
 Esto cierra el bucle MLOps **entrenar → registrar → promocionar → servir** con un
 único *flag* de entorno y una caída de gracia si el registry no está accesible.
 
+### 6.7. Despliegue público gratuito
+
+Para que el proyecto sea ejecutable por cualquiera (incluido el profesor) sin
+descargarse nada, hemos publicado la **API** y la **interfaz visual** en dos
+servicios *cloud* gratuitos:
+
+| Componente | Servicio | URL pública |
+|---|---|---|
+| API FastAPI | Render (free tier) | <https://pontia-api-fi8t.onrender.com> |
+| Swagger interactivo de la API | Render (free tier) | <https://pontia-api-fi8t.onrender.com/docs> |
+| Interfaz Streamlit | Streamlit Community Cloud | <https://pontia-ml-cancellations-manupm87.streamlit.app> |
+| MLflow tracking + Model Registry | DagsHub | <https://dagshub.com/manupm87/pontia-ml.mlflow> |
+
+**Arquitectura:** la UI Streamlit consume la API por HTTP (la URL se inyecta
+como *secret* en Streamlit Cloud). La API sirve el modelo desde el pickle
+versionado en el repo (la cadena de carga registry→bundled de §6.6 también
+está implementada, pero el camino del registry se desactivó en producción para
+no superar los 512 MB de RAM del tier gratuito de Render: con ``mlflow`` y la
+descarga + des-serialización en RAM la app rebasaba el límite. En local sí se
+sirve del registry con un único *flag* de entorno).
+
+**Decisiones de despliegue:**
+
+- **Render free** para la API: 512 MB de RAM, se duerme tras 15 min sin
+  actividad y tarda 30-50 s en despertar. La UI muestra automáticamente un
+  aviso *"Despertando la API…"* en ese intervalo.
+- **Streamlit Community Cloud** para la UI: 1 GB de RAM compartido, el deploy
+  es un clic desde el repo de GitHub.
+- **DagsHub** para MLflow: alternativa gratis y pública al MLflow auto-hospedado.
+
+La hoja de ruta detallada (fases, dependencias, *workarounds*) está en
+[`docs/plan_despliegue_mlflow.md`](plan_despliegue_mlflow.md).
+
 ---
 
 ## 7. Reflexión crítica: limitaciones y mejoras
@@ -473,10 +506,10 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 - **Calibración de probabilidades** y ajuste del umbral según coste/beneficio.
 - **Embeddings** para las categóricas de alta cardinalidad (`country`, `agent`)
   (sería el séptimo *bonus*, ahora mismo el único pendiente).
-- **Despliegue público gratuito**: hoja de ruta en
-  [`docs/plan_despliegue_mlflow.md`](plan_despliegue_mlflow.md). Plan: API en
-  Render con dominio propio (`api.tudominio.com`) leyendo del registry MLflow, y
-  UI en Streamlit Community Cloud.
+- **API más generosa**: el tier gratis de Render limita la RAM a 512 MB, lo que
+  obliga a desactivar la lectura del modelo desde el Model Registry de MLflow
+  en producción. Migrar a un servicio con más memoria (p. ej. Hugging Face
+  Spaces, 16 GB) permitiría activar también ese camino en la URL pública.
 
 ---
 
