@@ -1,0 +1,15 @@
+# Stub raíz para Streamlit Community Cloud.
+#
+# Streamlit Cloud SOLO busca `requirements.txt` en la raíz del repo o en
+# la misma carpeta que el "main file"; no escanea subcarpetas. Como
+# nuestro proyecto vive en `project/`, sin este fichero la app se
+# arranca con el set por defecto (solo `streamlit`) y luego revienta con
+# `ModuleNotFoundError: plotly` al primer `import`.
+#
+# Usamos `-r` para reenviar al fichero real. `pip` resuelve la ruta
+# relativa al fichero que la contiene, así que esto funciona sin que
+# tengamos que duplicar dependencias entre raíz y `project/`.
+#
+# Render NO lee este fichero — su `render.yaml` declara `rootDir: project`,
+# así que su build sigue usando directamente `project/requirements.txt`.
+-r project/requirements.txt
