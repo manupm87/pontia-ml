@@ -127,7 +127,7 @@ def _render_api_status() -> bool:
         st.markdown(
             f"""
             La predicción necesita la **API FastAPI** del proyecto en marcha.
-            Desde la carpeta `project/`, en otra terminal:
+            Desde la raíz del repo, en otra terminal:
 
             ```bash
             uvicorn api.main:app --host 0.0.0.0 --port 8000

@@ -442,7 +442,7 @@ def main() -> None:
     """Carga el mejor modelo y los datos, y regenera todos los gráficos.
 
     Pensado para ejecutarse como ``python -m src.interpretability`` desde la
-    carpeta ``project/``.
+    raíz del repo.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
     parser = argparse.ArgumentParser(

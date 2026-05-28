@@ -31,7 +31,7 @@ exactamente igual que el entrenamiento (misma normalización de categóricas,
 
 ## Cómo arrancar el servidor
 
-Desde la carpeta `project/`:
+Desde la raíz del repo:
 
 ```bash
 uvicorn api.main:app --reload
@@ -146,7 +146,7 @@ Si falta un campo obligatorio o el tipo es incorrecto, FastAPI responde con
 
 ## Pruebas
 
-Desde `project/`:
+Desde la raíz del repo:
 
 ```bash
 python -m pytest api/tests -q

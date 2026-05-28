@@ -349,7 +349,7 @@ detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
 ### 6.4. API REST con FastAPI
 
 Para **productivizar** el modelo (poder consumirlo desde otros sistemas) creamos una
-**API REST** con **FastAPI** (`project/api/`). Carga `models/best_model.pkl` una sola
+**API REST** con **FastAPI** (`api/`). Carga `models/best_model.pkl` una sola
 vez y reutiliza el **mismo preprocesado** del pipeline (`src.predict`), de modo que la
 inferencia es idéntica al entrenamiento. Endpoints:
 
@@ -360,12 +360,13 @@ inferencia es idéntica al entrenamiento. Endpoints:
 - `POST /predict/batch` — varias reservas a la vez.
 
 Incluye **documentación interactiva automática** (Swagger UI en `/docs`) y **tests**
-(`pytest`, 6 casos que pasan). Arrancar desde `project/`: `uvicorn api.main:app
---reload`. Guía completa en [`api/README.md`](../api/README.md).
+(`pytest`, 6 casos que pasan). Arrancar desde la raíz del repo:
+`uvicorn api.main:app --reload`. Guía completa en
+[`api/README.md`](../api/README.md).
 
 ### 6.5. Interfaz visual con Streamlit
 
-Una **interfaz visual** con **Streamlit** (`project/ui/`) reúne todo el proyecto en una
+Una **interfaz visual** con **Streamlit** (`ui/`) reúne todo el proyecto en una
 web sencilla, con código **modular** (configuración, carga de datos y una sección por
 pantalla). Incluye:
 
@@ -383,7 +384,7 @@ pantalla). Incluye:
 4. **Interpretabilidad:** los gráficos SHAP globales y locales.
 5. **Exploración (EDA):** tasa de cancelación por categoría y balance de clases.
 
-Arrancar desde `project/`: `streamlit run ui/app.py` (con la API levantada para que
+Arrancar desde la raíz del repo: `streamlit run ui/app.py` (con la API levantada para que
 funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
 [`ui/README.md`](../ui/README.md).
 
@@ -514,5 +515,5 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 ---
 
 > **Reproducibilidad.** Todos los resultados de este informe se generan ejecutando
-> `python -m src.train` desde la carpeta `project/`, con las librerías de
+> `python -m src.train` desde la raíz del repo, con las librerías de
 > `requirements.txt` (Python 3.12). Las tablas y figuras provienen de `outputs/`.

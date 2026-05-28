@@ -14,7 +14,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
 # ---------------------------------------------------------------------------
-# `PROJECT_ROOT` apunta a la carpeta `project/` (un nivel por encima de `src/`).
+# `PROJECT_ROOT` apunta a la raíz del repo (un nivel por encima de `src/`).
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 
 DATA_DIR: Path = PROJECT_ROOT / "data"

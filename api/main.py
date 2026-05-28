@@ -4,7 +4,7 @@ Define los endpoints HTTP del contrato de la API. FastAPI genera además, de
 forma automática, la documentación interactiva (Swagger UI en ``/docs`` y ReDoc
 en ``/redoc``) a partir de los modelos Pydantic de ``schemas``.
 
-Cómo arrancar el servidor (desde la carpeta ``project/``)::
+Cómo arrancar el servidor (desde la raíz del repo)::
 
     uvicorn api.main:app --reload
 

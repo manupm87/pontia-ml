@@ -16,7 +16,7 @@ la **API FastAPI** para predecir en vivo.
 
 ## Cómo arrancar la interfaz
 
-Desde la carpeta `project/` (importante: para que `import ui` resuelva bien):
+Desde la raíz del repo (importante: para que `import ui` resuelva bien):
 
 ```bash
 streamlit run ui/app.py
@@ -31,7 +31,7 @@ La sección "Predicción (API)" envía la reserva a la API y muestra la
 probabilidad de cancelación. **La API debe estar arrancada**; si no, la interfaz
 lo detecta y explica cómo hacerlo (no se rompe).
 
-Arranca la API en otra terminal, desde `project/`:
+Arranca la API en otra terminal, desde la raíz del repo:
 
 ```bash
 uvicorn api.main:app --host 0.0.0.0 --port 8000

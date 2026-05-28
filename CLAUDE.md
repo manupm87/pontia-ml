@@ -8,24 +8,28 @@ PontIA Master's **final ML project**: binary classification of **hotel booking
 cancellations** (`is_canceled`, ~119k rows). The deliverable is a modular Python
 package + notebooks + docs + a FastAPI service + a Streamlit UI.
 
-**The project lives in `project/`. Run almost everything from there.** The repo root
-also has `recursos/` (read-only class reference notebooks) and `2.Proyecto Final de
-Módulo/` (the assignment statement / original dataset).
+**The project lives at the repo root.** The `recursos/` folder holds read-only
+material that is NOT part of the deliverable: the class reference notebooks and
+`recursos/2.Proyecto Final de Módulo/` (the assignment statement + original
+dataset).
+
+> The project used to live under `project/`; it was flattened to the repo root
+> in May 2026. If you find any lingering `project/...` references, they are
+> stale — please update them.
 
 ## Hard rules (MANDATORY)
 
 - **Language:** write ALL docs, comments, markdown and notebook prose in **Spanish**,
   in a **didactic** style that explains every technical term (the audience is
   students). Code identifiers may stay in their natural form.
-- **Virtualenv:** use `project/.venv` (Python 3.12). Never create another venv. If a
-  command needs Python, run it from `project/` with the venv active, or prefix
-  `.venv/bin/python`.
+- **Virtualenv:** use `.venv` (Python 3.12) at the repo root. Never create another
+  venv. Prefix Python commands with `.venv/bin/python` when not activated.
 - **Commits:** structured messages in Spanish. End every commit message with:
   `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
 - **Push to `main` only when the user explicitly asks.** `gh` is NOT installed (open
   PRs via the GitHub web UI).
 
-## Common commands (run from `project/`)
+## Common commands (run from the repo root)
 
 ```bash
 # --- Inference + UI (only needs requirements.txt) ---
@@ -61,8 +65,9 @@ MLFLOW_TRACKING_PASSWORD=...        # DagsHub token (scope: mlflow)
 MLFLOW_MODEL_URI=models:/...        # If set, API loads from the registry instead of the bundled pickle
 ```
 
-Local convention: put the four MLflow vars in `project/.env` (gitignored). Load
-with `set -a; source .env; set +a`. There's an `.env.example` template.
+Local convention: put the four MLflow vars in `.env` at the repo root
+(gitignored). Load with `set -a; source .env; set +a`. There's an `.env.example`
+template alongside it.
 
 ## Architecture
 
@@ -88,7 +93,7 @@ with `set -a; source .env; set +a`. There's an `.env.example` template.
   DagsHub. `src/register_model.py` registers the winning XGBoost run as
   `pontia-cancellations:vN` and promotes it to stage `Production`. Helpers are
   no-op without `MLFLOW_TRACKING_URI`. Full design in
-  `project/docs/plan_despliegue_mlflow.md`.
+  `docs/plan_despliegue_mlflow.md`.
 
 ### Notebook conventions (important)
 
@@ -155,12 +160,12 @@ with `set -a; source .env; set +a`. There's an `.env.example` template.
 
 ## Read more
 
-- `project/README.md` — overview + how to run each piece.
-- `project/docs/informe_final.md` — report (roles, EDA §3, design §4, tool mapping
+- `README.md` — overview + how to run each piece.
+- `docs/informe_final.md` — report (roles, EDA §3, design §4, tool mapping
   §4.5, results §5, bonuses §6, limitations §7).
-- `project/docs/glosario.md` — every technical term explained.
-- `project/docs/interpretabilidad.md`, `project/api/README.md`,
-  `project/ui/README.md`, `project/notebooks/README.md`.
-- `project/docs/plan_despliegue_mlflow.md` — operational spec for the MLflow
+- `docs/glosario.md` — every technical term explained.
+- `docs/interpretabilidad.md`, `api/README.md`, `ui/README.md`,
+  `notebooks/README.md`.
+- `docs/plan_despliegue_mlflow.md` — operational spec for the MLflow
   bonus + the planned public deploy (Render + Streamlit Cloud + DagsHub). The
   file uses `[x]/[~]/[ ]` task statuses so progress is at-a-glance.

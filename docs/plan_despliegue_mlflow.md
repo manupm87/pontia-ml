@@ -90,10 +90,10 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
 
 - [x] **T01 — Partir `requirements.txt` en runtime vs entrenamiento**
   *Depende de*: ninguna · *Owner*: agente
-  - Crear `project/requirements-train.txt` con: `tensorflow-cpu` (o
+  - Crear `requirements-train.txt` con: `tensorflow-cpu` (o
     `tensorflow` en macOS), `imbalanced-learn`, **`mlflow>=2.16`**,
     `nbformat`, `jupyter`, `seaborn`.
-  - Dejar en `project/requirements.txt` solo lo necesario para que la API
+  - Dejar en `requirements.txt` solo lo necesario para que la API
     y la UI arranquen (xgboost, sklearn, fastapi, uvicorn, streamlit,
     shap, matplotlib, plotly, joblib, requests, pandas, numpy, scipy).
   - Documentar la división en cabecera de cada fichero (qué incluye, por
@@ -199,7 +199,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
     `curl -H "Origin: https://otra.com" ... -i /predict` ya no muestra
     `Access-Control-Allow-Origin: *`.
 
-- [x] **T09 — Añadir `project/render.yaml`**
+- [x] **T09 — Añadir `render.yaml`**
   *Depende de*: T01 · *Owner*: agente
   - Spec declarativo de Render (un único servicio web):
     ```yaml
@@ -245,13 +245,14 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - URL pública: `https://pontia-ml-cancellations-manupm87.streamlit.app`.
   - Secrets configurados:
     `PONTIA_API_URL = "https://pontia-api-fi8t.onrender.com"`.
-  - **Workaround necesario**: Streamlit Cloud solo escanea
-    `requirements.txt` en la raíz del repo o junto al main file. Como
-    nuestro requirements vive en `project/requirements.txt`, hubo que
-    añadir un *stub* en la raíz con `-r project/requirements.txt`
-    (commit `5b7bf60`). El propio `outputs/decision_regions_pls.pkl`
-    (5 MB) también se versionó porque la UI lo necesita en runtime para
-    la página de predicción (commit `f99d168`).
+  - **Histórico**: cuando el código vivía en `project/` hizo falta un
+    *stub* `requirements.txt` en la raíz con `-r project/requirements.txt`
+    para que Streamlit Cloud lo encontrase (commit `5b7bf60`). Tras la
+    refactorización del repo (mayo 2026), el código vive en la raíz y
+    el stub deja de ser necesario. El fichero
+    `outputs/decision_regions_pls.pkl` (5 MB) sí sigue versionado porque
+    la UI lo necesita en runtime para la página de predicción
+    (commit `f99d168`).
   - **Aceptación**: la UI carga, despierta la API automáticamente, y la
     página de predicción muestra resultado + waterfall SHAP + mapa 2D
     con la reserva marcada como estrella amarilla.
@@ -322,7 +323,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
     - UI pública: `https://tu-app.streamlit.app`.
   - **Aceptación**: subsección presente con todos los enlaces vivos.
 
-- [ ] **T18 — Actualizar `project/README.md` y `CLAUDE.md`**
+- [ ] **T18 — Actualizar `README.md` y `CLAUDE.md`**
   *Depende de*: T17 · *Owner*: agente
   - En `README.md`: bloque "Despliegue público" con las 3 URLs.
   - En `CLAUDE.md`: nuevo *gotcha* sobre la cadena de carga del modelo
@@ -342,7 +343,7 @@ Cualquier agente que recoja una tarea debe cumplir las reglas de
 `CLAUDE.md`:
 
 - Docs, comentarios y prosa de notebooks en **español didáctico**.
-- Usar el venv `project/.venv` (Python 3.12). Nada de crear otros venvs.
+- Usar el venv `.venv` (Python 3.12) en la raíz del repo. Nada de crear otros venvs.
 - Commits en español con la coletilla:
   `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - **No** hacer push a `main` salvo que el usuario lo pida.

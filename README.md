@@ -88,7 +88,7 @@ Separamos el código en módulos (en vez de meter todo en un único notebook) pa
 sea más claro, reutilizable y fácil de ejecutar:
 
 ```text
-project/
+pontia-ml/                  # ← repo root (esta carpeta)
 ├── data/
 │   ├── raw/            # Datos originales (dataset_practica_final.csv)
 │   └── processed/      # Datos intermedios (se regeneran solos)
@@ -137,6 +137,12 @@ project/
 │   ├── sections/          # Una pantalla por sección (resumen, predicción, EDA…)
 │   └── README.md          # Cómo arrancar la interfaz
 ├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
+├── render.yaml         # Configuración del despliegue en Render (API)
+├── requirements-train.txt   # Dependencias EXTRA para entrenar / abrir notebooks
+├── requirements.txt    # Dependencias de runtime (API + UI + inferencia)
+├── recursos/           # 📚 Material de referencia (no parte del entregable):
+│   │                   #    notebooks de clase + enunciado original
+│   └── 2.Proyecto Final de Módulo/   # Enunciado y dataset originales
 └── README.md
 ```
 
@@ -164,10 +170,11 @@ librerías de este proyecto sin afectar al resto de tu ordenador. Así todos usa
 exactamente las mismas versiones y el código funciona igual en cualquier máquina.
 
 ```bash
-# 1) Entrar en la carpeta del proyecto
-cd project
+# 1) Clonar el repo y entrar en él
+git clone https://github.com/manupm87/pontia-ml.git
+cd pontia-ml
 
-# 2) Crear el entorno virtual (crea la carpeta .venv)
+# 2) Crear el entorno virtual (crea la carpeta .venv en la raíz)
 python3 -m venv .venv
 
 # 3) Activarlo
@@ -193,7 +200,8 @@ pip install -r requirements-train.txt        # opcional: para reentrenar + MLflo
 
 ## ▶️ Cómo ejecutar el proyecto
 
-Ejecuta todo desde la carpeta `project/` con el entorno virtual activado.
+Ejecuta todo desde la raíz del repo (`pontia-ml/`) con el entorno virtual
+activado.
 
 ### 1. Entrenar y comparar todos los modelos (proceso completo)
 
@@ -315,7 +323,7 @@ Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el not
 Sirve el mejor modelo por HTTP para consumirlo desde otros sistemas:
 
 ```bash
-uvicorn api.main:app --reload      # desde la carpeta project/
+uvicorn api.main:app --reload      # desde la raíz del repo
 ```
 
 Abre la documentación interactiva en <http://127.0.0.1:8000/docs>. Endpoints:

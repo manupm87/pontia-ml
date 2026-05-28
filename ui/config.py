@@ -18,7 +18,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
 # ---------------------------------------------------------------------------
-# `PROJECT_ROOT` apunta a la carpeta `project/` (un nivel por encima de `ui/`).
+# `PROJECT_ROOT` apunta a la raíz del repo (un nivel por encima de `ui/`).
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 
 OUTPUTS_DIR: Path = PROJECT_ROOT / "outputs"

@@ -1,6 +1,6 @@
 """Interfaz visual del proyecto (Streamlit) — punto de entrada.
 
-Arranque (desde la carpeta `project/`):
+Arranque (desde la raíz del repo):
 
     streamlit run ui/app.py
 
@@ -20,8 +20,8 @@ from pathlib import Path
 
 import streamlit as st
 
-# Permite ejecutar `streamlit run ui/app.py` desde `project/`: añadimos la raíz
-# del proyecto al path para que `import ui...` resuelva al paquete local.
+# Permite ejecutar `streamlit run ui/app.py` desde la raíz del repo: añadimos
+# esa raíz al path para que `import ui...` resuelva al paquete local.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

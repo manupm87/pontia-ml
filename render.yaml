@@ -25,7 +25,9 @@ services:
     runtime: python
     plan: free                        # 512 MB RAM, sleeps tras 15 min inactivo
     region: frankfurt                 # más cerca de España que oregon (default)
-    rootDir: project                  # el repo tiene varios subproyectos, el nuestro es project/
+    # `rootDir` omitido a propósito: tras la refactorización del repo
+    # (mayo 2026), el código de la API vive directamente en la raíz
+    # del repositorio. Render usa "." por defecto.
 
     # Solo requirements.txt (runtime): tensorflow + mlflow viven en
     # requirements-train.txt y no son necesarios para servir.

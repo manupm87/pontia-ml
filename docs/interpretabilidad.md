@@ -106,7 +106,7 @@ especiales y desde otro país se predice como no cancelación.
 
 ## 5. Cómo reproducirlo
 
-Desde la carpeta `project/` y con el entorno virtual activado:
+Desde la raíz del repo y con el entorno virtual activado:
 
 ```bash
 # Regenera todos los gráficos en outputs/ (beeswarm, bar, waterfalls, permutación)
