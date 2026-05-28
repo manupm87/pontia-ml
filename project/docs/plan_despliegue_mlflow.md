@@ -88,7 +88,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
 
 ### Fase 0 — Preparación del repo
 
-- [ ] **T01 — Partir `requirements.txt` en runtime vs entrenamiento**
+- [x] **T01 — Partir `requirements.txt` en runtime vs entrenamiento**
   *Depende de*: ninguna · *Owner*: agente
   - Crear `project/requirements-train.txt` con: `tensorflow-cpu` (o
     `tensorflow` en macOS), `imbalanced-learn`, **`mlflow>=2.16`**,
@@ -101,7 +101,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: `pip install -r requirements.txt` en venv limpio
     instala < 400 MB y permite arrancar API y UI sin tocar `train.py`.
 
-- [ ] **T02 — Crear `src/tracking.py`**
+- [x] **T02 — Crear `src/tracking.py`**
   *Depende de*: T01 · *Owner*: agente
   - Helper en español con dos funciones:
     - `init_tracking(experiment: str) -> bool`: si las variables
@@ -118,7 +118,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
 
 ### Fase 1 — MLflow tracking en DagsHub
 
-- [ ] **T03 — Crear cuenta DagsHub + mirror del repo + token**
+- [x] **T03 — Crear cuenta DagsHub + mirror del repo + token**
   *Depende de*: ninguna · *Owner*: **usuario**
   - Pasos:
     1. Crear cuenta en dagshub.com (gratis).
@@ -129,7 +129,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: el usuario tiene a mano los 3 valores que irán a
     `MLFLOW_TRACKING_URI`, `..._USERNAME`, `..._PASSWORD`.
 
-- [ ] **T04 — Instrumentar `src/train.py`**
+- [x] **T04 — Instrumentar `src/train.py`**
   *Depende de*: T02 · *Owner*: agente
   - Llamar a `tracking.init_tracking("pontia-cancellations-train")` al
     inicio de `main()`.
@@ -149,7 +149,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
     `python -m src.train` deja un parent run con 5 child runs visibles
     en DagsHub.
 
-- [ ] **T05 — Instrumentar `src/tuning.py`**
+- [x] **T05 — Instrumentar `src/tuning.py`**
   *Depende de*: T02 · *Owner*: agente
   - Igual que T04 pero parent run = `tuning_xgboost`, child run por cada
     combinación que prueba `RandomizedSearchCV`.
@@ -158,22 +158,26 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: `python -m src.tuning` deja un nuevo experimento
     con un único parent run y `TUNING_N_ITER` child runs.
 
-- [ ] **T06 — Instrumentar `src/balancing.py`**
+- [x] **T06 — Instrumentar `src/balancing.py`**
   *Depende de*: T02 · *Owner*: agente
   - Parent run = `balanceo_clases`, child run por estrategia
     (`baseline`, `class_weight`, `smote`). Tags coherentes.
   - **Aceptación**: `python -m src.balancing` deja un parent run con 3
     child runs en DagsHub.
 
-- [ ] **T07 — Ejecutar los 3 scripts y registrar el modelo v1**
+- [x] **T07 — Ejecutar los 3 scripts y registrar el modelo v1**
   *Depende de*: T03, T04 · *Owner*: **usuario** (corre los scripts en
   local con sus credenciales DagsHub)
   - Con las 3 variables MLflow en el entorno, ejecutar en orden:
     `python -m src.train`, `python -m src.tuning`,
     `python -m src.balancing`.
-  - En la UI de DagsHub: seleccionar el run XGBoost ganador → "Register
-    Model" → nombre `pontia-cancellations` → versión `1`.
-  - Transicionar la versión 1 a stage `Production`.
+  - **Workaround DagsHub**: su UI de MLflow oculta los botones
+    "Register Model" y "Transition Stage" (limitación conocida de su
+    frontend). Usar el CLI que vive en
+    [`src/register_model.py`](../src/register_model.py):
+    `python -m src.register_model` registra el último run
+    `train_all_models` como `pontia-cancellations` y lo transiciona a
+    stage `Production`.
   - **Aceptación**: en `https://dagshub.com/<user>/<repo>.mlflow/
     #/models/pontia-cancellations` figura la versión 1 en `Production`.
 
