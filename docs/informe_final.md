@@ -140,6 +140,11 @@ El proyecto está construido como un **paquete de software modular** (la carpeta
 `src/`), separando cada responsabilidad en un fichero, en lugar de amontonar todo en
 un único notebook.
 
+> Esta sección describe el diseño del **paquete de modelado**. Para una
+> visión de arquitectura que abarca todo el sistema —entrenamiento,
+> trazabilidad MLflow, repositorio y servicio público— véase
+> [`arquitectura.md`](arquitectura.md), con diagramas detallados.
+
 ### 4.1. El flujo de trabajo (*pipeline*)
 
 Un **pipeline** ("tubería") es una secuencia de pasos encadenados. El nuestro va de
@@ -390,45 +395,51 @@ funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
 
 ### 6.6. Registro de experimentos con MLflow
 
-**MLflow** es la herramienta estándar de *MLOps* para llevar la cuenta de los
-experimentos de ML: cada vez que entrenas, guarda los hiperparámetros usados, las
-métricas obtenidas, los artefactos generados (modelos, gráficos, tablas) y permite
-**versionar** los modelos en un registro central. Lo usamos contra **DagsHub**, que
-ofrece gratis un servidor MLflow público para repositorios de GitHub conectados.
+**MLflow** es la herramienta estándar de *MLOps* para el registro de
+experimentos: en cada ejecución de entrenamiento se persisten los
+hiperparámetros utilizados, las métricas obtenidas y los artefactos generados
+(modelos, gráficos, tablas), y permite **versionar** los modelos en un registro
+central. El proyecto usa el servidor MLflow alojado gratuitamente por
+**DagsHub** como *backend* de tracking, expuesto en una URL pública asociada
+al repositorio.
 
-**Qué se rastrea (`src/tracking.py` + instrumentación en los 3 scripts):**
+La instrumentación, encapsulada en `src/tracking.py`, integra los tres
+scripts de entrenamiento en una topología de *runs* coherente:
 
-| Script | Run padre | Child runs | Qué se loguea |
+| Script | *Run* padre | *Child runs* | Datos registrados |
 |---|---|---|---|
-| `python -m src.train` | `train_all_models` | 5 (uno por modelo) | params + métricas + train_time; el ganador se sube como `mlflow.sklearn` model |
-| `python -m src.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores params + CV baseline vs tuned + nº combos probados + tiempo |
-| `python -m src.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas test por combinación, tags `strategy` y `model_family` |
+| `python -m src.train` | `train_all_models` | 5 (uno por modelo) | `params`, métricas, `train_time_s`; el ganador se persiste como artefacto sklearn |
+| `python -m src.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, mejora, combinaciones probadas |
+| `python -m src.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas de test por combinación, *tags* `strategy` y `model_family` |
 
-Si `python -m src.train --tune` se invoca, el run de tuning se **anida automáticamente**
-bajo el de entrenamiento, manteniendo todo en un único árbol legible.
+Cuando `src.tuning` se invoca desde `python -m src.train --tune`, su *run*
+queda **anidado** bajo el padre de entrenamiento, presentando todo el
+experimento como un único árbol navegable.
 
-**Activación.** Los scripts funcionan exactamente igual si no defines variables: el
-helper detecta la ausencia y **se comporta como *no-op***. Para activarlo, exporta
-en tu shell (o pon en un `.env` local, gitignored):
+El helper `src.tracking` es deliberadamente **silencioso**: si las variables
+de entorno `MLFLOW_TRACKING_URI`, `MLFLOW_TRACKING_USERNAME` y
+`MLFLOW_TRACKING_PASSWORD` no están definidas, los scripts se comportan
+exactamente como si MLflow no estuviera presente. Activar el *tracking* se
+reduce a exportar dichas variables.
 
-```bash
-MLFLOW_TRACKING_URI=https://dagshub.com/<usuario>/<repo>.mlflow
-MLFLOW_TRACKING_USERNAME=<usuario>
-MLFLOW_TRACKING_PASSWORD=<token de DagsHub>
-```
+**Model Registry.** Tras el entrenamiento, el modelo ganador se registra como
+`pontia-cancellations` y se promociona al *stage* `Production` ejecutando
+`python -m src.register_model`. Este CLI invoca el API REST del *Model
+Registry* directamente, ya que el frontend de DagsHub no expone los
+controles correspondientes (limitación documentada de su fork del cliente
+MLflow).
 
-**Model Registry.** Tras entrenar, el modelo ganador (XGBoost) se registra como
-`pontia-cancellations` y se promociona a *stage* `Production` ejecutando
-`python -m src.register_model`. Este CLI es un **workaround** para una limitación
-conocida de DagsHub: su UI de MLflow oculta los botones *"Register Model"* y
-*"Transition Stage"*, pero el registry sí funciona vía API.
-
-**Servir desde el registry.** La API consume el registry directamente: si la
-variable de entorno `MLFLOW_MODEL_URI=models:/pontia-cancellations/Production`
-está definida, `api/service.py` descarga la versión actual, la cachea en
-`/tmp/pontia_models/<hash>` y la sirve. Si la descarga falla (sin red, token
-caducado…), cae automáticamente al `models/best_model.pkl` versionado y refleja el
-fallback en `GET /model-info`:
+**Inferencia desde el registro.** La API admite cargar el modelo en producción
+directamente desde el registro. Si la variable de entorno
+`MLFLOW_MODEL_URI=models:/pontia-cancellations/Production` está definida,
+`api/service.py` descarga la versión actual, la cachea en
+`/tmp/pontia_models/<hash>` y la sirve. La descarga se realiza con peticiones
+HTTP directas al API REST de MLflow para evitar la huella en memoria que
+introduciría importar la librería completa (decisión detallada en
+[`arquitectura.md`](arquitectura.md) §5.2). Cualquier fallo —ausencia de red,
+token caducado, versión inexistente— desencadena una caída automática al
+*pickle* versionado en el repositorio y queda reflejado en
+`GET /model-info`:
 
 ```json
 {
@@ -441,41 +452,48 @@ fallback en `GET /model-info`:
 }
 ```
 
-Esto cierra el bucle MLOps **entrenar → registrar → promocionar → servir** con un
-único *flag* de entorno y una caída de gracia si el registry no está accesible.
+Se cierra así el ciclo **entrenar → registrar → promocionar → servir** sin
+otra dependencia que un *flag* de entorno, con un mecanismo de respaldo
+explícito en caso de indisponibilidad del registro.
 
 ### 6.7. Despliegue público gratuito
 
-Para que el proyecto sea ejecutable por cualquiera (incluido el profesor) sin
-descargarse nada, hemos publicado la **API** y la **interfaz visual** en dos
-servicios *cloud* gratuitos:
+Con objeto de hacer el sistema accesible públicamente sin requerir
+instalación local, los dos componentes activos del proyecto se publican en
+servicios *cloud* de uso gratuito:
 
-| Componente | Servicio | URL pública |
+| Componente | Plataforma | URL pública |
 |---|---|---|
-| API FastAPI | Render (free tier) | <https://pontia-api-fi8t.onrender.com> |
-| Swagger interactivo de la API | Render (free tier) | <https://pontia-api-fi8t.onrender.com/docs> |
-| Interfaz Streamlit | Streamlit Community Cloud | <https://pontia-ml-cancellations-manupm87.streamlit.app> |
-| MLflow tracking + Model Registry | DagsHub | <https://dagshub.com/manupm87/pontia-ml.mlflow> |
+| API REST (FastAPI) | Render | <https://pontia-api-fi8t.onrender.com> |
+| Documentación Swagger | Render | <https://pontia-api-fi8t.onrender.com/docs> |
+| Interfaz visual (Streamlit) | Streamlit Community Cloud | <https://pontia-ml-cancellations-manupm87.streamlit.app> |
+| MLflow Tracking + Model Registry | DagsHub | <https://dagshub.com/manupm87/pontia-ml.mlflow> |
 
-**Arquitectura:** la UI Streamlit consume la API por HTTP (la URL se inyecta
-como *secret* en Streamlit Cloud). La API sirve el modelo desde el pickle
-versionado en el repo (la cadena de carga registry→bundled de §6.6 también
-está implementada, pero el camino del registry se desactivó en producción para
-no superar los 512 MB de RAM del tier gratuito de Render: con ``mlflow`` y la
-descarga + des-serialización en RAM la app rebasaba el límite. En local sí se
-sirve del registry con un único *flag* de entorno).
+La interfaz Streamlit consume la API por HTTPS; su URL se inyecta como
+*secret* en Streamlit Cloud, permitiendo modificarla sin tocar código.
+En la configuración actual de Render, la API sirve el *pickle* versionado
+en el repositorio. La cadena de carga *registry → pickle* descrita en §6.6
+también está implementada y verificada en local, pero el camino del *Model
+Registry* se mantiene desactivado en producción: el coste de RAM de
+importar el cliente MLflow y deserializar el artefacto descargado excede
+los 512 MB del *tier* gratuito de Render. La transición a un plan con
+mayor memoria, o la migración a Hugging Face Spaces, reactivaría el
+camino del registro modificando una única variable de entorno.
 
-**Decisiones de despliegue:**
+**Características de cada plataforma:**
 
-- **Render free** para la API: 512 MB de RAM, se duerme tras 15 min sin
-  actividad y tarda 30-50 s en despertar. La UI muestra automáticamente un
-  aviso *"Despertando la API…"* en ese intervalo.
-- **Streamlit Community Cloud** para la UI: 1 GB de RAM compartido, el deploy
-  es un clic desde el repo de GitHub.
-- **DagsHub** para MLflow: alternativa gratis y pública al MLflow auto-hospedado.
+- **Render** (API): 512 MB de RAM, 0,1 vCPU, suspensión del contenedor
+  tras 15 minutos de inactividad y latencia de arranque en frío de
+  30-50 s. La interfaz detecta automáticamente este intervalo y muestra
+  un aviso contextual durante la reactivación.
+- **Streamlit Community Cloud** (UI): 1 GB de RAM compartida, despliegue
+  directo desde la rama `main` del repositorio de GitHub.
+- **DagsHub** (MLflow): servidor MLflow gestionado, con autenticación
+  HTTP Basic mediante token personal.
 
-La hoja de ruta detallada (fases, dependencias, *workarounds*) está en
-[`docs/plan_despliegue_mlflow.md`](plan_despliegue_mlflow.md).
+La arquitectura completa del sistema —del entrenamiento al servicio en
+vivo, con diagramas de los planos lógicos y la secuencia de una
+predicción— se documenta en [`arquitectura.md`](arquitectura.md).
 
 ---
 

@@ -20,6 +20,34 @@
 > ⏳ La API se duerme tras 15 min sin uso (tier gratis de Render). La primera
 > petición tarda ~30-50 s en despertarla; la UI lo indica con un aviso amable.
 
+### Arquitectura, de un vistazo
+
+```mermaid
+flowchart LR
+    classDef dev fill:#e6f7ff,stroke:#1890ff,color:#003a8c
+    classDef ml fill:#f9f0ff,stroke:#722ed1,color:#22075e
+    classDef repo fill:#e6fffb,stroke:#13c2c2,color:#002766
+    classDef cloud fill:#fff1f0,stroke:#cf1322,color:#5c0011
+    classDef user fill:#f6ffed,stroke:#52c41a,color:#135200
+
+    DEV["Entrenamiento<br/>(local · Python)"]:::dev
+    MLF[("MLflow / DagsHub<br/>experimentos + registry")]:::ml
+    REPO[/"GitHub<br/>manupm87/pontia-ml"/]:::repo
+    API["FastAPI<br/>Render"]:::cloud
+    UI["Streamlit<br/>Streamlit Cloud"]:::cloud
+    USER([Usuario]):::user
+
+    DEV --> MLF
+    DEV -- "best_model.pkl" --> REPO
+    REPO -- auto-deploy --> API
+    REPO -- auto-deploy --> UI
+    USER --> UI
+    UI -- "POST /predict" --> API
+```
+
+> Arquitectura completa, con diagramas detallados y la secuencia de una
+> predicción: [`docs/arquitectura.md`](docs/arquitectura.md).
+
 > 📖 **¿Eres nuevo/a en Machine Learning?** Cada término técnico se explica en el
 > [**Glosario**](docs/glosario.md). Empieza por ahí si algo no te suena.
 
@@ -391,8 +419,8 @@ curl -s http://127.0.0.1:8000/model-info | python -m json.tool
 ```
 
 Si la descarga falla por cualquier motivo (red, token), la API cae automáticamente
-al pickle local y refleja el fallo en `fallback_reason`. Diseño completo en
-[`docs/plan_despliegue_mlflow.md`](docs/plan_despliegue_mlflow.md).
+al pickle local y refleja el fallo en `fallback_reason`. La arquitectura
+completa del sistema, con diagramas, está en [`docs/arquitectura.md`](docs/arquitectura.md).
 
 ---
 

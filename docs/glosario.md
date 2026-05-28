@@ -305,3 +305,54 @@ sola en `/docs`: permite ver los endpoints y probarlos desde el navegador.
 **Streamlit.** Librería para crear **aplicaciones web** de datos en Python con muy
 poco código. La usamos para la interfaz visual (`ui/app.py`): tablas, gráficos y un
 formulario de predicción que llama a la API.
+
+**MLOps.** Conjunto de prácticas que aplican la disciplina del *DevOps* (despliegue
+continuo, automatización, monitorización) al ciclo de vida de los modelos de
+*Machine Learning*: entrenamiento, registro, despliegue, monitorización y
+re-entrenamiento. Su objetivo es que un modelo pase de un *notebook* a un servicio
+en producción de forma trazable y repetible.
+
+**MLflow.** Plataforma de código abierto de MLOps con dos piezas centrales que
+usa este proyecto: **MLflow Tracking** registra cada ejecución de entrenamiento
+(hiperparámetros, métricas, artefactos) en un servidor central, y **MLflow Model
+Registry** versiona los modelos resultantes y les asocia *stages* (`Staging`,
+`Production`, `Archived`).
+
+**Run / Experiment (MLflow).** Un *run* es una ejecución concreta de entrenamiento;
+un *experiment* agrupa runs relacionados. El proyecto crea un *run* padre por cada
+ejecución de los scripts `src.train`, `src.tuning` y `src.balancing`, con uno o
+varios *child runs* anidados (uno por modelo o por combinación).
+
+**Stage / Promoción de un modelo.** Cada versión registrada en el *Model Registry*
+puede transicionarse entre cuatro *stages* (`None`, `Staging`, `Production`,
+`Archived`). El alias `models:/<nombre>/Production` siempre apunta a la versión más
+reciente en ese *stage*: promocionar una v2 hace que cualquier código que use ese
+alias pase automáticamente a servirla.
+
+**DagsHub.** Plataforma gratuita y pública que ofrece un servidor MLflow gestionado
+para repositorios de GitHub. Permite registrar experimentos sin auto-hospedar
+infraestructura. En este proyecto, la URL `https://dagshub.com/<usuario>/<repo>.mlflow`
+expone el servidor de tracking.
+
+**Render.** Servicio de hosting que despliega aplicaciones web a partir de un
+repositorio Git. El *tier* gratuito da 512 MB de RAM por servicio y suspende el
+contenedor tras 15 min de inactividad, lo que provoca una latencia de arranque en
+frío de 30-50 s en la siguiente petición. En este proyecto aloja la API FastAPI.
+
+**Streamlit Community Cloud.** Servicio de hosting específico para aplicaciones
+Streamlit, con despliegue directo desde GitHub. Tiene aproximadamente 1 GB de RAM
+compartida y se reactiva en cuestión de segundos. En este proyecto aloja la
+interfaz visual.
+
+**Cold start / Warm restart.** *Cold start* es la latencia adicional que se observa
+cuando un contenedor que estaba apagado tiene que arrancar para atender una
+petición. *Warm restart* es un reinicio del proceso que conserva el sistema de
+ficheros (en particular, los modelos previamente descargados a `/tmp`). En Render
+free, los *warm restarts* son rápidos; los *cold starts* tras inactividad superan
+los 30 s.
+
+**Fallback / Cadena de respaldo.** Cuando un sistema intenta primero un método
+preferente y, si falla, recurre automáticamente a uno alternativo. En este
+proyecto, la API intenta cargar el modelo desde el *Model Registry* y, ante
+cualquier error, recurre al *pickle* versionado en el repositorio, registrando el
+motivo del fallo en el endpoint `/model-info`.
