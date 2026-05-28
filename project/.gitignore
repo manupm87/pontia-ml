@@ -29,9 +29,16 @@ models/*.pkl
 !models/best_model.pkl
 
 # --- Artefactos de la visualización 2D (regenerables con
-#     `python -m src.visualization_2d`). El PNG sí se versiona; el pickle
-#     con los modelos 2D y las rejillas precomputadas pesa varios MB. ---
+#     `python -m src.visualization_2d`). El PNG sí se versiona.
+#
+#     EXCEPCIÓN: `decision_regions_pls.pkl` SÍ se versiona (5 MB) porque
+#     la página de predicción de la UI lo carga en runtime para situar la
+#     reserva del usuario sobre las regiones de decisión. Sin él, en
+#     Streamlit Cloud / Render falla "No se encontró el .pkl" — regenerar
+#     en producción no es viable porque requiere entrenar 5 modelos 2D y
+#     subir el dataset completo.
 outputs/*.pkl
+!outputs/decision_regions_pls.pkl
 
 # --- Artefactos temporales de Keras ---
 *.keras
