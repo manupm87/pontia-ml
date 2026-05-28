@@ -371,15 +371,77 @@ pantalla). Incluye:
 
 1. **Resumen y resultados:** tabla comparativa de los 5 modelos y sus gráficos.
 2. **Visualización de modelos:** todas las figuras de `outputs/` (ROC, matrices de
-   confusión, importancia, balanceo).
+   confusión, importancia, balanceo) y una **proyección 2D supervisada con PLS** que
+   muestra las regiones de decisión de los 5 modelos en un mismo plano (notebook
+   `07` §6.1, reexportada como `outputs/decision_regions_pls.png`).
 3. **Predicción:** un formulario con las 27 variables que **llama a la API de FastAPI**
-   y muestra la probabilidad de cancelación.
-4. **Interpretabilidad:** los gráficos SHAP.
+   y muestra la probabilidad de cancelación. Tras la predicción la página añade
+   **dos explicaciones locales**: (a) el **waterfall SHAP** de esa reserva concreta,
+   que dice qué variables han empujado hacia "cancela" o "no cancela", y (b) la
+   **posición de la reserva en el mapa 2D PLS**, marcada con una estrella sobre las
+   regiones de decisión de los 5 modelos.
+4. **Interpretabilidad:** los gráficos SHAP globales y locales.
 5. **Exploración (EDA):** tasa de cancelación por categoría y balance de clases.
 
 Arrancar desde `project/`: `streamlit run ui/app.py` (con la API levantada para que
 funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
 [`ui/README.md`](../ui/README.md).
+
+### 6.6. Registro de experimentos con MLflow
+
+**MLflow** es la herramienta estándar de *MLOps* para llevar la cuenta de los
+experimentos de ML: cada vez que entrenas, guarda los hiperparámetros usados, las
+métricas obtenidas, los artefactos generados (modelos, gráficos, tablas) y permite
+**versionar** los modelos en un registro central. Lo usamos contra **DagsHub**, que
+ofrece gratis un servidor MLflow público para repositorios de GitHub conectados.
+
+**Qué se rastrea (`src/tracking.py` + instrumentación en los 3 scripts):**
+
+| Script | Run padre | Child runs | Qué se loguea |
+|---|---|---|---|
+| `python -m src.train` | `train_all_models` | 5 (uno por modelo) | params + métricas + train_time; el ganador se sube como `mlflow.sklearn` model |
+| `python -m src.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores params + CV baseline vs tuned + nº combos probados + tiempo |
+| `python -m src.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas test por combinación, tags `strategy` y `model_family` |
+
+Si `python -m src.train --tune` se invoca, el run de tuning se **anida automáticamente**
+bajo el de entrenamiento, manteniendo todo en un único árbol legible.
+
+**Activación.** Los scripts funcionan exactamente igual si no defines variables: el
+helper detecta la ausencia y **se comporta como *no-op***. Para activarlo, exporta
+en tu shell (o pon en un `.env` local, gitignored):
+
+```bash
+MLFLOW_TRACKING_URI=https://dagshub.com/<usuario>/<repo>.mlflow
+MLFLOW_TRACKING_USERNAME=<usuario>
+MLFLOW_TRACKING_PASSWORD=<token de DagsHub>
+```
+
+**Model Registry.** Tras entrenar, el modelo ganador (XGBoost) se registra como
+`pontia-cancellations` y se promociona a *stage* `Production` ejecutando
+`python -m src.register_model`. Este CLI es un **workaround** para una limitación
+conocida de DagsHub: su UI de MLflow oculta los botones *"Register Model"* y
+*"Transition Stage"*, pero el registry sí funciona vía API.
+
+**Servir desde el registry.** La API consume el registry directamente: si la
+variable de entorno `MLFLOW_MODEL_URI=models:/pontia-cancellations/Production`
+está definida, `api/service.py` descarga la versión actual, la cachea en
+`/tmp/pontia_models/<hash>` y la sirve. Si la descarga falla (sin red, token
+caducado…), cae automáticamente al `models/best_model.pkl` versionado y refleja el
+fallback en `GET /model-info`:
+
+```json
+{
+  "source": "registry",
+  "registry_uri": "models:/pontia-cancellations/Production",
+  "version": 1,
+  "stage": "Production",
+  "run_id": "ebd5156e76b94fe0bcff126e961d2b1f",
+  "fallback_reason": null
+}
+```
+
+Esto cierra el bucle MLOps **entrenar → registrar → promocionar → servir** con un
+único *flag* de entorno y una caída de gracia si el registry no está accesible.
 
 ---
 
@@ -399,18 +461,22 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
   perdemos parte de la información de las menos frecuentes.
 - **Umbral fijo en 0.5:** no lo hemos ajustado a un objetivo concreto de negocio.
 
-> Varios *bonus* del enunciado ya están implementados (ver §6): optimización de
-> hiperparámetros, balanceo de clases, **interpretabilidad (SHAP)**, **API REST
-> (FastAPI)** e **interfaz visual (Streamlit)**.
+> Seis de los siete *bonus* del enunciado están implementados (ver §6):
+> optimización de hiperparámetros, balanceo de clases, **interpretabilidad
+> (SHAP)**, **API REST (FastAPI)**, **interfaz visual (Streamlit)** y **registro
+> de experimentos con MLflow + Model Registry (DagsHub)**.
 
 **Líneas de mejora (trabajo futuro)**
 
 - **Validación temporal** (entrenar con el pasado y probar con el futuro) para
   cifras más fiables que la división aleatoria actual.
 - **Calibración de probabilidades** y ajuste del umbral según coste/beneficio.
-- **Registro de experimentos con MLflow** (otro *bonus* pendiente).
-- **Embeddings** para las categóricas de alta cardinalidad (`country`, `agent`).
-- **Despliegue** de la API y la interfaz (p. ej. contenedor Docker y *hosting*).
+- **Embeddings** para las categóricas de alta cardinalidad (`country`, `agent`)
+  (sería el séptimo *bonus*, ahora mismo el único pendiente).
+- **Despliegue público gratuito**: hoja de ruta en
+  [`docs/plan_despliegue_mlflow.md`](plan_despliegue_mlflow.md). Plan: API en
+  Render con dominio propio (`api.tudominio.com`) leyendo del registry MLflow, y
+  UI en Streamlit Community Cloud.
 
 ---
 

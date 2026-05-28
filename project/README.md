@@ -165,11 +165,18 @@ source .venv/bin/activate          # Linux / macOS
 
 # 4) Instalar las librerías necesarias
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt              # runtime: API + UI + inferencia
+pip install -r requirements-train.txt        # opcional: para reentrenar + MLflow
 ```
 
 > Cuando el entorno está activado verás `(.venv)` al principio de la línea de tu
 > terminal. Para salir de él: `deactivate`.
+>
+> 💡 `requirements.txt` solo trae lo necesario para servir el modelo
+> (`xgboost`, `fastapi`, `streamlit`, `shap`, etc.). Para **entrenar**
+> (`python -m src.train`) hace falta también `requirements-train.txt`, que
+> incluye `tensorflow`, `imbalanced-learn` y `mlflow`. La división mantiene
+> el entorno de despliegue (Render / Streamlit Cloud) bajo 400 MB.
 
 ---
 
@@ -322,6 +329,51 @@ streamlit run ui/app.py            # 2) en otra terminal: la interfaz
 
 La URL de la API se configura con la variable `PONTIA_API_URL` (por defecto
 `http://localhost:8000`). Guía en [`ui/README.md`](ui/README.md).
+
+### 7. Registro de experimentos con MLflow + DagsHub (bonus)
+
+Cada ejecución de los scripts de entrenamiento se publica como un *run* en un
+servidor **MLflow** alojado gratis en **DagsHub**, con sus hiperparámetros,
+métricas y artefactos asociados. El modelo ganador se registra en el **Model
+Registry** y la API puede servirlo directamente desde ahí en lugar de leer el
+pickle versionado.
+
+Activación local (una sola vez):
+
+```bash
+# 1) Crea cuenta en dagshub.com, conecta el repo y genera un token (scope: mlflow).
+# 2) Copia la plantilla y rellénala:
+cp .env.example .env
+$EDITOR .env
+
+# 3) En cada terminal donde vayas a entrenar:
+set -a; source .env; set +a
+```
+
+A partir de entonces, los tres scripts loguean a DagsHub:
+
+```bash
+python -m src.train          # parent run "train_all_models" + 5 child runs
+python -m src.tuning         # parent run "tuning_hyperparameters" + 4 child runs
+python -m src.balancing      # parent run "balancing_strategies" + 12 child runs
+python -m src.register_model # registra el ganador como pontia-cancellations:vN @ Production
+```
+
+Sin las variables MLflow, los scripts se comportan **exactamente igual que
+antes** (no-op silencioso, no rompen nada).
+
+La API consume el registry si exportas `MLFLOW_MODEL_URI`:
+
+```bash
+export MLFLOW_MODEL_URI="models:/pontia-cancellations/Production"
+uvicorn api.main:app --reload
+curl -s http://127.0.0.1:8000/model-info | python -m json.tool
+# → "source": "registry", "version": 1, "stage": "Production", ...
+```
+
+Si la descarga falla por cualquier motivo (red, token), la API cae automáticamente
+al pickle local y refleja el fallo en `fallback_reason`. Diseño completo en
+[`docs/plan_despliegue_mlflow.md`](docs/plan_despliegue_mlflow.md).
 
 ---
 
