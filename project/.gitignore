@@ -17,6 +17,11 @@ data/processed/
 models/*.pkl
 !models/.gitkeep
 
+# --- Artefactos de la visualización 2D (regenerables con
+#     `python -m src.visualization_2d`). El PNG sí se versiona; el pickle
+#     con los modelos 2D y las rejillas precomputadas pesa varios MB. ---
+outputs/*.pkl
+
 # --- Artefactos temporales de Keras ---
 *.keras
 

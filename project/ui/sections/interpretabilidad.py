@@ -11,6 +11,7 @@ from __future__ import annotations
 import streamlit as st
 
 from .. import config, data
+from ..layout import image_card
 
 
 def render() -> None:
@@ -38,11 +39,14 @@ def render() -> None:
             icon="🔍",
         )
         for path in shap_plots:
-            st.image(str(path), use_container_width=True)
-            st.caption(
-                f"`{path.name}` — En un gráfico SHAP, cada punto/barra indica "
-                "cuánto contribuye una variable a la predicción; valores positivos "
-                "empujan hacia 'cancela' y negativos hacia 'no cancela'."
+            image_card(
+                path,
+                description=(
+                    f"`{path.name}` — En un gráfico SHAP, cada punto/barra "
+                    "indica cuánto contribuye una variable a la predicción; "
+                    "valores positivos empujan hacia 'cancela' y negativos hacia "
+                    "'no cancela'."
+                ),
             )
             st.divider()
     else:
@@ -54,13 +58,12 @@ def render() -> None:
         )
 
     # Siempre mostramos la importancia de variables como base interpretativa.
-    st.subheader("Importancia de variables (modelo ganador)")
-    fi_path = config.OUTPUTS_DIR / "feature_importance.png"
-    if fi_path.exists():
-        st.image(str(fi_path), use_container_width=True)
-        st.caption(
+    image_card(
+        config.OUTPUTS_DIR / "feature_importance.png",
+        title="Importancia de variables (modelo ganador)",
+        description=(
             "Ranking de las variables más influyentes en XGBoost. Da una visión "
             "global; SHAP complementa esto explicando reservas individuales."
-        )
-    else:
-        st.warning("No se encontró `outputs/feature_importance.png`.")
+        ),
+        not_found_message="No se encontró `outputs/feature_importance.png`.",
+    )

@@ -10,6 +10,7 @@ from __future__ import annotations
 import streamlit as st
 
 from .. import config, data
+from ..layout import image_card
 
 
 def render() -> None:
@@ -75,29 +76,37 @@ def render() -> None:
     # --- Visualizaciones clave ------------------------------------------------
     st.subheader("Visualizaciones clave")
 
-    captions = {
-        "roc_curves.png": (
-            "**Curvas ROC.** Cada curva enfrenta la tasa de verdaderos positivos "
-            "(cancelaciones detectadas) frente a la de falsos positivos. Cuanto "
-            "más se acerca al ángulo superior izquierdo, mejor; el área bajo la "
-            "curva es la ROC-AUC."
+    key_plots: list[tuple[str, str, str]] = [
+        (
+            "roc_curves.png",
+            "Curvas ROC",
+            "Cada curva enfrenta la tasa de **verdaderos positivos** "
+            "(cancelaciones detectadas) frente a la de **falsos positivos**. "
+            "Cuanto más se acerca al ángulo superior izquierdo, mejor; el área "
+            "bajo la curva es la **ROC-AUC**.",
         ),
-        "confusion_matrices.png": (
-            "**Matrices de confusión.** Muestran aciertos y errores por clase: "
-            "verdaderos/falsos positivos y negativos. Permiten ver si el modelo "
-            "confunde más cancelaciones con no-cancelaciones o al revés."
+        (
+            "confusion_matrices.png",
+            "Matrices de confusión",
+            "Muestran aciertos y errores por clase: verdaderos/falsos positivos y "
+            "negativos. Permiten ver si el modelo confunde más cancelaciones con "
+            "no-cancelaciones o al revés.",
         ),
-        "feature_importance.png": (
-            "**Importancia de variables.** Qué características pesan más en la "
-            "decisión del modelo ganador (p. ej. `lead_time`, `deposit_type` o el "
-            "país suelen ser muy informativos)."
+        (
+            "feature_importance.png",
+            "Importancia de variables",
+            "Qué características pesan más en la decisión del modelo ganador "
+            "(p. ej. `lead_time`, `deposit_type` o el país suelen ser muy "
+            "informativos).",
         ),
-    }
+    ]
 
-    for name, caption in captions.items():
-        path = config.OUTPUTS_DIR / name
-        if path.exists():
-            st.image(str(path), use_container_width=True)
-            st.caption(caption)
-        else:
-            st.warning(f"No se encontró `outputs/{name}` (aún no generado).")
+    for filename, title, description in key_plots:
+        image_card(
+            config.OUTPUTS_DIR / filename,
+            title=title,
+            description=description,
+            not_found_message=(
+                f"No se encontró `outputs/{filename}` (aún no generado)."
+            ),
+        )

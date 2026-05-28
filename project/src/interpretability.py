@@ -93,6 +93,40 @@ def _subsample(X: pd.DataFrame, n: int, random_state: int = config.RANDOM_STATE)
     return X
 
 
+def _patch_shap_xgboost_base_score() -> None:
+    """Parche puntual: arregla un fallo de SHAP 0.49 con XGBoost ≥ 2.x.
+
+    Desde XGBoost 2.x, el ``base_score`` que la librería serializa en su volcado
+    UBJ es una cadena envuelta en corchetes (p. ej. ``"[3.7076378E-1]"``,
+    porque internamente es un array). SHAP 0.49 hace ``float(base_score)``
+    directamente, lo que revienta con ``ValueError``. Como las dependencias del
+    proyecto fijan ``shap<0.50`` (forzado a su vez por TensorFlow 2.16.2 vía
+    ``numpy<2.0``), no podemos saltar a la versión que lo corrige (0.50+) sin
+    romper el resto del entorno. Solución: envolver el decodificador UBJ que
+    usa SHAP para limpiar la cadena antes de que SHAP la lea.
+
+    Idempotente: solo aplica el parche la primera vez.
+    """
+    import shap.explainers._tree as _shap_tree
+
+    if getattr(_shap_tree, "_pontia_base_score_patched", False):
+        return
+
+    _orig_decode = _shap_tree.decode_ubjson_buffer
+
+    def _decode_and_fix(fd):
+        jm = _orig_decode(fd)
+        learner = jm.get("learner") if isinstance(jm, dict) else None
+        params = learner.get("learner_model_param") if isinstance(learner, dict) else None
+        bs = params.get("base_score") if isinstance(params, dict) else None
+        if isinstance(bs, str) and bs.startswith("[") and bs.endswith("]"):
+            params["base_score"] = bs.strip("[]")
+        return jm
+
+    _shap_tree.decode_ubjson_buffer = _decode_and_fix
+    _shap_tree._pontia_base_score_patched = True
+
+
 def _build_tree_explainer(pipeline: Pipeline, X_sample: pd.DataFrame):
     """Construye un ``shap.TreeExplainer`` y calcula los valores SHAP.
 
@@ -103,6 +137,8 @@ def _build_tree_explainer(pipeline: Pipeline, X_sample: pd.DataFrame):
         objeto ``shap.Explanation`` con un valor por (fila, característica).
     """
     import shap  # importación perezosa: solo se necesita aquí (dependencia del bonus).
+
+    _patch_shap_xgboost_base_score()
 
     estimator = pipeline.named_steps["model"]
     X_trans, feature_names = _transform_features(pipeline, X_sample)
@@ -247,6 +283,47 @@ def explain_local(
     plt.close()
     logger.info("Gráfico guardado: %s", path)
     return path
+
+
+def explain_booking_to_figure(
+    booking_df: pd.DataFrame,
+    pipeline: Pipeline,
+    max_display: int = 12,
+):
+    """Devuelve una figura SHAP *waterfall* para UNA reserva, sin guardar a disco.
+
+    Pensada para la página de predicción de la interfaz visual: la UI llama a
+    esta función con la reserva que el usuario acaba de enviar y la pinta con
+    ``st.pyplot(fig)`` (no se persiste el PNG porque cambia cada vez).
+
+    Parameters
+    ----------
+    booking_df:
+        DataFrame de UNA fila con las mismas columnas que se usaron al
+        entrenar (las 27 características en crudo).
+    pipeline:
+        ``Pipeline`` entrenado (preprocesador + modelo de árbol).
+    max_display:
+        Nº máximo de variables a mostrar en la cascada. Para una reserva
+        suelta, 10-15 ya transmite la idea sin saturar.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    import shap
+
+    if len(booking_df) != 1:
+        raise ValueError(
+            f"Se esperaba una reserva (1 fila); se recibieron {len(booking_df)}."
+        )
+
+    explanation, _, _ = _build_tree_explainer(pipeline, booking_df)
+    fig = plt.figure(figsize=(9, 6))
+    # explanation[0] selecciona la única fila calculada.
+    shap.plots.waterfall(explanation[0], max_display=max_display, show=False)
+    plt.tight_layout()
+    return fig
 
 
 def find_examples(pipeline: Pipeline, X: pd.DataFrame) -> dict[str, int]:

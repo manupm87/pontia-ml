@@ -7,9 +7,89 @@ Si la API no está disponible, se explica en español cómo arrancarla.
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from .. import booking, config, data
+
+
+@st.cache_resource(show_spinner=False)
+def _load_best_model():
+    """Carga el ``Pipeline`` del mejor modelo una sola vez por sesión."""
+    from src.predict import load_best_model
+
+    return load_best_model()
+
+
+@st.cache_resource(show_spinner=False)
+def _load_pls_artifacts():
+    """Carga los artefactos de la visualización 2D una sola vez por sesión.
+
+    Pesa ~5 MB en memoria; cargarlo una sola vez evita parar la UI cada vez que
+    el usuario predice una reserva.
+    """
+    from src.visualization_2d import _load_artifacts
+
+    return _load_artifacts()
+
+
+def _render_shap_explanation(payload: dict) -> None:
+    """Pinta el *waterfall* SHAP de la reserva (explicación local).
+
+    Si el modelo o la dependencia SHAP no están disponibles, lo dice y sigue.
+    """
+    st.subheader("¿Por qué esta predicción? — SHAP local")
+    st.caption(
+        "El gráfico de cascada (*waterfall*) parte de la predicción media del "
+        "modelo y va sumando/restando la contribución de cada variable hasta la "
+        "predicción de esta reserva. **Rojo** = empuja hacia *cancela*; **azul** "
+        "= empuja hacia *no cancela*."
+    )
+    try:
+        from src.interpretability import explain_booking_to_figure
+
+        with st.spinner("Calculando contribuciones SHAP…"):
+            pipeline = _load_best_model()
+            booking_df = pd.DataFrame([payload])
+            fig = explain_booking_to_figure(booking_df, pipeline)
+        st.pyplot(fig, use_container_width=True)
+    except FileNotFoundError as exc:
+        st.warning(
+            "No se encontró el modelo entrenado para explicar la predicción "
+            f"localmente ({exc}). Ejecuta `python -m src.train`."
+        )
+    except Exception as exc:  # noqa: BLE001 - mostramos el error sin romper la UI
+        st.error(f"No se pudo calcular la explicación SHAP: {exc}")
+
+
+def _render_position_on_2d(payload: dict, probability: float) -> None:
+    """Sitúa la reserva del usuario en el mapa 2D de regiones de decisión."""
+    st.subheader("Tu reserva en el mapa 2D de los modelos")
+    st.caption(
+        "El mismo mapa de la sección *Visualización de los modelos*, pero con "
+        "**tu reserva** marcada con una estrella amarilla. Si cae en zona roja, "
+        "todos los modelos coinciden en señalarla como probable cancelación; en "
+        "zona azul, en lo contrario; cerca de la línea negra, el modelo duda."
+    )
+    try:
+        from src.visualization_2d import plot_booking_on_2d
+
+        with st.spinner("Proyectando la reserva al plano PLS…"):
+            artifacts = _load_pls_artifacts()
+            booking_df = pd.DataFrame([payload])
+            fig = plot_booking_on_2d(
+                booking_df,
+                probability_canceled=probability,
+                artifacts=artifacts,
+            )
+        st.pyplot(fig, use_container_width=True)
+    except FileNotFoundError as exc:
+        st.warning(
+            "No se encontraron los artefactos de la visualización 2D "
+            f"({exc}). Ejecuta `python -m src.visualization_2d`."
+        )
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"No se pudo dibujar el mapa 2D: {exc}")
 
 
 def _render_api_status() -> bool:
@@ -180,5 +260,9 @@ def render() -> None:
 
     if ok and isinstance(result, dict):
         _render_result(result)
+        st.divider()
+        _render_shap_explanation(payload)
+        st.divider()
+        _render_position_on_2d(payload, float(result.get("probability", 0.0)))
     else:
         st.error(f"No se pudo obtener la predicción. {result}", icon="🚫")
