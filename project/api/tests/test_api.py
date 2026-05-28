@@ -43,6 +43,12 @@ def test_model_info() -> None:
     assert body["n_features"] == 27
     assert len(body["features"]["numeric"]) == 16
     assert len(body["features"]["categorical"]) == 11
+    # En el entorno de tests no se define MLFLOW_MODEL_URI, así que la API
+    # debe servir el pickle bundled y reportarlo así en /model-info.
+    assert body["source"] == "bundled"
+    assert body["registry_uri"] is None
+    assert body["version"] is None
+    assert body["fallback_reason"] is None
 
 
 def test_predict() -> None:

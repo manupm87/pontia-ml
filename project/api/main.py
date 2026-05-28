@@ -76,7 +76,14 @@ def health() -> HealthResponse:
     response_model=ModelInfo,
 )
 def model_info() -> ModelInfo:
-    """Expone el tipo de modelo, su métrica principal y las características usadas."""
+    """Expone el tipo de modelo, su métrica principal y las características usadas.
+
+    Incluye también el ORIGEN del modelo (registry MLflow vs pickle bundled),
+    su versión y stage si vienen del registry, y la razón del fallback si lo
+    hubo. Útil para verificar de un vistazo que la API esté sirviendo lo
+    esperado tras un despliegue.
+    """
+    load_info = service.get_load_info()
     return ModelInfo(
         model_type="XGBoost",
         primary_metric=config.PRIMARY_METRIC,
@@ -86,6 +93,12 @@ def model_info() -> ModelInfo:
             "numeric": config.NUMERIC_COLUMNS,
             "categorical": config.CATEGORICAL_COLUMNS,
         },
+        source=load_info.get("source", "bundled"),
+        registry_uri=load_info.get("registry_uri"),
+        version=load_info.get("version"),
+        stage=load_info.get("stage"),
+        run_id=load_info.get("run_id"),
+        fallback_reason=load_info.get("fallback_reason"),
     )
 
 

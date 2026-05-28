@@ -255,7 +255,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
 
 ### Fase 3 — La API lee el modelo desde el registry
 
-- [ ] **T13 — Refactorizar `api/service.py` para cargar desde MLflow**
+- [x] **T13 — Refactorizar `api/service.py` para cargar desde MLflow**
   *Depende de*: T07 · *Owner*: agente
   - Modificar `get_model()` para que use esta cadena de carga, en orden:
     1. Si `MLFLOW_MODEL_URI` está definida, descargar desde el registry
@@ -268,7 +268,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: con `MLFLOW_MODEL_URI` puesto en local funciona y
     se cachea; sin la var, sigue sirviendo el pkl bundled.
 
-- [ ] **T14 — Enriquecer `/model-info`**
+- [x] **T14 — Enriquecer `/model-info`**
   *Depende de*: T13 · *Owner*: agente
   - Añadir al schema y al endpoint:
     - `source`: `"registry"` | `"bundled"`.

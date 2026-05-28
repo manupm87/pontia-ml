@@ -146,7 +146,12 @@ class HealthResponse(BaseModel):
 
 
 class ModelInfo(BaseModel):
-    """Metadatos del modelo servido, útiles para una interfaz cliente."""
+    """Metadatos del modelo servido, útiles para una interfaz cliente.
+
+    Incluye una pequeña *trace* del origen del modelo, para que el cliente
+    pueda saber si la API está sirviendo la versión del Model Registry
+    (MLflow / DagsHub) o el pickle bundled de respaldo.
+    """
 
     model_type: str = Field(..., description="Familia del modelo (p. ej. 'XGBoost').")
     primary_metric: str = Field(..., description="Métrica principal de selección (p. ej. 'roc_auc').")
@@ -154,6 +159,43 @@ class ModelInfo(BaseModel):
     n_features: int = Field(..., description="Número de características de entrada (27).")
     features: dict = Field(
         ..., description="Características divididas en 'numeric' y 'categorical'."
+    )
+
+    # --- Origen del modelo (MLOps) ---
+    source: str = Field(
+        ...,
+        description=(
+            "Origen del modelo cargado: 'registry' (descargado del Model "
+            "Registry MLflow) o 'bundled' (pickle versionado en el repo). "
+            "Si la carga desde el registry falla, la API cae a 'bundled' y "
+            "rellena 'fallback_reason'."
+        ),
+    )
+    registry_uri: str | None = Field(
+        default=None,
+        description=(
+            "URI del registry cuando source='registry'. Típicamente "
+            "'models:/pontia-cancellations/Production'."
+        ),
+    )
+    version: int | None = Field(
+        default=None,
+        description="Versión registrada del modelo (solo si source='registry').",
+    )
+    stage: str | None = Field(
+        default=None,
+        description="Stage del modelo (Staging/Production/Archived/None).",
+    )
+    run_id: str | None = Field(
+        default=None,
+        description="ID del run MLflow que generó esa versión, si se conoce.",
+    )
+    fallback_reason: str | None = Field(
+        default=None,
+        description=(
+            "Solo presente cuando se intentó cargar del registry y falló. "
+            "Contiene el tipo y mensaje del error para diagnóstico."
+        ),
     )
 
     # ``model_`` es un prefijo protegido en Pydantic v2; lo permitimos
