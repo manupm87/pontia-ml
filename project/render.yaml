@@ -1,0 +1,65 @@
+# Blueprint declarativo de Render (https://render.com/docs/blueprint-spec).
+#
+# Despliega la API FastAPI del proyecto en el tier gratuito de Render. La
+# interfaz visual (Streamlit) NO se despliega aquí: vive en Streamlit
+# Community Cloud y consume esta API por HTTP. Razones:
+#
+#   - Render free da 512 MB de RAM y 0.1 vCPU por servicio. La API
+#     (XGBoost 28 MB + sklearn + FastAPI) cabe; la UI (carga el modelo
+#     también para SHAP local + matplotlib) suele quedarse sin memoria.
+#   - Streamlit Cloud sube esa cota a ~1 GB y es el "hogar natural" de
+#     una app Streamlit (deploy con un clic desde un repo de GitHub).
+#
+# Para crear el servicio: Render dashboard → New → Blueprint → conectar
+# el repo `manupm87/pontia-ml` y seleccionar este fichero. El propio
+# Render detectará la entrada `services:` y lanzará el deploy.
+#
+# Las variables marcadas con `sync: false` NO se sincronizan desde el
+# repo: se rellenan a mano en el dashboard. Es donde van las credenciales
+# de MLflow / DagsHub (si quieres que la API sirva del registry en lugar
+# del pickle bundled, ver `docs/plan_despliegue_mlflow.md` T13/T16).
+
+services:
+  - type: web
+    name: pontia-api
+    runtime: python
+    plan: free                        # 512 MB RAM, sleeps tras 15 min inactivo
+    region: frankfurt                 # más cerca de España que oregon (default)
+    rootDir: project                  # el repo tiene varios subproyectos, el nuestro es project/
+
+    # Solo requirements.txt (runtime): tensorflow + mlflow viven en
+    # requirements-train.txt y no son necesarios para servir.
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+
+    # $PORT lo inyecta Render; uvicorn escucha en él. --host 0.0.0.0 es
+    # imprescindible (loopback no funciona detrás del proxy de Render).
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+
+    # /health devuelve 200 con {"status":"ok","model_loaded":true} si el
+    # pickle (o el modelo del registry) cargó correctamente.
+    healthCheckPath: /health
+
+    # Variables públicas (no secretos). Las MLflow se rellenan a mano en
+    # el dashboard la primera vez que quieras activar el registry.
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      # Cachea modelos descargados del registry. /tmp es escribible en
+      # Render free y sobrevive a warm-restarts (NO a cold-starts → se
+      # re-descarga, que es lo deseable porque suele ser un evento raro).
+      - key: PONTIA_REGISTRY_CACHE
+        value: /tmp/pontia_models
+
+      # --- Activación opcional del Model Registry de MLflow ---
+      # Descomentar (o añadirlas vía dashboard) cuando se quiera que la
+      # API sirva la versión "Production" del registry en lugar del pickle
+      # bundled. Si la descarga falla, la API cae automáticamente al pkl
+      # local (ver api/service.py).
+      - key: MLFLOW_MODEL_URI
+        sync: false                   # set in dashboard
+      - key: MLFLOW_TRACKING_URI
+        sync: false
+      - key: MLFLOW_TRACKING_USERNAME
+        sync: false
+      - key: MLFLOW_TRACKING_PASSWORD
+        sync: false

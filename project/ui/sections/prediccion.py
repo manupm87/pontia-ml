@@ -104,6 +104,20 @@ def _render_api_status() -> bool:
         )
         return True
 
+    if data.is_remote_api():
+        # En Render free, "no disponible" suele significar "dormida".
+        # Mostramos un aviso amable en vez de un error técnico.
+        st.warning(
+            f"**La API parece estar dormida** en `{config.API_BASE_URL}`.\n\n"
+            "Los servicios del tier gratuito de Render se apagan tras 15 min "
+            "de inactividad y el primer arranque tarda **~30–50 s**. "
+            "Espera medio minuto y recarga la página: si el problema persiste, "
+            "es que la API no está desplegada.\n\n"
+            f"Detalle técnico: {info}",
+            icon="⏳",
+        )
+        return False
+
     st.error(
         f"**La API no está disponible** en `{config.API_BASE_URL}`.\n\n"
         f"Motivo: {info}",

@@ -199,7 +199,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
     `curl -H "Origin: https://otra.com" ... -i /predict` ya no muestra
     `Access-Control-Allow-Origin: *`.
 
-- [ ] **T09 — Añadir `project/render.yaml`**
+- [x] **T09 — Añadir `project/render.yaml`**
   *Depende de*: T01 · *Owner*: agente
   - Spec declarativo de Render (un único servicio web):
     ```yaml
@@ -231,7 +231,7 @@ desde un `best_model.pkl` comprometido en git), demostrando el flujo
   - **Aceptación**: `/health` responde 200 sobre el dominio del usuario
     con cert válido.
 
-- [ ] **T11 — Tarjeta "warm up" en la UI Streamlit**
+- [x] **T11 — Tarjeta "warm up" en la UI Streamlit**
   *Depende de*: ninguna · *Owner*: agente
   - En `ui/app.py`, antes de renderizar la barra lateral, lanzar un
     `data.check_api_health()` en *fire-and-forget* para despertar al

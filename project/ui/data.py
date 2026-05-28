@@ -193,6 +193,41 @@ def numeric_summary() -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Cliente de la API de predicción
 # ---------------------------------------------------------------------------
+def is_remote_api() -> bool:
+    """¿La API configurada es remota (no localhost)?
+
+    Útil para decidir si mostrar el aviso de *cold start* (servicios free
+    como Render se duermen tras 15 min de inactividad y tardan ~30-50 s en
+    despertar) y para activar el *pre-warm* en `app.py`.
+    """
+    url = config.API_BASE_URL.lower()
+    return ("localhost" not in url) and ("127.0.0.1" not in url) and ("0.0.0.0" not in url)
+
+
+# Timeout largo para el pre-warm: en Render free el primer arranque tras
+# inactividad puede pasar de 30 s. Solo se usa en `warm_up_api`.
+WARMUP_TIMEOUT_S: float = 60.0
+
+
+def warm_up_api() -> bool:
+    """Pide `/health` con timeout largo para despertar a la API si dormía.
+
+    Se llama una sola vez por sesión Streamlit (la cachea `app.py` con
+    `st.cache_resource`). Está pensada para hostings free con *cold start*
+    (Render, Koyeb, etc.): mientras el usuario lee la barra lateral, esta
+    llamada provoca el arranque del servicio. Ignora errores: si falla,
+    el chequeo en vivo (`check_api_health`) lo reportará después con un
+    mensaje claro.
+    """
+    if not is_remote_api():
+        return True  # localhost: no hace falta despertar nada
+    try:
+        requests.get(config.API_HEALTH_ENDPOINT, timeout=WARMUP_TIMEOUT_S)
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
 def check_api_health() -> tuple[bool, dict[str, Any] | str]:
     """Comprueba si la API está viva consultando `GET /health`.
 

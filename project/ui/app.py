@@ -73,13 +73,31 @@ def _render_sidebar() -> str:
     ok, info = data.check_api_health()
     if ok:
         st.sidebar.success("Conectada", icon="✅")
+        if isinstance(info, dict) and info.get("model_loaded") is False:
+            st.sidebar.warning(
+                "La API responde pero el modelo no está cargado.", icon="⚠️"
+            )
+    elif data.is_remote_api():
+        # En hostings free (Render), el servicio se duerme tras 15 min
+        # de inactividad. Avisamos al usuario en vez de dar un escueto
+        # "no disponible" que parece un error de configuración.
+        st.sidebar.warning(
+            "Despertando la API… (~30–50 s la primera vez)",
+            icon="⏳",
+        )
     else:
         st.sidebar.error("No disponible", icon="🚫")
     st.sidebar.caption(f"URL: `{config.API_BASE_URL}`")
-    st.sidebar.caption(
-        "La predicción requiere la API en marcha "
-        "(`uvicorn api.main:app`). Cambia la URL con `PONTIA_API_URL`."
-    )
+    if data.is_remote_api():
+        st.sidebar.caption(
+            "Servida en Render free: la primera petición tras un rato "
+            "de inactividad puede tardar mientras el servicio arranca."
+        )
+    else:
+        st.sidebar.caption(
+            "La predicción requiere la API en marcha "
+            "(`uvicorn api.main:app`). Cambia la URL con `PONTIA_API_URL`."
+        )
 
     st.sidebar.divider()
     st.sidebar.caption(
@@ -89,8 +107,23 @@ def _render_sidebar() -> str:
     return choice
 
 
+@st.cache_resource(show_spinner=False)
+def _prewarm_api() -> bool:
+    """Despierta la API remota una sola vez por sesión.
+
+    Cacheado con `st.cache_resource`: la primera vez que se carga la
+    aplicación dispara la petición; los `rerun` siguientes la saltan.
+    En localhost es no-op (devuelve True inmediatamente).
+    """
+    return data.warm_up_api()
+
+
 def main() -> None:
     _configure_page()
+    # Lanza el *pre-warm* antes de pintar nada: si la API estaba dormida
+    # en Render, esta llamada se ejecuta mientras el usuario lee la
+    # interfaz, de modo que cuando intente predecir la API ya esté lista.
+    _prewarm_api()
     choice = _render_sidebar()
     # Renderiza la sección seleccionada.
     SECTIONS[choice]()
