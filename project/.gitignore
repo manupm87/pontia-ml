@@ -3,6 +3,12 @@
 venv/
 env/
 
+# --- Secretos (credenciales locales) ---
+# Variables de entorno con tokens (DagsHub/MLflow, etc.). NUNCA commitear.
+.env
+.env.*
+!.env.example
+
 # --- Python ---
 __pycache__/
 *.py[cod]

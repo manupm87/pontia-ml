@@ -27,12 +27,23 @@ import logging
 
 import joblib
 
-from . import config
+from . import config, tracking
 from .data_loader import load_and_prepare
 from .evaluator import Evaluator
 from .model_trainer import ModelTrainer
 
 logger = logging.getLogger(__name__)
+
+
+# Etiqueta de familia para cada modelo, útil para filtrar runs en la UI
+# de MLflow ("muéstrame solo los XGBoost", etc.).
+_MODEL_FAMILY: dict[str, str] = {
+    "Logistic Regression": "linear",
+    "Decision Tree": "tree",
+    "Random Forest": "forest",
+    "XGBoost": "boosting",
+    "Neural Network (Keras)": "neural_net",
+}
 
 
 def configure_logging(level: int = logging.INFO) -> None:
@@ -69,6 +80,10 @@ def run_pipeline(tune: bool = False) -> tuple:
 
     config.ensure_directories()
     gpu.log_status()  # informa de si se usará GPU (XGBoost) o CPU
+    # MLflow: activamos el tracking si hay credenciales. Si no, todos los
+    # `tracking.*` que vienen a continuación se comportan como no-op y el
+    # pipeline funciona exactamente igual que antes.
+    tracking.init_tracking("pontia-cancellations-train")
 
     # 1) Carga + limpieza + partición estratificada.
     logger.info("=== Fase 1: carga y preparación de datos ===")
@@ -129,8 +144,90 @@ def run_pipeline(tune: bool = False) -> tuple:
     joblib.dump(modelos[mejor], config.BEST_MODEL_PATH)
     logger.info("Mejor modelo guardado en: %s", config.BEST_MODEL_PATH)
 
+    # MLflow: registrar TODO el experimento en un único árbol de runs:
+    #   train_all_models          (run padre)
+    #   ├── Logistic Regression   (child run con params + métricas)
+    #   ├── Decision Tree
+    #   ├── ...
+    #   └── XGBoost               (también loguea el modelo como artefacto)
+    # Si el tracking no está activo, `tracking.*` no hace nada y este bloque
+    # se ejecuta en milisegundos (sin red, sin disco).
+    _log_training_run(trainer, evaluator, modelos, tabla, mejor, tuned=tune)
+
     _print_summary(tabla, mejor)
     return tabla, mejor
+
+
+def _log_training_run(
+    trainer: ModelTrainer,
+    evaluator: Evaluator,
+    modelos: dict,
+    tabla,
+    mejor: str,
+    *,
+    tuned: bool,
+) -> None:
+    """Publica el experimento de entrenamiento completo en MLflow."""
+    if not tracking.tracking_enabled():
+        return
+
+    with tracking.start_run(run_name="train_all_models"):
+        # Contexto del experimento entero a nivel de run padre.
+        tracking.set_tags(
+            {
+                "phase": "training",
+                "tuned": tuned,
+                "n_models": len(modelos),
+                "best_model": mejor,
+                "primary_metric": config.PRIMARY_METRIC,
+                "random_state": config.RANDOM_STATE,
+            }
+        )
+        tracking.log_metrics(
+            {
+                f"best_{config.PRIMARY_METRIC}": float(
+                    tabla.loc[mejor, config.PRIMARY_METRIC]
+                ),
+            }
+        )
+
+        # Un child run por modelo, con sus params + métricas + tiempo.
+        for nombre, res in evaluator.results_.items():
+            with tracking.start_run(run_name=nombre, nested=True):
+                tracking.set_tags(
+                    {
+                        "model_family": _MODEL_FAMILY.get(nombre, "other"),
+                        "best": nombre == mejor,
+                    }
+                )
+                # `get_params()` del estimador (sin el preprocesador).
+                model_params = trainer.models_[nombre].named_steps["model"].get_params()
+                tracking.log_params(model_params)
+                tracking.log_metrics(res["metrics"])
+                tracking.log_metrics(
+                    {"train_time_s": float(trainer.train_times_.get(nombre, 0.0))}
+                )
+
+        # Artefactos comunes (las 5 figuras y la tabla CSV/markdown).
+        for artefacto in (
+            config.METRICS_TABLE_PATH,
+            config.OUTPUTS_DIR / "metricas_modelos.md",
+            config.OUTPUTS_DIR / "roc_curves.png",
+            config.OUTPUTS_DIR / "confusion_matrices.png",
+            config.OUTPUTS_DIR / "confusion_matrix_best.png",
+            config.OUTPUTS_DIR / "feature_importance.png",
+        ):
+            tracking.log_artifact(artefacto)
+
+        # Modelo ganador: lo subimos al run padre como sub-carpeta `model/`
+        # para poder registrarlo después con `mlflow.register_model(...)`.
+        tracking.log_sklearn_model(modelos[mejor], artifact_path="model")
+        logger.info(
+            "MLflow: experimento publicado (mejor=%s, %s=%.4f).",
+            mejor,
+            config.PRIMARY_METRIC,
+            tabla.loc[mejor, config.PRIMARY_METRIC],
+        )
 
 
 def _print_summary(tabla, mejor: str) -> None:

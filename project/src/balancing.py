@@ -39,7 +39,7 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 
-from . import config
+from . import config, tracking
 from .preprocessing import build_preprocessor
 
 logger = logging.getLogger(__name__)
@@ -177,6 +177,54 @@ def save_results(df: pd.DataFrame) -> None:
     logger.info("Gráfico de balanceo guardado en: %s", config.BALANCING_PLOT_PATH)
 
 
+_MODEL_FAMILY: dict[str, str] = {
+    "Logistic Regression": "linear",
+    "Decision Tree": "tree",
+    "Random Forest": "forest",
+    "XGBoost": "boosting",
+}
+
+_METRIC_COLS: tuple[str, ...] = ("accuracy", "precision", "recall", "f1", "roc_auc")
+
+
+def _log_to_mlflow(df: pd.DataFrame) -> None:
+    """Publica el experimento de balanceo en MLflow.
+
+    Estructura: un parent run ``balancing_strategies`` con un child run por
+    cada combinación (modelo × estrategia) — 12 en total. Los artefactos
+    (Markdown + PNG) se suben al run padre.
+    """
+    if not tracking.tracking_enabled():
+        return
+
+    with tracking.start_run(run_name="balancing_strategies"):
+        tracking.set_tags(
+            {
+                "phase": "balancing",
+                "n_strategies": len(ESTRATEGIAS),
+                "n_models": int(df["modelo"].nunique()),
+            }
+        )
+
+        for fila in df.itertuples(index=False):
+            run_name = f"{fila.modelo} · {fila.estrategia}"
+            with tracking.start_run(run_name=run_name, nested=True):
+                tracking.set_tags(
+                    {
+                        "strategy": fila.estrategia,
+                        "model": fila.modelo,
+                        "model_family": _MODEL_FAMILY.get(fila.modelo, "other"),
+                    }
+                )
+                tracking.log_metrics(
+                    {m: float(getattr(fila, m)) for m in _METRIC_COLS}
+                )
+
+        # Artefactos comunes al experimento.
+        tracking.log_artifact(config.BALANCING_RESULTS_PATH)
+        tracking.log_artifact(config.BALANCING_PLOT_PATH)
+
+
 def main() -> None:
     from .data_loader import load_and_prepare
     from .train import configure_logging
@@ -184,10 +232,12 @@ def main() -> None:
     matplotlib.use("Agg")  # CLI: backend no interactivo para guardar el PNG sin pantalla
     configure_logging()
     config.ensure_directories()
+    tracking.init_tracking("pontia-cancellations-balancing")
     logger.info("=== Balanceo de clases: baseline vs class_weight vs SMOTE ===")
     X_train, X_test, y_train, y_test = load_and_prepare()
     df = compare(X_train, X_test, y_train, y_test)
     save_results(df)
+    _log_to_mlflow(df)  # tras `save_results`, los artefactos ya existen en disco
     print("\n" + "=" * 70)
     print("COMPARACIÓN DE ESTRATEGIAS DE BALANCEO (test)")
     print("=" * 70)

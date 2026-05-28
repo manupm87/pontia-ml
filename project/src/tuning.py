@@ -36,10 +36,19 @@ from sklearn.model_selection import (
 )
 from sklearn.pipeline import Pipeline
 
-from . import config, gpu
+from . import config, gpu, tracking
 from .preprocessing import build_preprocessor
 
 logger = logging.getLogger(__name__)
+
+
+# Mismo mapeo que en `train.py` (más conciso aquí).
+_MODEL_FAMILY: dict[str, str] = {
+    "Logistic Regression": "linear",
+    "Decision Tree": "tree",
+    "Random Forest": "forest",
+    "XGBoost": "boosting",
+}
 
 
 def _pipeline(estimator) -> Pipeline:
@@ -150,6 +159,24 @@ class HyperparameterTuner:
         dict[str, dict]
             ``nombre -> {best_params, cv_tuned, cv_default, search, n_combos, segundos}``
         """
+        # MLflow: si nos invocan desde `python -m src.tuning` (raíz), abrimos
+        # un parent run "tuning_hyperparameters". Si nos llaman desde
+        # `python -m src.train --tune`, ``start_run`` detecta el run activo
+        # y este se convierte en child del run de entrenamiento. En cualquiera
+        # de los dos casos, los runs por modelo cuelgan de aquí.
+        with tracking.start_run(run_name="tuning_hyperparameters"):
+            tracking.set_tags(
+                {
+                    "phase": "tuning",
+                    "cv_folds": self.cv,
+                    "scoring": self.scoring,
+                    "n_iter": self.n_iter,
+                }
+            )
+            return self._tune_inner(X_train, y_train)
+
+    def _tune_inner(self, X_train, y_train) -> dict[str, dict]:
+        """Implementación del bucle de búsqueda (lo separamos del setup de MLflow)."""
         self.results_ = {}
         self.best_params_ = {}
         for nombre, (estimador, grid, kind, default_params) in self._catalog().items():
@@ -212,6 +239,37 @@ class HyperparameterTuner:
                 search.best_score_,
                 elapsed,
             )
+
+            # MLflow: un child run por modelo, con los mejores params, las
+            # dos puntuaciones de CV (baseline vs optimizada) y el tiempo.
+            with tracking.start_run(run_name=nombre, nested=True):
+                tracking.set_tags(
+                    {
+                        "model_family": _MODEL_FAMILY.get(nombre, "other"),
+                        "search": tipo,
+                        "phase": "tuning",
+                    }
+                )
+                tracking.log_params(best)
+                tracking.log_metrics(
+                    {
+                        f"cv_{self.scoring}_default": float(cv_default),
+                        f"cv_{self.scoring}_tuned": float(search.best_score_),
+                        f"cv_{self.scoring}_improvement": float(
+                            search.best_score_ - cv_default
+                        ),
+                        "n_combos_tried": int(len(search.cv_results_["params"])),
+                        "elapsed_s": float(elapsed),
+                    }
+                )
+        # Persistimos los resultados ANTES de subirlos como artefactos para
+        # asegurar que los ficheros existen. Las llamadas a `save_results` /
+        # `save_best_params` desde los callers (`main()` y `train.py --tune`)
+        # quedan idempotentes (escriben el mismo contenido).
+        self.save_results()
+        self.save_best_params()
+        tracking.log_artifact(config.TUNING_RESULTS_PATH)
+        tracking.log_artifact(config.BEST_PARAMS_PATH)
         return self.results_
 
     def results_table(self) -> pd.DataFrame:

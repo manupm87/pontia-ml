@@ -1,5 +1,15 @@
-# Dependencias del proyecto — Python 3.11 ó 3.12
+# Dependencias de RUNTIME — Python 3.11 ó 3.12
 # Instalación: pip install -r requirements.txt
+#
+# Este fichero contiene SOLO lo necesario para arrancar la API (FastAPI) y
+# la interfaz visual (Streamlit) y para hacer inferencia con el modelo ya
+# entrenado. Para reentrenar (TensorFlow), aplicar SMOTE, abrir notebooks
+# o registrar experimentos con MLflow, instala también
+# `requirements-train.txt`.
+#
+# La división mantiene el tamaño del entorno público (Render / Streamlit
+# Cloud) por debajo de ~400 MB, dejando margen suficiente en sus tiers
+# gratuitos (~512 MB-1 GB de RAM).
 #
 # Las versiones se han elegido para que `pip install -r requirements.txt`
 # funcione "out of the box" en las cuatro plataformas objetivo, sin pasos
@@ -10,13 +20,9 @@
 #   - macOS Intel  (x86_64)
 #   - macOS Apple Silicon (arm64)
 #
-# El techo lo fija TensorFlow 2.16.2, que es la última versión con rueda
-# publicada para macOS x86_64. Esa cota a su vez obliga a numpy<2 y
-# arrastra al resto de pines (pandas 2.x, scikit-learn 1.6.x, shap 0.49.x,
-# etc.). En Linux/Windows usamos `tensorflow-cpu` (más ligero); en macOS
-# el paquete `tensorflow` (única familia con ruedas para Intel + arm64).
-#
-# Python 3.13 todavía no tiene ruedas de TF 2.16, por eso el techo es 3.12.
+# Los topes (numpy<2, scikit-learn<1.7, shap<0.50, etc.) los hereda
+# `requirements-train.txt` desde TensorFlow 2.16.2, así que las versiones
+# son coherentes entre ambos ficheros.
 
 # --- Núcleo de datos y ML clásico ---
 numpy>=1.26,<2.0
@@ -25,10 +31,12 @@ scikit-learn>=1.5,<1.7
 scipy>=1.13,<1.15
 joblib>=1.4
 
-# --- Gradient Boosting ---
+# --- Gradient Boosting (modelo en producción) ---
 xgboost>=2.1,<3.3
 
 # --- Interpretabilidad (bonus): SHAP ---
+# La UI calcula explicaciones locales (waterfall) para cada reserva, así
+# que SHAP es runtime. Numba/llvmlite son sus dependencias nativas.
 shap>=0.46,<0.50
 # numba 0.63+ dejó de publicar ruedas para macOS x86_64; lo capamos para
 # que `pip install` no intente compilar llvmlite desde fuentes (necesitaría
@@ -36,27 +44,9 @@ shap>=0.46,<0.50
 numba>=0.59,<0.63
 llvmlite>=0.42,<0.46
 
-# --- Balanceo de clases (bonus): SMOTE y similares ---
-imbalanced-learn>=0.12,<0.14
-
-# --- Deep Learning (red neuronal con Keras) ---
-# tensorflow-cpu solo publica ruedas para Linux y Windows; en macOS hay
-# que usar el paquete `tensorflow`, que incluye builds para Intel y arm64.
-tensorflow-cpu==2.16.2; sys_platform != "darwin"
-tensorflow==2.16.2;     sys_platform == "darwin"
-keras>=3.3,<3.6
-
 # --- Visualización ---
 matplotlib>=3.8,<3.11
-seaborn>=0.13
 plotly>=5.20
-
-# --- Notebooks (EDA y comparativa) ---
-jupyter>=1.0
-ipykernel>=6.29
-nbformat>=5.10
-nbconvert>=7.16
-notebook>=7.2
 
 # --- API (bonus): FastAPI ---
 fastapi>=0.110,<0.120
