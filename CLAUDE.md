@@ -141,11 +141,14 @@ with `set -a; source .env; set +a`. There's an `.env.example` template.
 
 ## Git / files
 
-- Gitignored (regenerable): `.venv/`, `models/*.pkl`, `data/processed/`,
-  `iframe_figures/` (Plotly exports, ~5 MB each), `outputs/*.pkl` (the
-  visualization_2d artefact cache, ~5 MB), `.env` (local secrets).
-  **Versioned:** `outputs/*.png` and `outputs/metricas_*`. **Tracked secret
-  templates:** `.env.example`.
+- Gitignored (regenerable): `.venv/`, `models/*.pkl` (**except**
+  `models/best_model.pkl` — see below), `data/processed/`, `iframe_figures/`
+  (Plotly exports, ~5 MB each), `outputs/*.pkl` (the visualization_2d
+  artefact cache, ~5 MB), `.env` (local secrets). **Versioned:**
+  `outputs/*.png`, `outputs/metricas_*`, and **`models/best_model.pkl`**
+  (28 MB; needed on Render free as fallback when the MLflow registry path
+  fails — without it the API can't boot). **Tracked secret templates:**
+  `.env.example`.
 - Current best result: **XGBoost ROC-AUC 0.9614** (`{n_estimators:600, max_depth:16,
   learning_rate:0.03}`), registered in DagsHub as
   `pontia-cancellations:1@Production`.

@@ -55,3 +55,13 @@ requests>=2.32
 
 # --- UI (bonus): Streamlit ---
 streamlit>=1.36,<1.50
+
+# --- MLflow (bonus): cliente para servir desde el Model Registry ---
+# La API descarga el modelo del registry si `MLFLOW_MODEL_URI` está
+# definida (ver `api/service.py`). Necesitamos el cliente de MLflow
+# instalado en runtime; sin él, ese camino falla con `ModuleNotFoundError`
+# y la API cae al pickle bundled (también incluido en repo como respaldo).
+# Si quieres minimizar tamaño de imagen, podrías usar `mlflow-skinny`,
+# pero mantenemos `mlflow` completo para que también funcione el log de
+# modelos en notebooks de exploración que importan `mlflow.sklearn`.
+mlflow>=2.16,<3.0

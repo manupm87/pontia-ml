@@ -20,8 +20,13 @@ data/processed/
 
 # --- Modelos entrenados (regenerables con `python -m src.train`) ---
 # Se ignoran por tamaño; basta con ejecutar el pipeline para reconstruirlos.
+# EXCEPCIÓN: `best_model.pkl` SÍ se versiona porque la API lo usa como
+# **respaldo** (fallback) cuando la carga desde el Model Registry de MLflow
+# falla (sin red, token caducado, etc. — ver `api/service.py`). En Render
+# free no se entrena, así que sin commitearlo no habría dónde caer.
 models/*.pkl
 !models/.gitkeep
+!models/best_model.pkl
 
 # --- Artefactos de la visualización 2D (regenerables con
 #     `python -m src.visualization_2d`). El PNG sí se versiona; el pickle
