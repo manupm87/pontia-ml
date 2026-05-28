@@ -18,14 +18,26 @@ Cadena de carga del modelo (en orden)
    artefacto se cachea en ``/tmp/pontia_models/<hash(uri)>`` para no
    re-descargarlo entre warm-restarts del contenedor.
 2. Si el paso 1 falla por cualquier motivo (sin credenciales, red caída,
-   token expirado, ``mlflow`` no instalado…), se cae automáticamente al
-   pickle local (``models/best_model.pkl``), con un *warning* en logs.
+   token expirado…), se cae automáticamente al pickle local
+   (``models/best_model.pkl``), con un *warning* en logs.
+
+Decisión técnica: la descarga del registry se hace con la **REST API
+directa** de MLflow vía ``requests`` (sin la librería ``mlflow``). Razón:
+en Render free (512 MB de RAM) la importación de ``mlflow`` o incluso
+``mlflow-skinny`` añade ~50-150 MB de superficie de import que nos hace
+rebasar el límite. Como solo necesitamos ``GET /api/2.0/mlflow/...`` y
+descargar el pickle, ~30 líneas de cliente HTTP son equivalentes y mucho
+más ligeras. El ``Pipeline`` se deserializa con ``joblib.load`` (el
+mismo formato que usa ``mlflow.sklearn``). Tradeoff: si DagsHub cambia
+sus endpoints REST tendríamos que tocar este código.
 
 Variables de entorno
 --------------------
 - ``MLFLOW_MODEL_URI`` (opcional): URI tipo
   ``models:/pontia-cancellations/Production`` (recomendado) o
   ``models:/pontia-cancellations/3`` (versión fija).
+- ``MLFLOW_TRACKING_URI`` / ``USERNAME`` / ``PASSWORD``: credenciales
+  DagsHub. Solo se usan si ``MLFLOW_MODEL_URI`` está definida.
 - ``PONTIA_MODEL_PATH`` (opcional): ruta absoluta a un ``.pkl`` para
   servirlo en lugar del bundled. Útil sobre todo en tests / despliegues
   custom.
@@ -34,12 +46,15 @@ Variables de entorno
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 from functools import lru_cache
 from pathlib import Path
 
+import joblib
 import pandas as pd
+import requests
 
 from src import config
 from src.predict import load_best_model, predict_dataframe
@@ -113,72 +128,121 @@ def _registry_cache_dir(uri: str) -> Path:
     return _REGISTRY_CACHE_ROOT / h
 
 
-def _resolve_model_version(uri: str) -> dict:
-    """Para una URI ``models:/name/<stage|version>``, devuelve metadatos.
+def _mlflow_auth() -> tuple[str, str]:
+    """Devuelve (usuario, token) para HTTP Basic contra DagsHub MLflow."""
+    return (
+        os.environ["MLFLOW_TRACKING_USERNAME"],
+        os.environ["MLFLOW_TRACKING_PASSWORD"],
+    )
 
-    Si la URI no es del tipo ``models:/`` (p. ej. ``runs:/...``), devuelve
-    un diccionario vacío. Tolerante a fallos: nunca lanza, solo loguea.
+
+def _resolve_registry_uri(uri: str) -> dict:
+    """Resuelve ``models:/name/<stage|version>`` contra la API REST MLflow.
+
+    Llama directamente a los endpoints HTTP del servidor MLflow (sin la
+    librería ``mlflow``). Devuelve el dict de metadatos de la versión, que
+    incluye ``source`` (URI del artefacto), ``version``, ``current_stage``
+    y ``run_id``.
+
+    Lanza ``RuntimeError`` si no se encuentra una versión en el stage pedido,
+    o propaga ``requests.HTTPError`` si la auth/URL son inválidas.
     """
     if not uri.startswith("models:/"):
-        return {}
-    try:
-        from mlflow.tracking import MlflowClient
+        raise ValueError(f"URI no soportada para el registry: {uri!r}")
+    parts = uri[len("models:/"):].split("/", 1)
+    if len(parts) != 2:
+        raise ValueError(f"URI mal formada (esperado models:/<name>/<ref>): {uri!r}")
+    name, ref = parts
 
-        # "models:/<name>/<ref>" -> ["<name>", "<ref>"]
-        parts = uri[len("models:/"):].split("/", 1)
-        if len(parts) != 2:
-            return {}
-        name, ref = parts
-        client = MlflowClient()
-        if ref.isdigit():
-            mv = client.get_model_version(name, ref)
-        else:
-            # Stage (Staging / Production / None / Archived) -> última versión.
-            versions = client.get_latest_versions(name, stages=[ref])
-            mv = versions[0] if versions else None
-        if mv is None:
-            return {}
-        return {
-            "name": mv.name,
-            "version": int(mv.version),
-            "stage": mv.current_stage,
-            "run_id": mv.run_id,
-        }
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("No se pudo resolver la versión del registry (%s).", exc)
-        return {}
+    tracking_uri = os.environ["MLFLOW_TRACKING_URI"].rstrip("/")
+    auth = _mlflow_auth()
+
+    if ref.isdigit():
+        # Versión concreta (p. ej. models:/pontia-cancellations/3).
+        resp = requests.get(
+            f"{tracking_uri}/api/2.0/mlflow/model-versions/get",
+            params={"name": name, "version": ref},
+            auth=auth,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json()["model_version"]
+
+    # Stage (Production, Staging, Archived). Pedimos el Registered Model
+    # entero y filtramos su `latest_versions` por stage. Lo hacemos así
+    # porque DagsHub no implementa `get-latest-versions` como endpoint REST.
+    resp = requests.get(
+        f"{tracking_uri}/api/2.0/mlflow/registered-models/get",
+        params={"name": name},
+        auth=auth,
+        timeout=15,
+    )
+    resp.raise_for_status()
+    versions = resp.json().get("registered_model", {}).get("latest_versions", [])
+    for mv in versions:
+        if mv.get("current_stage") == ref:
+            return mv
+    raise RuntimeError(
+        f"No hay ninguna versión en stage {ref!r} para el modelo {name!r}."
+    )
+
+
+def _download_artifact_file(source_uri: str, dest_pkl: Path) -> None:
+    """Descarga un fichero concreto del artefacto del run vía ``requests``.
+
+    ``source_uri`` es el campo ``source`` del model_version, con forma
+    ``mlflow-artifacts:/<exp_id>/<run_id>/artifacts/model``. La URL de
+    descarga es ``{tracking_uri}/api/2.0/mlflow-artifacts/artifacts/<path>/model.pkl``.
+    """
+    if not source_uri.startswith("mlflow-artifacts:"):
+        raise ValueError(f"Esquema de artefacto no soportado: {source_uri!r}")
+    artifact_path = source_uri.split("mlflow-artifacts:/", 1)[1]
+    tracking_uri = os.environ["MLFLOW_TRACKING_URI"].rstrip("/")
+    url = (
+        f"{tracking_uri}/api/2.0/mlflow-artifacts/artifacts/"
+        f"{artifact_path}/model.pkl"
+    )
+
+    dest_pkl.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Descargando modelo del registry: %s", url)
+    with requests.get(url, auth=_mlflow_auth(), timeout=120, stream=True) as resp:
+        resp.raise_for_status()
+        with open(dest_pkl, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1 << 20):  # 1 MB
+                f.write(chunk)
 
 
 def _load_from_registry(uri: str):
-    """Descarga (si no está cacheado) y carga el modelo del registry MLflow.
+    """Carga el modelo desde el registry MLflow usando solo HTTP + joblib.
 
-    Devuelve la tupla ``(pipeline, info)`` donde ``info`` describe el origen
-    para reportarlo en ``/model-info``. Lanza si algo falla (auth, red...).
+    Si el pickle ya está en la caché ``/tmp/pontia_models/<hash>`` (warm
+    restart de Render), lo reutiliza. Si no, resuelve el URI vía REST,
+    descarga ``model.pkl`` y lo deserializa con ``joblib.load``.
+
+    Lanza si algo falla (auth, red, versión inexistente, etc.); el caller
+    captura la excepción y cae al pickle bundled.
     """
-    import mlflow  # import perezoso
-
     cache_dir = _registry_cache_dir(uri)
-    sentinel = cache_dir / ".downloaded"
+    pkl_path = cache_dir / "model.pkl"
+    info_path = cache_dir / "info.json"
 
-    if not sentinel.exists():
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Descargando modelo desde el registry: %s -> %s", uri, cache_dir)
-        mlflow.artifacts.download_artifacts(artifact_uri=uri, dst_path=str(cache_dir))
-        sentinel.touch()
-    else:
+    if pkl_path.exists() and info_path.exists():
         logger.info("Modelo del registry ya cacheado en %s", cache_dir)
+        info = json.loads(info_path.read_text(encoding="utf-8"))
+        return joblib.load(pkl_path), info
 
-    pipeline = mlflow.sklearn.load_model(str(cache_dir))
-    meta = _resolve_model_version(uri)
+    mv = _resolve_registry_uri(uri)
+    _download_artifact_file(mv["source"], pkl_path)
     info = {
         "source": "registry",
         "registry_uri": uri,
-        "version": meta.get("version"),
-        "stage": meta.get("stage"),
-        "run_id": meta.get("run_id"),
+        "version": int(mv["version"]),
+        "stage": mv.get("current_stage"),
+        "run_id": mv.get("run_id"),
         "path": str(cache_dir),
     }
-    return pipeline, info
+    info_path.write_text(json.dumps(info), encoding="utf-8")
+    return joblib.load(pkl_path), info
 
 
 def _load_bundled():

@@ -56,15 +56,14 @@ requests>=2.32
 # --- UI (bonus): Streamlit ---
 streamlit>=1.36,<1.50
 
-# --- MLflow client (bonus): cliente para servir desde el Model Registry ---
-# La API descarga el modelo del registry si `MLFLOW_MODEL_URI` está
-# definida (ver `api/service.py`). Usamos `mlflow-skinny` en vez de
-# `mlflow` completo: incluye `mlflow.artifacts.download_artifacts`,
-# `mlflow.sklearn.load_model` y `MlflowClient` (lo único que necesitamos
-# en runtime) pero deja fuera el servidor MLflow, pyarrow, Flask,
-# SQLAlchemy, gunicorn, etc. — ~150 MB menos de superficie de import,
-# imprescindible para no superar los 512 MB de RAM de Render free.
+# --- MLflow Model Registry desde la API ---
+# La API descarga el modelo del registry vía REST directa (con `requests`,
+# ya listado arriba) cuando `MLFLOW_MODEL_URI` está definida. NO instalamos
+# `mlflow` ni `mlflow-skinny` en runtime: solo cargar la librería suma
+# ~50-150 MB de RSS y no caben en los 512 MB de RAM de Render free. La
+# API solo necesita dos endpoints HTTP del servidor MLflow + `joblib.load`
+# del `model.pkl` para reconstruir el `Pipeline` (mismo formato que usa
+# `mlflow.sklearn`). El cliente HTTP completo vive en `api/service.py`.
 #
 # `mlflow` completo solo lo necesitan los scripts de entrenamiento (para
 # `mlflow.sklearn.log_model`) y vive en `requirements-train.txt`.
-mlflow-skinny>=2.16,<3.0
