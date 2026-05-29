@@ -1,13 +1,4 @@
-"""Utilidades de reporte compartidas (Markdown y guardado de figuras).
-
-Concentra dos piezas de *boilerplate* que se repetían en varios módulos:
-
-- :func:`df_to_markdown`: convierte un ``DataFrame`` a una tabla Markdown sin
-  depender de ``tabulate``. Fuente única reutilizada por train/tuning/balancing.
-- :func:`save_figure`: encapsula el patrón ``tight_layout(); savefig(); close();
-  logger.info(...)`` que aparecía en evaluator/interpretability/balancing/
-  visualization_2d, estandarizando el DPI.
-"""
+"""Utilidades de reporte compartidas: tabla Markdown y guardado de figuras."""
 
 from __future__ import annotations
 
@@ -24,16 +15,7 @@ def df_to_markdown(
 ) -> str:
     """Convierte un ``DataFrame`` a una tabla Markdown (sin dependencias externas).
 
-    Parameters
-    ----------
-    df:
-        DataFrame a renderizar.
-    index_label:
-        Encabezado de la columna del índice. Si es ``None``, el índice NO se
-        incluye como columna (se renderizan solo las columnas de datos).
-    float_fmt:
-        Formato aplicado a los valores ``float`` (p. ej. ``"{:.4f}"``). Los
-        valores no flotantes se convierten con ``str``.
+    Con ``index_label=None`` el índice no se incluye como columna.
     """
     cols = list(df.columns)
 
@@ -60,22 +42,7 @@ def df_to_markdown(
 
 
 def save_figure(fig, path, *, dpi: int = 120, bbox_inches: str | None = None) -> None:
-    """Aplica ``tight_layout``, guarda la figura, la cierra y lo registra en el log.
-
-    Estandariza el guardado de figuras (DPI=120 por defecto) que antes se repetía
-    con valores dispares (110/120/130) por todo el código.
-
-    Parameters
-    ----------
-    fig:
-        Figura de matplotlib a guardar.
-    path:
-        Ruta del PNG de salida.
-    dpi:
-        Resolución del PNG.
-    bbox_inches:
-        Si se indica (``"tight"``), se pasa a ``savefig`` para recortar márgenes.
-    """
+    """Aplica ``tight_layout``, guarda la figura, la cierra y lo registra en el log."""
     import matplotlib.pyplot as plt
 
     fig.tight_layout()

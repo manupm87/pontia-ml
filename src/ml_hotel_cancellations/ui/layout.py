@@ -13,9 +13,7 @@ import streamlit as st
 
 from . import config, data
 
-# Proporción de ancho entre la columna del gráfico y la del texto.
-# Con [3, 2] el gráfico ocupa ~60 % del ancho disponible: lo suficiente para
-# leerse cómodamente sin invadir la pantalla, y el texto al lado tiene su sitio.
+# Proporción gráfico/texto: con [3, 2] el gráfico ocupa ~60 % del ancho.
 IMAGE_COLUMN_RATIO: tuple[int, int] = (3, 2)
 
 
@@ -26,31 +24,11 @@ def image_card(
     description: str | None = None,
     not_found_message: str | None = None,
 ) -> bool:
-    """Muestra una imagen junto a su descripción en dos columnas.
+    """Muestra una imagen (gráfico de ``outputs/``) junto a su descripción en
+    dos columnas. Devuelve ``True`` si la imagen se mostró.
 
-    Pensado para los gráficos exportados a ``outputs/``: en lugar de ocupar el
-    ancho completo de la página (lo que los muestra exageradamente grandes), el
-    gráfico va en la columna izquierda y la explicación didáctica en la derecha.
-
-    Parameters
-    ----------
-    image_path:
-        Ruta del PNG. Si no existe, se muestra ``not_found_message`` (o se omite
-        la tarjeta entera si es ``None``).
-    title:
-        Título opcional encima del bloque (a ancho completo, para que ancle el
-        scroll de la página y se vea claro de qué gráfico se trata).
-    description:
-        Texto explicativo que acompaña al gráfico.
-    not_found_message:
-        Mensaje que se muestra si el PNG no existe. Si es ``None``, la tarjeta
-        no se renderiza en absoluto cuando falta el fichero (útil para gráficos
-        opcionales como los SHAP).
-
-    Returns
-    -------
-    bool
-        ``True`` si la imagen se mostró; ``False`` si no se encontró el PNG.
+    Si el PNG no existe, muestra ``not_found_message`` o, si es ``None``, omite
+    la tarjeta entera (útil para gráficos opcionales como los SHAP).
     """
     if not image_path.exists():
         if not_found_message is not None:
@@ -74,23 +52,9 @@ def image_card(
 def render_api_status(container, *, verbose: bool) -> bool:
     """Dibuja el estado de la API en `container` y devuelve si está operativa.
 
-    Centraliza la máquina de 3 estados (conectada / dormida / no disponible) que
-    antes vivía duplicada en la barra lateral y en la página de predicción, de
-    modo que `check_api_health()` se llama (y cachea) una sola vez por render.
-
-    Parameters
-    ----------
-    container:
-        Destino donde pintar (p. ej. ``st.sidebar`` o ``st``).
-    verbose:
-        En modo verboso (página de predicción) se muestran mensajes largos con
-        instrucciones de arranque; en modo compacto (barra lateral) se usan
-        avisos breves.
-
-    Returns
-    -------
-    bool
-        ``True`` si la API responde y está operativa.
+    Centraliza la máquina de 3 estados (conectada / dormida / no disponible).
+    Con `verbose` (página de predicción) muestra mensajes largos con
+    instrucciones de arranque; sin él (barra lateral), avisos breves.
     """
     ok, info = data.check_api_health()
     remote = data.is_remote_api()
@@ -112,9 +76,8 @@ def render_api_status(container, *, verbose: bool) -> bool:
         return True
 
     if remote:
-        # En hostings free (Render), el servicio se duerme tras 15 min de
-        # inactividad. Avisamos al usuario en vez de dar un escueto "no
-        # disponible" que parece un error de configuración.
+        # En hostings free el servicio se duerme tras inactividad: avisamos en
+        # vez de dar un "no disponible" que parecería un error de configuración.
         if verbose:
             container.warning(
                 f"**La API parece estar dormida** en `{config.API_BASE_URL}`.\n\n"

@@ -1,9 +1,6 @@
-"""Configuración central del proyecto.
+"""Configuración central: rutas, constantes y parámetros del pipeline.
 
-Este módulo concentra todas las rutas, constantes y parámetros del sistema de
-modelado para que el resto de módulos no contengan valores "mágicos" dispersos.
-De esta forma, cambiar el comportamiento del pipeline (semilla, métrica
-principal, hiperparámetros, etc.) se hace desde un único punto.
+Punto único de cambio para semilla, métrica, hiperparámetros, etc.
 """
 
 from __future__ import annotations
@@ -14,8 +11,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
 # ---------------------------------------------------------------------------
-# `PROJECT_ROOT` apunta a la raíz del repo. Este módulo vive en
-# `src/ml_hotel_cancellations/config.py`, así que la raíz está 2 niveles arriba.
+# Raíz del repo: este módulo está 2 niveles por debajo.
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 DATA_DIR: Path = PROJECT_ROOT / "data"
@@ -45,18 +41,14 @@ TARGET_COLUMN: str = "is_canceled"
 # Cadenas que en el CSV representan ausencia de valor.
 NA_TOKENS: list[str] = ["NULL", "NA", "NaN", ""]
 
-# Columnas que provocan *data leakage*: describen el desenlace de la reserva y,
-# por tanto, "filtran" la variable objetivo. `reservation_status` toma el valor
-# "Canceled" exactamente cuando `is_canceled == 1`, lo que haría que cualquier
-# modelo obtuviese ~100 % de acierto de forma artificial. Se eliminan siempre.
+# Columnas de data leakage: filtran el target y se eliminan siempre.
+# Ver docs/informe_final.md §EDA.
 LEAKAGE_COLUMNS: list[str] = ["reservation_status", "reservation_status_date"]
 
-# Columnas descartadas por baja utilidad: `company` está ausente en ~94 % de las
-# filas, por lo que aporta más ruido que señal.
+# `company` se descarta por baja utilidad (~94 % ausente).
 DROP_COLUMNS: list[str] = ["company", *LEAKAGE_COLUMNS]
 
-# Variables categóricas. Nótese que `agent` es un identificador numérico pero
-# semánticamente categórico (ID de agencia), por lo que se trata como categoría.
+# Variables categóricas. `agent` es un ID numérico tratado como categoría.
 CATEGORICAL_COLUMNS: list[str] = [
     "hotel",
     "arrival_date_month",
@@ -71,22 +63,8 @@ CATEGORICAL_COLUMNS: list[str] = [
     "agent",
 ]
 
-# Variables numéricas continuas o discretas.
-#
-# `arrival_date_year` se EXCLUYE a propósito (no se usa como característica):
-#   - Apenas discrimina: la tasa de cancelación es casi plana entre años
-#     (2015: 37.0 %, 2016: 35.9 %, 2017: 38.7 %).
-#   - No generaliza: el objetivo es predecir reservas FUTURAS, y un año no visto
-#     en el entrenamiento (2018 en adelante) no tiene un valor de "año" con
-#     sentido para el modelo (los árboles lo meterían en el último tramo y los
-#     modelos lineales extrapolarían una tendencia inexistente).
-#   - Está confundida con la estación: el dataset cubre años PARCIALES (2015 solo
-#     jul-dic, 2017 solo ene-ago), de ahí su correlación −0.54 con
-#     `arrival_date_week_number`. La señal estacional ya la capturan `month` y
-#     `week_number`, que SÍ se repiten cada año.
-# En una partición aleatoria, incluirla subía el ROC-AUC de XGBoost ~0.003, pero
-# esa mejora es *optimismo* que no se trasladaría a producción. Al no figurar en
-# estas listas, el `ColumnTransformer` la descarta vía `remainder="drop"`.
+# Variables numéricas. `arrival_date_year` se excluye a propósito (no generaliza
+# a años futuros y está confundida con la estación); ver docs/informe_final.md §EDA.
 NUMERIC_COLUMNS: list[str] = [
     "lead_time",
     "arrival_date_week_number",
@@ -106,41 +84,35 @@ NUMERIC_COLUMNS: list[str] = [
     "total_of_special_requests",
 ]
 
-# Lista ordenada de las 27 características de entrada (numéricas + categóricas).
-# Fuente única para contar/enumerar features (la usan la API y los esquemas).
+# Las 27 features de entrada; fuente única que usan la API y los esquemas.
 FEATURE_COLUMNS: list[str] = [*NUMERIC_COLUMNS, *CATEGORICAL_COLUMNS]
 
-# Cardinalidad máxima admitida por variable categórica en el OneHotEncoder.
-# Variables como `country` (178 valores) o `agent` (334) explotarían el espacio
-# de características; agrupamos las categorías poco frecuentes en "infrequent".
+# Cardinalidad máxima por categórica en el OneHotEncoder: limita variables de
+# alta cardinalidad (`country`, `agent`) agrupando las raras en "infrequent".
 MAX_OHE_CATEGORIES: int = 25
 
 # ---------------------------------------------------------------------------
 # Métrica principal y secundarias
 # ---------------------------------------------------------------------------
-# Métrica usada para SELECCIONAR el mejor modelo. Se elige ROC-AUC por ser
-# independiente del umbral de decisión y robusta ante el desbalance de clases
-# (~37 % de cancelaciones). La justificación completa está en la documentación.
+# Métrica de selección: ROC-AUC (independiente del umbral y robusta al
+# desbalance ~37 %). Justificación en docs/informe_final.md.
 PRIMARY_METRIC: str = "roc_auc"
 
 # Orden en el que se reportan las métricas en las tablas comparativas.
 METRIC_NAMES: list[str] = ["accuracy", "precision", "recall", "f1", "roc_auc"]
 
-# Etiquetas legibles (cortas) de las clases. FUENTE ÚNICA DE VERDAD que reutilizan
-# la API y la interfaz. El índice de la lista coincide con la clase predicha
-# (0 = no cancela, 1 = cancela).
+# Etiquetas de clase (índice = clase predicha: 0 = no cancela, 1 = cancela).
+# Fuente única que reutilizan la API y la interfaz.
 CLASS_LABELS_SHORT: list[str] = ["No cancelada", "Cancelada"]
 
-# Variante con el código de clase entre paréntesis, usada como etiqueta en los
-# gráficos (matriz de confusión). Se deriva de la lista corta para no duplicar.
+# Variante con el código entre paréntesis para los gráficos.
 CLASS_LABELS: list[str] = [f"{label} ({i})" for i, label in enumerate(CLASS_LABELS_SHORT)]
 
-# Umbral de decisión que convierte la probabilidad estimada en una clase 0/1.
-# Centralizado para no repetir el "0.5" mágico en predict/model_trainer/balancing.
+# Umbral que convierte la probabilidad en clase 0/1 (centralizado).
 DECISION_THRESHOLD: float = 0.5
 
-# Familia de cada modelo, útil para filtrar runs en MLflow ("solo XGBoost", etc.).
-# FUENTE ÚNICA DE VERDAD reutilizada por train/tuning/balancing.
+# Familia de cada modelo (para filtrar runs en MLflow); fuente única
+# compartida por train/tuning/balancing.
 MODEL_FAMILY: dict[str, str] = {
     "Logistic Regression": "linear",
     "Decision Tree": "tree",
@@ -171,10 +143,8 @@ RANDOM_FOREST_PARAMS: dict = {
     "random_state": RANDOM_STATE,
 }
 
-# Hiperparámetros por defecto adoptados tras la exploración del notebook
-# `notebooks/playground/`: {learning_rate: 0.1, max_depth: 14, n_estimators: 500}
-# (AUC≈0.957 en validación cruzada). El finetuning (RandomizedSearchCV sobre
-# XGBOOST_GRID) parte de esta zona e intenta mejorarla.
+# Valores por defecto hallados en `notebooks/playground/`; el finetuning
+# (XGBOOST_GRID) parte de esta zona e intenta mejorarla.
 XGBOOST_PARAMS: dict = {
     "n_estimators": 500,
     "max_depth": 14,
@@ -202,18 +172,13 @@ NN_PARAMS: dict = {
 # ---------------------------------------------------------------------------
 # Optimización de hiperparámetros (bonus)
 # ---------------------------------------------------------------------------
-# Validación cruzada (CV) y métrica usadas durante la búsqueda. Se optimiza
-# ROC-AUC, la misma métrica principal del proyecto, para ser coherentes.
+# CV y métrica de la búsqueda (ROC-AUC, igual que la principal).
 TUNING_CV_FOLDS: int = 3
 TUNING_SCORING: str = "roc_auc"
 TUNING_N_ITER: int = 12  # nº de combinaciones que prueba RandomizedSearchCV
 
-# Espacios de búsqueda. Las claves llevan el prefijo "model__" porque el
-# estimador es el paso llamado "model" dentro del Pipeline. Para espacios
-# pequeños usamos GridSearchCV (exhaustivo); para los grandes, RandomizedSearchCV
-# (muestreo aleatorio), mucho más eficiente. (RandomizedSearchCV NO se ve en
-# `recursos/`, que usa GridSearchCV; mapeo de herramientas en
-# docs/informe_final.md §4.5.)
+# Espacios de búsqueda; el prefijo "model__" apunta al paso "model" del Pipeline.
+# Grids pequeños -> GridSearchCV; grandes -> RandomizedSearchCV (ver §4.5).
 LOGISTIC_REGRESSION_GRID: dict = {
     "model__C": [0.01, 0.1, 1.0, 10.0],
     "model__class_weight": [None, "balanced"],
@@ -229,10 +194,7 @@ RANDOM_FOREST_GRID: dict = {
     "model__min_samples_leaf": [5, 10, 20],
     "model__max_features": ["sqrt", "log2"],
 }
-# Rejilla CENTRADA en la zona hallada en `notebooks/playground/` (max_depth≈14,
-# n_estimators≈500, learning_rate≈0.1) y CON MARGEN para mejorarla: el
-# RandomizedSearchCV muestrea esta rejilla buscando una combinación aún mejor que
-# los valores por defecto de XGBOOST_PARAMS.
+# Rejilla centrada en la zona de XGBOOST_PARAMS, con margen para mejorarla.
 XGBOOST_GRID: dict = {
     "model__n_estimators": [300, 400, 500, 600],
     "model__max_depth": [8, 10, 12, 14, 16],
@@ -244,10 +206,8 @@ XGBOOST_GRID: dict = {
 # Artefacto con los resultados de la búsqueda (informe legible).
 TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 
-# Mejores hiperparámetros encontrados, persistidos en JSON. Si este fichero
-# existe, el pipeline por defecto (`python -m ml_hotel_cancellations.ml.train`) los usa automáticamente;
-# si no, recurre a los valores base definidos arriba. Así "se buscan una vez y se
-# usan por defecto a partir de entonces".
+# Mejores hiperparámetros (JSON). Si existe, `train` los usa por defecto;
+# si no, recurre a los valores base de arriba.
 BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 
 # ---------------------------------------------------------------------------
@@ -262,9 +222,8 @@ BALANCING_PLOT_PATH: Path = OUTPUTS_DIR / "balanceo_clases.png"
 # ---------------------------------------------------------------------------
 # Reserva de ejemplo (contrato de entrada)
 # ---------------------------------------------------------------------------
-# Una reserva válida con las 27 características, en los nombres EXACTOS que espera
-# el Pipeline. FUENTE ÚNICA DE VERDAD reutilizada por el esquema Pydantic de la
-# API (Swagger) y por el formulario de la interfaz Streamlit.
+# Reserva válida de ejemplo (27 features con los nombres exactos del Pipeline);
+# fuente única que reutilizan el esquema Pydantic de la API y el formulario UI.
 BOOKING_EXAMPLE: dict = {
     "hotel": "City Hotel",
     "lead_time": 100,
@@ -297,12 +256,7 @@ BOOKING_EXAMPLE: dict = {
 
 
 def best_metric_value(metric: str = PRIMARY_METRIC) -> float:
-    """Devuelve el mejor valor de ``metric`` en la tabla de métricas persistida.
-
-    Lee ``METRICS_TABLE_PATH`` (generada por el pipeline de entrenamiento) en vez
-    de mantener el número a mano, de forma que el valor reportado nunca se quede
-    obsoleto tras un reentrenamiento. Lanza si el artefacto no existe.
-    """
+    """Mejor valor de ``metric`` leído de la tabla persistida (lanza si no existe)."""
     import pandas as pd
 
     tabla = pd.read_csv(METRICS_TABLE_PATH, index_col=0)
@@ -310,21 +264,13 @@ def best_metric_value(metric: str = PRIMARY_METRIC) -> float:
 
 
 def ensure_directories() -> None:
-    """Crea las carpetas de salida si no existen.
-
-    Se invoca al inicio del pipeline para garantizar que los artefactos
-    (modelos, gráficos, tablas) tengan dónde escribirse.
-    """
+    """Crea las carpetas de salida si no existen."""
     for directory in (PROCESSED_DATA_DIR, MODELS_DIR, OUTPUTS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Configura un formato de logging legible para todo el pipeline.
-
-    Ubicado aquí (módulo neutral) para que cualquier ``main()`` del paquete lo
-    use sin que un CLI tenga que importar a otro.
-    """
+    """Configura un formato de logging legible para todo el pipeline."""
     logging.basicConfig(
         level=level,
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
@@ -333,12 +279,7 @@ def configure_logging(level: int = logging.INFO) -> None:
 
 
 def use_agg_backend() -> None:
-    """Fija el backend no interactivo ``Agg`` de matplotlib en un único sitio.
-
-    Permite guardar PNG sin necesidad de pantalla (CI/headless). Centralizar la
-    llamada evita repetir ``matplotlib.use("Agg")`` como efecto de import en
-    evaluator/interpretability/visualization_2d.
-    """
+    """Fija el backend no interactivo ``Agg`` de matplotlib (PNG sin pantalla)."""
     import matplotlib
 
     matplotlib.use("Agg")

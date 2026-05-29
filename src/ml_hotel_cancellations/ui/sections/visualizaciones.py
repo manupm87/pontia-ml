@@ -1,8 +1,7 @@
 """Sección 2 — Visualización de los modelos.
 
-Muestra TODAS las visualizaciones disponibles en `outputs/` con una explicación
-didáctica de cada una. Es robusta: itera sobre una lista de gráficos conocidos y
-solo pinta los que existen (algunos, como los SHAP, pueden aparecer más tarde).
+Galería de los gráficos de `outputs/` con explicación didáctica. Itera sobre
+los gráficos conocidos y solo pinta los que existen.
 """
 
 from __future__ import annotations
@@ -12,9 +11,7 @@ import streamlit as st
 from .. import config
 from ..layout import image_card
 
-# Galería completa: todas las claves del catálogo único de plots (`config.PLOTS`),
-# en el orden en que se quieren mostrar. Los textos viven en el catálogo para no
-# duplicarse con la sección de resumen.
+# Claves del catálogo único `config.PLOTS`, en el orden de visualización.
 KNOWN_PLOTS: list[str] = [
     "roc_curves.png",
     "confusion_matrices.png",

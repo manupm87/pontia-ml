@@ -1,22 +1,13 @@
 """Definición y entrenamiento de los modelos de clasificación.
 
-Este módulo expone:
-
-- :class:`KerasMLPClassifier`: un envoltorio compatible con la API de
-  scikit-learn (``fit`` / ``predict`` / ``predict_proba``) alrededor de una red
-  neuronal multicapa de Keras, de modo que pueda integrarse en un ``Pipeline`` y
-  evaluarse exactamente igual que el resto de modelos.
-- :class:`ModelTrainer`: clase orquestadora que construye un ``Pipeline``
-  (preprocesado + modelo) por cada algoritmo y los entrena de forma homogénea.
-
-Todos los modelos comparten el mismo preprocesador, lo que garantiza una
-comparación justa entre algoritmos.
+Expone :class:`KerasMLPClassifier` (red Keras con interfaz scikit-learn) y
+:class:`ModelTrainer` (orquesta un ``Pipeline`` por algoritmo, mismo preprocesador
+para todos -> comparación justa).
 """
 
 from __future__ import annotations
 
-# Silenciar los logs informativos de TensorFlow ANTES de importarlo (de forma
-# diferida en los métodos). Mejora la legibilidad de la salida del pipeline.
+# Silenciar los logs de TensorFlow ANTES de importarlo (import diferido).
 import os
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
@@ -38,11 +29,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # (De)serialización de la red de Keras
 # ---------------------------------------------------------------------------
-# Los modelos de Keras no se serializan con pickle de forma fiable, así que se
-# convierten a/desde bytes usando el formato nativo ``.keras``. Esto permite que
-# ``joblib.dump`` funcione aunque el mejor modelo sea la red. Se usa un
-# ``TemporaryDirectory`` para garantizar la limpieza del temporal aunque
-# ``save``/``load_model`` lance.
+# Keras no se serializa con pickle de forma fiable; se convierte a/desde bytes vía
+# el formato nativo ``.keras`` para que ``joblib.dump`` funcione con la red.
 def _serialize_keras_model(model) -> bytes:
     """Vuelca un modelo Keras al formato ``.keras`` y devuelve sus bytes."""
     import tempfile
@@ -73,22 +61,8 @@ def _deserialize_keras_model(data: bytes):
 class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
     """Perceptrón multicapa (Keras) con interfaz de scikit-learn.
 
-    Implementa ``fit``, ``predict`` y ``predict_proba`` para poder usarse como
-    último paso de un ``Pipeline`` de scikit-learn. Recibe ya las características
-    preprocesadas (matriz densa de ``float``) producidas por el preprocesador.
-
-    Parameters
-    ----------
-    hidden_units:
-        Número de neuronas de cada capa oculta.
-    dropout:
-        Fracción de *dropout* tras cada capa oculta (regularización).
-    epochs, batch_size, learning_rate, validation_split, early_stopping_patience:
-        Hiperparámetros de entrenamiento.
-    random_state:
-        Semilla para reproducibilidad.
-    verbose:
-        Verbosidad del entrenamiento de Keras.
+    Implementa ``fit`` / ``predict`` / ``predict_proba`` para usarse como último
+    paso de un ``Pipeline``. Recibe las características ya preprocesadas (matriz densa).
     """
 
     def __init__(
@@ -114,38 +88,22 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
         self.verbose = verbose
 
     def _build_model(self, n_features: int):
-        """Construye y compila la red neuronal (arquitectura Sequential de Keras).
+        """Construye y compila la red (Dense+ReLU+Dropout, salida sigmoide).
 
-        Glosario rápido de los términos que aparecen (más detalle en
-        ``docs/glosario.md``):
-
-        - *Capa densa (Dense)*: capa donde cada neurona se conecta con todas las
-          de la capa anterior.
-        - *ReLU*: función de activación de las capas internas (deja pasar los
-          positivos, pone a 0 los negativos); aporta "no linealidad".
-        - *Dropout*: apaga neuronas al azar durante el entrenamiento para evitar
-          el sobreajuste (que la red "se memorice" los datos).
-        - *Sigmoide*: activación de la capa final; convierte la salida en una
-          probabilidad entre 0 y 1.
-        - *Adam*: algoritmo que ajusta los pesos de la red (el "optimizador").
-        - *binary_crossentropy*: función de error (pérdida) para clasificación
-          binaria; el entrenamiento intenta minimizarla.
+        Glosario de los términos (Dense, ReLU, Dropout, Adam...) en docs/glosario.md.
         """
         import tensorflow as tf
         from tensorflow.keras import layers, models
 
-        # Fijar la semilla aleatoria de TensorFlow para que el entrenamiento sea
-        # reproducible (mismos resultados al repetir la ejecución).
+        # Semilla de TensorFlow para que el entrenamiento sea reproducible.
         tf.keras.utils.set_random_seed(self.random_state)
 
-        # `Input`: define cuántas características entran. Luego, capas densas con
-        # ReLU y dropout intercalado.
         layers_list = [layers.Input(shape=(n_features,), name="entrada")]
         for i, units in enumerate(self.hidden_units, start=1):
             layers_list.append(layers.Dense(units, activation="relu", name=f"oculta_{i}"))
             if self.dropout and self.dropout > 0:
                 layers_list.append(layers.Dropout(self.dropout, name=f"dropout_{i}"))
-        # Capa de salida: 1 neurona sigmoide -> probabilidad de cancelación.
+        # Salida: 1 neurona sigmoide -> probabilidad de cancelación.
         layers_list.append(layers.Dense(1, activation="sigmoid", name="salida"))
 
         model = models.Sequential(layers_list)
@@ -192,9 +150,7 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
         """Devuelve la clase predicha aplicando el umbral de decisión del proyecto."""
         return (self.predict_proba(X)[:, 1] >= config.DECISION_THRESHOLD).astype(int)
 
-    # -- Serialización ------------------------------------------------------
-    # La (de)serialización de la red Keras se delega en los helpers de módulo
-    # ``_serialize_keras_model`` / ``_deserialize_keras_model``.
+    # -- Serialización (delegada en los helpers de módulo) ------------------
     def __getstate__(self):
         state = self.__dict__.copy()
         model = state.get("model_", None)
@@ -216,9 +172,8 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
 class ModelTrainer:
     """Construye y entrena el conjunto de modelos a comparar.
 
-    Cada modelo se encapsula en un ``Pipeline`` que incluye el preprocesador, de
-    forma que recibe siempre el DataFrame crudo y el preprocesado se ajusta solo
-    con los datos de entrenamiento (evitando *data leakage*).
+    Cada modelo va en un ``Pipeline`` con el preprocesador, que se ajusta solo con
+    los datos de entrenamiento (evita *data leakage*).
     """
 
     def __init__(
@@ -227,8 +182,7 @@ class ModelTrainer:
         param_overrides: dict[str, dict] | None = None,
     ):
         self.random_state = random_state
-        # `param_overrides` permite inyectar hiperparámetros (p. ej. los hallados
-        # por la optimización con `src.tuning`) sin tocar la configuración base.
+        # Inyecta hiperparámetros (p. ej. los de `tuning`) sin tocar config base.
         self.param_overrides = param_overrides or {}
         self.models_: dict[str, Pipeline] = {}
         self.train_times_: dict[str, float] = {}
@@ -239,13 +193,7 @@ class ModelTrainer:
         return make_pipeline(estimator)
 
     def build_models(self) -> dict[str, Pipeline]:
-        """Define el catálogo de modelos a entrenar (los 5 algoritmos exigidos).
-
-        Returns
-        -------
-        dict[str, Pipeline]
-            Diccionario ``nombre -> Pipeline`` sin ajustar.
-        """
+        """Define el catálogo de los 5 modelos a entrenar (Pipelines sin ajustar)."""
         from .model_factory import build_classic_estimators
 
         # Los 4 clásicos salen de la fábrica única.
@@ -263,13 +211,7 @@ class ModelTrainer:
         return {name: self._make_pipeline(est) for name, est in models.items()}
 
     def train(self, X_train, y_train) -> dict[str, Pipeline]:
-        """Entrena todos los modelos y registra sus tiempos de entrenamiento.
-
-        Returns
-        -------
-        dict[str, Pipeline]
-            Diccionario ``nombre -> Pipeline`` ya entrenado.
-        """
+        """Entrena todos los modelos y registra sus tiempos de entrenamiento."""
         self.models_ = {}
         self.train_times_ = {}
         for name, pipeline in self.build_models().items():

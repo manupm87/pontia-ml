@@ -1,21 +1,8 @@
-"""Optimización de hiperparámetros (bonus técnico).
+"""Optimización de hiperparámetros por validación cruzada (bonus técnico).
 
-Busca, mediante **validación cruzada**, la mejor combinación de hiperparámetros
-para los modelos clásicos del proyecto. Demuestra las dos técnicas habituales:
-
-- **GridSearchCV** (búsqueda exhaustiva) para espacios pequeños — regresión
-  logística y árbol de decisión.
-- **RandomizedSearchCV** (muestreo aleatorio de combinaciones) para los espacios
-  grandes — Random Forest y XGBoost, donde una búsqueda exhaustiva sería
-  inviable. (`RandomizedSearchCV` no aparece en `recursos/`, que usa
-  `GridSearchCV`; ver el mapeo de herramientas en `docs/informe_final.md` §4.5.)
-
-Se optimiza ROC-AUC (la métrica principal del proyecto). Para cada modelo se
-compara la puntuación de CV de los hiperparámetros **por defecto** del proyecto
-con la de los **mejores** encontrados, de modo que se ve si la búsqueda aporta.
-
-La red neuronal (Keras) se deja fuera: su ajuste se hace con *early stopping* y
-una búsqueda con CV sería desproporcionadamente costosa.
+Usa GridSearchCV (espacios pequeños) y RandomizedSearchCV (grandes); optimiza
+ROC-AUC y compara CV por defecto vs. tuneada. La red Keras queda fuera (se ajusta
+con early stopping). Mapeo de herramientas en docs/informe_final.md §4.5.
 
 Uso::
 
@@ -44,7 +31,7 @@ from ml_hotel_cancellations.utils.reporting import df_to_markdown
 logger = logging.getLogger(__name__)
 
 
-# Fuente única de verdad en `config` (compartida con train/balancing).
+# Fuente única en `config` (compartida con train/balancing).
 _MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
 
 
@@ -59,11 +46,7 @@ def _strip_prefix(params: dict) -> dict:
 
 
 def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
-    """Carga los mejores hiperparámetros persistidos (``{}`` si no existen).
-
-    Lo usa el pipeline por defecto para entrenar con los hiperparámetros
-    optimizados una vez que se han buscado (``--tune`` o ``python -m ml_hotel_cancellations.ml.tuning``).
-    """
+    """Carga los mejores hiperparámetros persistidos (``{}`` si no existen)."""
     if not path.exists():
         return {}
     try:
@@ -74,19 +57,7 @@ def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
 
 
 class HyperparameterTuner:
-    """Optimiza los hiperparámetros de los modelos clásicos por CV.
-
-    Parameters
-    ----------
-    cv:
-        Número de particiones de validación cruzada.
-    scoring:
-        Métrica a optimizar (por defecto, ``roc_auc``).
-    n_iter:
-        Nº de combinaciones que prueba ``RandomizedSearchCV``.
-    random_state:
-        Semilla para reproducibilidad.
-    """
+    """Optimiza los hiperparámetros de los modelos clásicos por CV."""
 
     def __init__(
         self,
@@ -103,14 +74,10 @@ class HyperparameterTuner:
         self.best_params_: dict[str, dict] = {}
 
     def _catalog(self) -> dict[str, tuple]:
-        """Devuelve, por modelo: (estimador base, grid, tipo búsqueda, params por defecto).
+        """Por modelo: (estimador base, grid, tipo de búsqueda, params por defecto).
 
-        Los estimadores se construyen con la fábrica única
-        (:func:`src.model_factory.build_classic_estimators`), leyendo sus
-        hiperparámetros de ``config`` (antes ``max_iter`` de la regresión
-        logística estaba hardcodeado y divergía). Random Forest y XGBoost llevan
-        ``n_jobs=1`` para no competir con el paralelismo de la propia búsqueda
-        (que usa ``n_jobs=-1``).
+        Random Forest y XGBoost van con ``n_jobs=1`` para no competir con el
+        paralelismo de la propia búsqueda.
         """
         from .model_factory import build_classic_estimators
 
@@ -149,18 +116,9 @@ class HyperparameterTuner:
         }
 
     def tune(self, X_train, y_train) -> dict[str, dict]:
-        """Ejecuta la búsqueda para cada modelo y guarda los resultados.
-
-        Returns
-        -------
-        dict[str, dict]
-            ``nombre -> {best_params, cv_tuned, cv_default, search, n_combos, segundos}``
-        """
-        # MLflow: si nos invocan desde `python -m ml_hotel_cancellations.ml.tuning` (raíz), abrimos
-        # un parent run "tuning_hyperparameters". Si nos llaman desde
-        # `python -m ml_hotel_cancellations.ml.train --tune`, ``start_run`` detecta el run activo
-        # y este se convierte en child del run de entrenamiento. En cualquiera
-        # de los dos casos, los runs por modelo cuelgan de aquí.
+        """Ejecuta la búsqueda para cada modelo y guarda los resultados."""
+        # MLflow: parent run propio si se invoca directo; child del run de train
+        # si se llama desde `train --tune`. Los runs por modelo cuelgan de aquí.
         with tracking.start_run(run_name="tuning_hyperparameters"):
             tracking.set_tags(
                 {
@@ -173,15 +131,13 @@ class HyperparameterTuner:
             return self._tune_inner(X_train, y_train)
 
     def _tune_inner(self, X_train, y_train) -> dict[str, dict]:
-        """Implementación del bucle de búsqueda (lo separamos del setup de MLflow)."""
+        """Bucle de búsqueda (separado del setup de MLflow)."""
         self.results_ = {}
         self.best_params_ = {}
         for name, (estimator, grid, kind, default_params) in self._catalog().items():
             self._tune_one(name, estimator, grid, kind, default_params, X_train, y_train)
 
-        # Persistimos los resultados ANTES de subirlos como artefactos para
-        # asegurar que los ficheros existen. Esta es la ÚNICA escritura de
-        # artefactos por ejecución (los callers ya no la repiten).
+        # Persistir antes de subir como artefactos (única escritura por ejecución).
         self.save_results()
         self.save_best_params()
         tracking.log_artifact(config.TUNING_RESULTS_PATH)
@@ -191,14 +147,11 @@ class HyperparameterTuner:
     def _build_search(self, pipe, grid, kind: str, njobs: int):
         """Crea el buscador (Grid/Randomized) y devuelve ``(search, tipo)``."""
         if kind == "grid":
-            # GridSearchCV: búsqueda exhaustiva (la herramienta vista en `recursos/`).
-            search = GridSearchCV(
+            search = GridSearchCV(  # búsqueda exhaustiva
                 pipe, grid, scoring=self.scoring, cv=self.cv, n_jobs=njobs
             )
             return search, "GridSearchCV"
-        # RandomizedSearchCV: muestreo aleatorio para espacios grandes (no se ve
-        # en `recursos/`; equivale a un GridSearchCV pero sin recorrerlo entero).
-        # Ver el mapeo de herramientas en `docs/informe_final.md` §4.5.
+        # RandomizedSearchCV: muestreo aleatorio para espacios grandes (ver §4.5).
         search = RandomizedSearchCV(
             pipe,
             grid,
@@ -311,7 +264,7 @@ class HyperparameterTuner:
         logger.info("Resultados de la búsqueda guardados en: %s", path)
 
     def save_best_params(self, path=config.BEST_PARAMS_PATH) -> None:
-        """Persiste los mejores hiperparámetros en JSON para usarlos por defecto."""
+        """Persiste los mejores hiperparámetros en JSON (se usan por defecto)."""
         path.write_text(json.dumps(self.best_params_, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
         logger.info("Mejores hiperparámetros guardados en: %s", path)
@@ -327,8 +280,7 @@ def main() -> None:
                 config.TUNING_CV_FOLDS, config.TUNING_SCORING)
     X_train, _, y_train, _ = load_and_prepare()
     tuner = HyperparameterTuner()
-    # `tune()` ya persiste los artefactos (resultados + mejores params) una sola
-    # vez; no los reescribimos aquí.
+    # `tune()` ya persiste los artefactos; no los reescribimos aquí.
     tuner.tune(X_train, y_train)
     print("\n" + "=" * 70)
     print("RESULTADO DE LA OPTIMIZACIÓN DE HIPERPARÁMETROS")

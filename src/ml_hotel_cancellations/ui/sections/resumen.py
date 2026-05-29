@@ -1,8 +1,7 @@
 """Sección 1 — Resumen y resultados.
 
-Da una foto rápida del proyecto: qué problema resolvemos, qué modelo gana y con
-qué métricas, además de las visualizaciones clave (curvas ROC, matrices de
-confusión e importancia de variables) con explicaciones para estudiantes.
+Foto rápida del proyecto: problema, modelo ganador y métricas, más las
+visualizaciones clave (ROC, matrices de confusión, importancia de variables).
 """
 
 from __future__ import annotations
@@ -16,8 +15,7 @@ from ..layout import image_card
 def render() -> None:
     st.title("Resumen y resultados")
 
-    # Nº de modelos comparados, derivado de la tabla de métricas (cae a None si
-    # el artefacto no existe todavía).
+    # Nº de modelos, derivado de la tabla de métricas (None si falta el artefacto).
     try:
         metrics = data.load_metrics_table()
         n_models = len(metrics)
@@ -69,7 +67,7 @@ def render() -> None:
         "entrenamiento en segundos."
     )
     if metrics is not None:
-        # Resaltamos la fila del mejor modelo y formateamos los decimales.
+        # Resaltamos la fila del mejor modelo y formateamos decimales.
         numeric_cols = [c for c in metrics.columns if c != "Modelo"]
         styled = (
             metrics.style.format({c: "{:.4f}" for c in numeric_cols})
@@ -85,8 +83,7 @@ def render() -> None:
     # --- Visualizaciones clave ------------------------------------------------
     st.subheader("Visualizaciones clave")
 
-    # Seleccionamos del catálogo único de plots (`config.PLOTS`) los gráficos
-    # de cabecera; los textos viven allí para no duplicarse entre secciones.
+    # Gráficos de cabecera tomados del catálogo único `config.PLOTS`.
     key_plots = ["roc_curves.png", "confusion_matrices.png", "feature_importance.png"]
 
     for filename in key_plots:

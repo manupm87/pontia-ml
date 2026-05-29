@@ -1,108 +1,109 @@
-# CLAUDE.md — guía para trabajar en este repositorio
+# CLAUDE.md — guide for working in this repository
 
-Predicción de cancelaciones de reservas de hotel (clasificación binaria). Proyecto
-final de ML: entrena/compara modelos, sirve el mejor por una API FastAPI y lo
-muestra en una interfaz Streamlit.
+Hotel booking cancellation prediction (binary classification). Final ML project:
+trains/compares models, serves the best one via a FastAPI service, and showcases it
+in a Streamlit UI.
 
-## ⚠️ Convención de idioma (IMPORTANTE)
+> This file (the agent guide) is intentionally written in **English**. It is the one
+> exception to the language convention below.
 
-- **El código va en INGLÉS**: nombres de variables, funciones, métodos, clases,
-  parámetros y constantes.
-- **En ESPAÑOL**: los comentarios, los *docstrings*, los textos visibles de la UI
-  (Streamlit), los mensajes de log/error, las cabeceras de los informes generados,
-  y **todos los ficheros `.md`** (incluido este).
-- Las **claves de columnas de salida** (p. ej. `"tasa_cancelacion"`, `"reservas"`,
-  `"clase"`, `"modelo"`, `"estrategia"`) y los **nombres de campo del contrato de la
-  API** (Pydantic en `api/schemas.py`) son datos/salida de cara al usuario: **se
-  dejan en español** aunque sean *strings* dentro del código.
+## ⚠️ Language convention (IMPORTANT)
 
-Regla práctica: traduce identificadores de Python a inglés; **nunca** toques
-*strings*, comentarios ni docstrings (son la capa en español).
+- **Code is in ENGLISH**: variable, function, method, class, parameter and constant names.
+- **In SPANISH**: comments, *docstrings*, all visible UI text (Streamlit), log/error
+  messages, generated-report headers, and **all `.md` files** (except this CLAUDE.md).
+- **Output column keys** (e.g. `"tasa_cancelacion"`, `"reservas"`, `"clase"`,
+  `"modelo"`, `"estrategia"`) and the **API contract field names** (Pydantic in
+  `api/schemas.py`) are user-facing data/output: **keep them in Spanish** even though
+  they are string literals in the code.
 
-## Estructura (src-layout, paquete instalable)
+Rule of thumb: translate Python identifiers to English; **never** touch string
+literals, comments or docstrings (that is the Spanish layer).
+
+## Layout (src-layout, installable package)
 
 ```
 src/ml_hotel_cancellations/
-  config.py     # fuente única: rutas, columnas, constantes, BOOKING_EXAMPLE, umbral…
+  config.py     # single source of truth: paths, columns, constants, BOOKING_EXAMPLE, threshold…
   ml/           # pipeline: data_loader, preprocessing, model_factory, model_trainer,
                 # evaluator, train, predict + (bonus) tuning, balancing
-  api/          # FastAPI: main, schemas, service, registry (cliente MLflow)
+  api/          # FastAPI: main, schemas, service, registry (MLflow client)
   ui/           # Streamlit: app, config, data, booking, layout, sections/
-  utils/        # transversales: reporting, visualization_2d, interpretability,
+  utils/        # cross-cutting: reporting, visualization_2d, interpretability,
                 # tracking, register_model
-tests/          # suite pytest (incluye contract tests de "fuente única de verdad")
-conftest.py     # fixtures compartidas (datos sintéticos, modelo bundled, TestClient)
+tests/          # pytest suite (incl. "single source of truth" contract tests)
+conftest.py     # shared fixtures (synthetic data, bundled model, TestClient)
 ```
 
-`data/`, `models/`, `outputs/`, `docs/`, `notebooks/` viven en la raíz del repo
-(NO dentro del paquete). `config.PROJECT_ROOT = Path(__file__).parents[2]` los
-localiza. **Por eso el paquete debe instalarse en modo editable** (`pip install -e .`):
-una instalación normal copiaría el paquete a `site-packages` y rompería esas rutas.
+`data/`, `models/`, `outputs/`, `docs/`, `notebooks/` live at the repo root (NOT
+inside the package). `config.PROJECT_ROOT = Path(__file__).parents[2]` locates them.
+**This is why the package must be installed editable** (`pip install -e .`): a regular
+install would copy the package into `site-packages` and break those paths.
 
-## Entorno y comandos
+## Environment and commands
 
 ```bash
-pip install -e ".[train,dev]"   # dev/entrenamiento (TensorFlow, MLflow, pytest…)
-pip install -e .                # solo runtime (API + UI + inferencia)
+pip install -e ".[train,dev]"   # dev/training (TensorFlow, MLflow, pytest…)
+pip install -e .                # runtime only (API + UI + inference)
 ```
 
-Las dependencias están en `pyproject.toml` (extras `[train]` y `[dev]`).
-`requirements.txt` es solo `-e .` (para plataformas que solo leen ese fichero).
-**Python 3.12** (`requires-python = ">=3.11,<3.13"`; TF 2.16 y numba/llvmlite topan en 3.12).
+Dependencies live in `pyproject.toml` (extras `[train]` and `[dev]`).
+`requirements.txt` is just `-e .` (for platforms that only read that file).
+**Python 3.12** (`requires-python = ">=3.11,<3.13"`; TF 2.16 and numba/llvmlite cap at 3.12).
 
-CLIs (console scripts en `pyproject.toml`, o forma `python -m`):
+CLIs (console scripts in `pyproject.toml`, or the `python -m` form):
 
-| Script | Equivalente módulo | Qué hace |
+| Script | Module form | What it does |
 |---|---|---|
-| `train` | `python -m ml_hotel_cancellations.ml.train` | entrena los 5 modelos y guarda el mejor (`--tune` opcional) |
-| `predict` | `…ml.predict` | inferencia con `models/best_model.pkl` |
-| `tune` | `…ml.tuning` | búsqueda de hiperparámetros (bonus) |
-| `balance` | `…ml.balancing` | comparación de balanceo (bonus) |
-| `register-model` | `…utils.register_model` | registra el modelo en MLflow (bonus) |
+| `train` | `python -m ml_hotel_cancellations.ml.train` | trains the 5 models and saves the best one (`--tune` optional) |
+| `predict` | `…ml.predict` | inference with `models/best_model.pkl` |
+| `tune` | `…ml.tuning` | hyperparameter search (bonus) |
+| `balance` | `…ml.balancing` | class-balancing comparison (bonus) |
+| `register-model` | `…utils.register_model` | registers the model in MLflow (bonus) |
 
 ```bash
-uvicorn ml_hotel_cancellations.api.main:app --reload        # API en :8000 (/docs)
-streamlit run src/ml_hotel_cancellations/ui/app.py          # interfaz web
+uvicorn ml_hotel_cancellations.api.main:app --reload        # API on :8000 (/docs)
+streamlit run src/ml_hotel_cancellations/ui/app.py          # web UI
 ```
 
 ## Tests
 
 ```bash
-pytest                  # suite completa (62 tests)
-pytest -m "not slow"    # omite los que cargan el modelo bundled
+pytest                  # full suite (62 tests)
+pytest -m "not slow"    # skip the ones that load the bundled model
 ```
 
-- Config de pytest en `pyproject.toml` (`[tool.pytest.ini_options]`, `pythonpath=["src"]`).
-- `tests/test_contracts.py` es clave: garantiza que las constantes compartidas
-  (etiquetas de clase, umbral, `MODEL_FAMILY`, `BOOKING_EXAMPLE`, ROC-AUC) tengan
-  **una única fuente de verdad en `config.py`**. Si tocas esas constantes, no las
-  dupliques: derívalas de `config`.
-- Tras cambios en el pipeline, conviene además un `python -m …ml.train` de extremo
-  a extremo (reproduce XGBoost ROC-AUC 0.9614); restaura artefactos con
-  `git checkout -- outputs/ models/`.
+- pytest config is in `pyproject.toml` (`[tool.pytest.ini_options]`, `pythonpath=["src"]`).
+- `tests/test_contracts.py` is key: it enforces that shared constants (class labels,
+  threshold, `MODEL_FAMILY`, `BOOKING_EXAMPLE`, ROC-AUC) have **a single source of
+  truth in `config.py`**. If you touch those constants, don't duplicate them — derive
+  them from `config`.
+- After pipeline changes, also run an end-to-end `python -m …ml.train` (reproduces
+  XGBoost ROC-AUC 0.9614); restore artifacts with `git checkout -- outputs/ models/`.
 
-## Despliegue
+## Deployment
 
 - **API → Render** (`render.yaml`): `buildCommand: pip install -e .`,
-  `startCommand: uvicorn ml_hotel_cancellations.api.main:app`. El servicio está
-  gestionado por *blueprint*: los cambios en `render.yaml` requieren **sync** del
-  blueprint (no se aplican solos).
+  `startCommand: uvicorn ml_hotel_cancellations.api.main:app`. The service is
+  blueprint-managed: changes to `render.yaml` require a blueprint **sync** (they are
+  not applied automatically).
 - **UI → Streamlit Community Cloud**: *main file path* =
-  `src/ml_hotel_cancellations/ui/app.py`, Python **3.12**, e instala `requirements.txt`
-  (`-e .`). Necesita el *secret* **`PONTIA_API_URL`** = URL base de la API en Render
-  (p. ej. `https://pontia-api-fi8t.onrender.com`); sin él, la UI apunta a localhost.
+  `src/ml_hotel_cancellations/ui/app.py`, Python **3.12**, installs `requirements.txt`
+  (`-e .`). It needs the secret **`PONTIA_API_URL`** = the API base URL on Render
+  (e.g. `https://pontia-api-fi8t.onrender.com`); without it the UI points at localhost.
 
-## Documentación
+## Documentation
 
-- `README.md` — punto de entrada (demo, problema, estructura, cómo ejecutar, resultados).
-- `docs/arquitectura.md` — arquitectura y diagramas. `docs/informe_final.md` — informe
-  académico. `docs/glosario.md` — términos. `docs/interpretabilidad.md` — SHAP.
-- `agents/` y `docs/superpowers/` — artefactos de trabajo (análisis, specs, planes);
-  no son documentación de usuario.
+- `README.md` — entry point (demo, problem, layout, how to run, results).
+- `docs/arquitectura.md` — architecture and diagrams. `docs/informe_final.md` —
+  academic report. `docs/glosario.md` — glossary. `docs/interpretabilidad.md` — SHAP.
+- `agents/deep_analysis_report.md` — forward-looking improvement ideas (not yet done).
+- `docs/superpowers/` — work artifacts (specs, plans); not user documentation.
 
-## Notas
+## Notes
 
-- El modelo ganador es **XGBoost** (ROC-AUC ≈ 0.9614). El umbral de decisión
-  (`config.DECISION_THRESHOLD = 0.5`) y la métrica principal (`roc_auc`) están en `config`.
-- No hay soporte de GPU (se retiró: todo en CPU, reproducible con `RANDOM_STATE=42`).
-- Al añadir un modelo: regístralo en `config.MODEL_FAMILY` y en `model_factory`/`model_trainer`.
+- Winning model is **XGBoost** (ROC-AUC ≈ 0.9614). The decision threshold
+  (`config.DECISION_THRESHOLD = 0.5`) and primary metric (`roc_auc`) live in `config`.
+- No GPU support (removed: CPU-only, reproducible with `RANDOM_STATE=42`).
+- When adding a model: register it in `config.MODEL_FAMILY` and in `model_factory`/`model_trainer`.
+- Editable installs recreate a gitignored `build/` dir; safe to delete.

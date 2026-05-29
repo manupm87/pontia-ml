@@ -1,30 +1,12 @@
 """Interpretabilidad del modelo: ¿por qué predice lo que predice? (bonus).
 
-Un buen ROC-AUC no basta: en problemas reales necesitamos **entender** las
-decisiones del modelo para confiar en ellas, detectar sesgos y poder explicarlas
-al negocio. Este módulo aporta dos familias de herramientas complementarias:
+Ofrece dos técnicas complementarias sobre el ``Pipeline`` ganador:
+- **SHAP** (TreeExplainer, exacto para árboles): contribución de cada variable,
+  global (beeswarm/bar) y local (waterfall). Opera sobre la matriz ya preprocesada.
+- **Importancia por permutación**: agnóstica al modelo, mide la caída de ROC-AUC
+  al barajar cada variable.
 
-- **SHAP** (*SHapley Additive exPlanations*): reparte la predicción de cada
-  reserva entre sus características usando los *valores de Shapley* (un concepto
-  de la teoría de juegos cooperativos). Permite tanto una visión **global**
-  (qué variables pesan más en todo el conjunto) como **local** (por qué se
-  predijo esta reserva concreta). Para modelos de árboles (XGBoost, Random
-  Forest) usamos ``shap.TreeExplainer``, que es exacto y muy rápido.
-- **Importancia por permutación** (*permutation importance*): mide cuánto empeora
-  una métrica (aquí ROC-AUC) al barajar al azar una variable. Es
-  **agnóstica al modelo** (funciona con cualquier estimador, no solo árboles),
-  por lo que sirve de complemento y contraste a SHAP.
-
-El modelo que explicamos es un ``Pipeline`` de scikit-learn
-``(preprocessor=ColumnTransformer, model)``. Como SHAP necesita trabajar con la
-matriz de características YA preprocesada (numéricas estandarizadas + categóricas
-codificadas en *one-hot*), separamos ambos pasos: transformamos ``X`` con el
-``preprocessor`` y aplicamos el explicador sobre el estimador final.
-
-Uso por línea de comandos (regenera todos los gráficos en ``outputs/``)::
-
-    python -m ml_hotel_cancellations.utils.interpretability
-    python -m ml_hotel_cancellations.utils.interpretability --sample 2000 --no-permutation
+Uso: ``python -m ml_hotel_cancellations.utils.interpretability [--sample N] [--no-permutation]``
 """
 
 from __future__ import annotations
@@ -47,9 +29,7 @@ from .reporting import save_figure
 
 logger = logging.getLogger(__name__)
 
-# Número de filas que muestreamos para SHAP. Calcular los valores de Shapley sobre
-# decenas de miles de filas es innecesario: una muestra de ~2000 reservas ya da
-# una imagen global estable y reduce mucho el tiempo de cómputo.
+# ~2000 reservas dan una imagen global estable sin el coste de calcular SHAP sobre todo el conjunto.
 DEFAULT_SHAP_SAMPLE: int = 2000
 
 
@@ -59,27 +39,12 @@ DEFAULT_SHAP_SAMPLE: int = 2000
 def _transform_features(pipeline: Pipeline, X: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
     """Aplica el preprocesador del ``Pipeline`` y devuelve la matriz + nombres.
 
-    SHAP necesita los datos en el mismo espacio en el que "vive" el estimador
-    final (numéricas escaladas y categóricas en *one-hot*). Aquí ejecutamos solo
-    el paso ``preprocessor`` del pipeline y recuperamos los nombres legibles de
-    las columnas resultantes con ``get_feature_names_out()``.
-
-    Parameters
-    ----------
-    pipeline:
-        ``Pipeline`` entrenado con los pasos ``preprocessor`` y ``model``.
-    X:
-        Características en crudo (mismas columnas que en entrenamiento).
-
-    Returns
-    -------
-    tuple[numpy.ndarray, list[str]]
-        Matriz transformada y lista de nombres de característica.
+    SHAP necesita los datos en el espacio del estimador final (numéricas escaladas
+    y categóricas one-hot), no las columnas en crudo.
     """
     preprocessor = pipeline.named_steps["preprocessor"]
     X_trans = preprocessor.transform(X)
-    # Algunos transformadores devuelven matrices dispersas; SHAP trabaja mejor
-    # con arrays densos, así que las convertimos si hace falta.
+    # SHAP trabaja mejor con arrays densos; convertimos si el transformador devuelve sparse.
     if hasattr(X_trans, "toarray"):
         X_trans = X_trans.toarray()
     feature_names = list(preprocessor.get_feature_names_out())
@@ -128,26 +93,17 @@ def _patch_shap_xgboost_base_score() -> None:
 
 
 def _build_tree_explainer(pipeline: Pipeline, X_sample: pd.DataFrame):
-    """Construye un ``shap.TreeExplainer`` y calcula los valores SHAP.
-
-    Returns
-    -------
-    tuple
-        ``(shap_values, X_trans, feature_names)`` donde ``shap_values`` es un
-        objeto ``shap.Explanation`` con un valor por (fila, característica).
-    """
-    import shap  # importación perezosa: solo se necesita aquí (dependencia del bonus).
+    """Construye un ``shap.TreeExplainer`` y devuelve ``(explanation, X_trans, feature_names)``."""
+    import shap  # importación perezosa: dependencia del bonus.
 
     _patch_shap_xgboost_base_score()
 
     estimator = pipeline.named_steps["model"]
     X_trans, feature_names = _transform_features(pipeline, X_sample)
 
-    # TreeExplainer es el algoritmo exacto y eficiente para modelos de árboles.
     explainer = shap.TreeExplainer(estimator)
     explanation = explainer(X_trans)
-    # Anotamos los nombres de columna para que los gráficos los muestren.
-    explanation.feature_names = feature_names
+    explanation.feature_names = feature_names  # para que los gráficos etiqueten las columnas.
     return explanation, X_trans, feature_names
 
 
@@ -160,34 +116,9 @@ def explain_global(
     output_dir: Path = config.OUTPUTS_DIR,
     sample_size: int = DEFAULT_SHAP_SAMPLE,
 ) -> dict[str, Path]:
-    """Genera las explicaciones SHAP **globales** y las guarda como PNG.
+    """Genera las explicaciones SHAP globales (beeswarm + bar) y las guarda como PNG.
 
-    Produce dos gráficos clásicos de SHAP:
-
-    - **Beeswarm** (*enjambre de abejas*): cada punto es una reserva; el eje X es
-      su valor SHAP (cuánto empuja la predicción hacia "cancela" si es positivo,
-      o hacia "no cancela" si es negativo) y el color, el valor de la variable
-      (rojo = alto, azul = bajo). Permite ver de un vistazo qué variables mandan
-      y en qué dirección.
-    - **Bar** (*barras*): la media del valor absoluto de SHAP por variable, es
-      decir, su importancia global media. Es el resumen más directo de "qué
-      variables pesan más".
-
-    Parameters
-    ----------
-    pipeline:
-        ``Pipeline`` entrenado (preprocesador + modelo de árbol).
-    X:
-        Características en crudo sobre las que explicar (típicamente el test).
-    output_dir:
-        Carpeta donde guardar los PNG.
-    sample_size:
-        Nº de filas a muestrear para acelerar el cálculo.
-
-    Returns
-    -------
-    dict[str, Path]
-        Rutas de los gráficos generados (``beeswarm`` y ``bar``).
+    Devuelve las rutas con claves ``beeswarm`` y ``bar``.
     """
     import shap
 
@@ -230,33 +161,10 @@ def explain_local(
     filename: str = "shap_waterfall.png",
     title: str | None = None,
 ) -> Path:
-    """Explica la predicción de **una sola reserva** con un gráfico *waterfall*.
+    """Explica la predicción de la reserva ``X.iloc[idx]`` con un gráfico *waterfall*.
 
-    El gráfico de cascada (*waterfall*) parte del valor base (la predicción media
-    del modelo sobre todo el conjunto) y va sumando/restando la contribución de
-    cada variable hasta llegar a la predicción final de ESTA reserva. Responde a
-    la pregunta "¿por qué el modelo cree que esta reserva concreta se cancelará
-    (o no)?".
-
-    Parameters
-    ----------
-    pipeline:
-        ``Pipeline`` entrenado.
-    X:
-        Características en crudo. Se usa ``X.iloc[[idx]]`` (la fila ``idx``).
-    idx:
-        Posición (entera, base 0) de la reserva a explicar dentro de ``X``.
-    output_dir:
-        Carpeta donde guardar el PNG.
-    filename:
-        Nombre del fichero de salida.
-    title:
-        Título opcional para el gráfico.
-
-    Returns
-    -------
-    pathlib.Path
-        Ruta del gráfico generado.
+    El waterfall parte del valor base (predicción media) y suma/resta la
+    contribución de cada variable hasta la predicción de ESTA reserva.
     """
     import shap
 
@@ -283,24 +191,7 @@ def explain_booking_to_figure(
 ):
     """Devuelve una figura SHAP *waterfall* para UNA reserva, sin guardar a disco.
 
-    Pensada para la página de predicción de la interfaz visual: la UI llama a
-    esta función con la reserva que el usuario acaba de enviar y la pinta con
-    ``st.pyplot(fig)`` (no se persiste el PNG porque cambia cada vez).
-
-    Parameters
-    ----------
-    booking_df:
-        DataFrame de UNA fila con las mismas columnas que se usaron al
-        entrenar (las 27 características en crudo).
-    pipeline:
-        ``Pipeline`` entrenado (preprocesador + modelo de árbol).
-    max_display:
-        Nº máximo de variables a mostrar en la cascada. Para una reserva
-        suelta, 10-15 ya transmite la idea sin saturar.
-
-    Returns
-    -------
-    matplotlib.figure.Figure
+    Pensada para la UI: pinta en caliente la reserva enviada por el usuario.
     """
     import shap
 
@@ -318,17 +209,7 @@ def explain_booking_to_figure(
 
 
 def find_examples(pipeline: Pipeline, X: pd.DataFrame) -> dict[str, int]:
-    """Localiza reservas representativas para las explicaciones locales.
-
-    Devuelve la posición de la reserva con MAYOR probabilidad de cancelación
-    estimada (un caso "claramente cancela") y la de MENOR probabilidad (un caso
-    "claramente no cancela"), para ilustrar el *waterfall* en ambos extremos.
-
-    Returns
-    -------
-    dict[str, int]
-        ``{"alta_prob": idx, "baja_prob": idx}`` con posiciones base 0.
-    """
+    """Devuelve ``{"alta_prob": idx, "baja_prob": idx}``: las reservas de mayor y menor probabilidad estimada."""
     proba = pipeline.predict_proba(X)[:, 1]
     return {
         "alta_prob": int(np.argmax(proba)),
@@ -350,36 +231,9 @@ def permutation_importance_report(
 ) -> tuple[pd.DataFrame, Path]:
     """Calcula la importancia por permutación y guarda un gráfico de barras.
 
-    A diferencia de SHAP (específico de árboles aquí), esta técnica es
-    **agnóstica al modelo**: baraja al azar los valores de una variable y mide
-    cuánto cae la métrica (ROC-AUC). Si barajar una variable destroza el
-    rendimiento, es que el modelo dependía mucho de ella. Funciona con CUALQUIER
-    estimador (regresión logística, red neuronal...), por lo que sirve para
-    comparar de forma justa entre modelos distintos.
-
-    Se calcula sobre el ``Pipeline`` completo y las columnas EN CRUDO, de modo que
-    la importancia se atribuye a las variables originales (``lead_time``,
-    ``deposit_type``...) y no a las columnas one-hot expandidas.
-
-    Parameters
-    ----------
-    pipeline:
-        ``Pipeline`` entrenado.
-    X, y:
-        Características en crudo y etiquetas reales (típicamente el test).
-    output_dir:
-        Carpeta donde guardar el PNG.
-    n_repeats:
-        Nº de barajados por variable (más = estimación más estable, más lento).
-    top_n:
-        Nº de variables a mostrar en el gráfico.
-    scoring:
-        Métrica de scikit-learn a usar (por defecto, la principal del proyecto).
-
-    Returns
-    -------
-    tuple[pandas.DataFrame, pathlib.Path]
-        Tabla ordenada (media y desviación de la caída de métrica) y ruta del PNG.
+    Se calcula sobre el ``Pipeline`` completo y las columnas EN CRUDO, así la
+    importancia se atribuye a las variables originales, no a las columnas one-hot.
+    Devuelve ``(tabla ordenada, ruta del PNG)``.
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -427,11 +281,7 @@ def permutation_importance_report(
 # CLI / orquestador
 # ---------------------------------------------------------------------------
 def main() -> None:
-    """Carga el mejor modelo y los datos, y regenera todos los gráficos.
-
-    Pensado para ejecutarse como ``python -m ml_hotel_cancellations.utils.interpretability`` desde la
-    raíz del repo.
-    """
+    """Carga el mejor modelo y los datos, y regenera todos los gráficos."""
     config.configure_logging()
     parser = argparse.ArgumentParser(
         description="Interpretabilidad del mejor modelo (SHAP + permutación)."
@@ -469,9 +319,7 @@ def main() -> None:
     # 1) Explicaciones globales (beeswarm + bar).
     explain_global(pipeline, X_test, sample_size=args.sample)
 
-    # 2) Explicaciones locales: una reserva que el modelo da por cancelada y otra
-    #    que da por no cancelada. Recorremos ambos extremos en vez de duplicar la
-    #    llamada.
+    # 2) Explicaciones locales: una reserva cancelada y otra no cancelada (ambos extremos).
     examples = find_examples(pipeline, X_test)
     proba = pipeline.predict_proba(X_test)[:, 1]
     cases = [

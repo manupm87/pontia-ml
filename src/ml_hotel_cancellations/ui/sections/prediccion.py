@@ -1,13 +1,11 @@
 """Sección 3 — Predicción.
 
-Presenta un formulario con las 27 variables de una reserva y, al enviarlo,
-llama a la API (`POST /predict`) para obtener la probabilidad de cancelación.
-Si la API no está disponible, se explica en español cómo arrancarla.
+Formulario con las 27 variables de una reserva que, al enviarse, llama a la API
+(`POST /predict`) para obtener la probabilidad de cancelación.
 
-Las explicaciones extra (waterfall SHAP y mapa 2D) se calculan **en proceso**
-reutilizando funciones PÚBLICAS de `src` (no la API), porque requieren el modelo
-y los artefactos PLS cargados localmente. Es una decisión consciente para esta
-app didáctica; en un sistema en producción se moverían detrás de la API.
+Las explicaciones extra (waterfall SHAP y mapa 2D) se calculan en proceso con
+funciones de `src` (no la API), porque necesitan el modelo y los artefactos PLS
+locales. Decisión consciente para esta app didáctica.
 """
 
 from __future__ import annotations
@@ -28,11 +26,8 @@ def _load_best_model():
 
 @st.cache_resource(show_spinner=False)
 def _load_pls_artifacts():
-    """Carga los artefactos de la visualización 2D una sola vez por sesión.
-
-    Pesa ~5 MB en memoria; cargarlo una sola vez evita parar la UI cada vez que
-    el usuario predice una reserva.
-    """
+    """Carga los artefactos (~5 MB) de la visualización 2D una sola vez por
+    sesión, para no parar la UI en cada predicción."""
     from ml_hotel_cancellations.utils.visualization_2d import load_artifacts
 
     return load_artifacts()
@@ -100,9 +95,8 @@ def _render_position_on_2d(payload: dict, probability: float) -> None:
 def _render_field(target, fld, defaults: dict, options: dict):
     """Pinta un campo del formulario en `target` y devuelve su valor.
 
-    Unifica las ramas numéricas (`int`/`float`): solo cambia el *cast* del tipo,
-    de modo que `st.number_input` reciba los límites y el valor por defecto en el
-    tipo correcto. Las categóricas usan un desplegable con sus opciones.
+    Las categóricas usan un desplegable; las numéricas (`int`/`float`) comparten
+    rama y solo cambian el *cast* del tipo.
     """
     if fld.kind == "categorical":
         opts = options.get(fld.options_key or fld.name, [])
@@ -176,8 +170,7 @@ def _render_result(result: dict) -> None:
         f"({config.BASE_CANCELLATION_RATE_TEXT}). 'pp' = puntos porcentuales.",
     )
 
-    # Barra de progreso como "medidor" visual del riesgo.
-    st.progress(min(max(proba, 0.0), 1.0))
+    st.progress(min(max(proba, 0.0), 1.0))  # medidor visual del riesgo
 
     if prediction == 1:
         st.warning(

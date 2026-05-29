@@ -1,11 +1,8 @@
 """Esquema y valores por defecto de la reserva (las 27 variables de entrada).
 
-Separa la "definición de qué pide el modelo" del renderizado del formulario.
-Cada campo se describe con su tipo, valor por defecto y una explicación corta
-(didáctica) que la página de predicción muestra como ayuda al usuario.
-
-El ejemplo por defecto coincide con el del contrato de la API, de modo que al
-abrir la página el formulario ya trae una reserva válida lista para enviar.
+Separa la definición de qué pide el modelo del renderizado del formulario. El
+ejemplo por defecto coincide con el contrato de la API, así el formulario abre
+con una reserva válida lista para enviar.
 """
 
 from __future__ import annotations
@@ -23,14 +20,9 @@ EXAMPLE_BOOKING: dict = config.BOOKING_EXAMPLE
 class Field:
     """Descripción de un campo del formulario.
 
-    Attributes
-    ----------
-    name: nombre exacto que espera la API.
-    label: etiqueta legible en español.
-    kind: "categorical" | "int" | "float".
-    help: explicación didáctica del significado de la variable.
-    min/max/step: límites para los campos numéricos (None si no aplica).
-    options_key: para categóricas, la clave en `get_categorical_options()`.
+    `name` es el nombre exacto que espera la API; `kind` es "categorical",
+    "int" o "float"; `min`/`max`/`step` aplican a numéricos; `options_key` es
+    la clave en `get_categorical_options()` para las categóricas.
     """
 
     name: str
@@ -128,11 +120,8 @@ def all_fields() -> list[Field]:
 
 
 def build_payload(values: dict) -> dict:
-    """Construye el cuerpo JSON para la API a partir de los valores del form.
-
-    Castea cada campo a su tipo correcto (int/float/str) según el esquema, de
-    forma que el contrato de la API se cumpla con exactitud.
-    """
+    """Construye el cuerpo JSON para la API casteando cada campo a su tipo
+    (int/float/str) según el esquema."""
     payload: dict = {}
     for fld in all_fields():
         raw = values.get(fld.name, EXAMPLE_BOOKING.get(fld.name))

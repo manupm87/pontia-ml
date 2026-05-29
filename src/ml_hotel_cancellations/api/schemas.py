@@ -1,19 +1,7 @@
-"""Contratos de datos (modelos Pydantic) de la API.
+"""Contratos de datos (modelos Pydantic) de la API: validan la entrada y generan el OpenAPI.
 
-Pydantic valida automáticamente la entrada de cada petición y genera la
-documentación interactiva (Swagger/OpenAPI). Aquí definimos:
-
-- ``Booking``           : una reserva con las 27 características de entrada del
-                          modelo (las mismas columnas crudas del entrenamiento).
-- ``PredictionResponse``: el resultado de una predicción.
-- ``BatchRequest`` / ``BatchResponse`` : variantes para predicción por lotes.
-- ``HealthResponse``    : estado del servicio.
-- ``ModelInfo``         : metadatos del modelo servido.
-
-Nótese que las 27 características = ``NUMERIC_COLUMNS`` (16) + ``CATEGORICAL_COLUMNS``
-(11) definidas en ``src.config``. No incluimos ``arrival_date_year``, ``company``,
-las columnas de ``reservation_status`` ni el target ``is_canceled``, porque el
-modelo no las usa como entrada.
+Las 27 características de ``Booking`` = ``NUMERIC_COLUMNS`` (16) +
+``CATEGORICAL_COLUMNS`` (11) de ``config``, las mismas columnas crudas que el modelo usa.
 """
 
 from __future__ import annotations
@@ -22,25 +10,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ml_hotel_cancellations import config
 
-# Ejemplo de reserva válido reutilizado en el esquema y en la documentación.
-# Sirve para que Swagger muestre un cuerpo de petición listo para "probar".
-# Fuente única de verdad en `src.config` (compartida con la interfaz Streamlit).
+# Ejemplo para Swagger; fuente única en `config` (compartida con la UI).
 BOOKING_EXAMPLE: dict = config.BOOKING_EXAMPLE
 
 
 class Booking(BaseModel):
-    """Una reserva de hotel con las 27 características de entrada del modelo.
+    """Una reserva de hotel con las 27 características crudas que espera el ``Pipeline``.
 
-    El orden y los nombres de los campos coinciden EXACTAMENTE con las columnas
-    crudas que el ``Pipeline`` espera. El propio pipeline se encarga del
-    preprocesado (codificación de categóricas, escalado, etc.), por lo que aquí
-    solo recibimos los valores "tal cual" los daría un sistema de reservas.
-
-    Notas de tipos:
-    - ``agent`` es un *string* (un ID de agencia tratado como categoría). Acepta
-      por ejemplo ``"9"`` o ``"Unknown"``.
-    - ``children`` puede venir como float en el dataset original; lo aceptamos
-      como ``float`` para no rechazar entradas válidas.
+    El pipeline se encarga del preprocesado; aquí solo se reciben los valores tal cual.
+    ``agent`` es string (ID de agencia como categoría) y ``children`` es float a propósito.
     """
 
     # --- Categóricas (11) ---
@@ -121,12 +99,7 @@ class HealthResponse(BaseModel):
 
 
 class ModelInfo(BaseModel):
-    """Metadatos del modelo servido, útiles para una interfaz cliente.
-
-    Incluye una pequeña *trace* del origen del modelo, para que el cliente
-    pueda saber si la API está sirviendo la versión del Model Registry
-    (MLflow / DagsHub) o el pickle bundled de respaldo.
-    """
+    """Metadatos del modelo servido, incluido su origen (registry MLflow vs pickle bundled)."""
 
     model_type: str = Field(..., description="Familia del modelo (p. ej. 'XGBoost').")
     primary_metric: str = Field(..., description="Métrica principal de selección (p. ej. 'roc_auc').")

@@ -1,37 +1,10 @@
-"""Visualización 2D de los modelos: proyección PLS + regiones de decisión.
+"""Visualización 2D de los modelos: proyección PLS supervisada + regiones de decisión.
 
-Genera la figura del notebook ``07_comparativa_modelos.ipynb`` §6.1 como un PNG
-guardado en ``outputs/decision_regions_pls.png``, listo para incrustarlo en la
-interfaz visual (Streamlit) sin tener que recomputar cada vez.
+Proyecta los datos (~200 variables) a 2 componentes PLS (correlacionadas con el
+target, a diferencia de PCA) para poder dibujar las fronteras de decisión, y
+persiste los artefactos para situar nuevas reservas en el plano sin recomputar.
 
-Idea
-----
-Para *ver* en 2D modelos que se entrenan con ~200 variables hace falta proyectar
-los datos a un plano. PCA elige las 2 direcciones de **mayor varianza**, pero
-**ignora** la clase: si lo que separa las cancelaciones no coincide con lo que
-más varía, las clases se mezclan. **PLS** (*Partial Least Squares*) hace lo
-mismo que PCA pero **mirando el ``target``**: elige las 2 direcciones más
-correlacionadas con ``is_canceled``, y entonces las clases sí se separan.
-
-Procedimiento::
-
-    1. Preprocesamos (ColumnTransformer) y proyectamos a 2 componentes PLS.
-    2. Reentrenamos los 5 modelos SOBRE esas 2 componentes (es necesario:
-       los modelos originales usan ~200 columnas y no pueden dibujarse en 2D).
-       La red neuronal real (Keras) se sustituye por un ``MLPClassifier``
-       de scikit-learn, equivalente en espíritu y mucho más ligero.
-    3. Evaluamos ``predict_proba`` sobre una rejilla del plano y la pintamos
-       (rojo = predice cancelación, azul = no) con la frontera 0.5.
-
-Además del PNG, se persisten los artefactos necesarios para **proyectar nuevas
-reservas** sobre el plano sin recomputar nada (preprocesador + PLS + signo de
-orientación + rejilla con las probabilidades precalculadas de cada modelo).
-Esto permite que la página de predicción de la UI sitúe la reserva del usuario
-en el mismo mapa en milisegundos.
-
-Uso::
-
-    python -m ml_hotel_cancellations.utils.visualization_2d
+Uso: ``python -m ml_hotel_cancellations.utils.visualization_2d``
 """
 
 from __future__ import annotations
@@ -58,32 +31,24 @@ from ml_hotel_cancellations.ml.preprocessing import build_preprocessor
 logger = logging.getLogger(__name__)
 
 OUTPUT_PNG_PATH = config.OUTPUTS_DIR / "decision_regions_pls.png"
-# Pickle con todo lo necesario para situar una nueva reserva en el plano sin
-# volver a entrenar nada. Tamaño esperado: ~5-15 MB (5 rejillas 300x300 float32
-# + preprocesador + PLS + submuestra de test).
+# Pickle con todo lo necesario para situar una nueva reserva sin reentrenar.
 OUTPUT_ARTIFACTS_PATH = config.OUTPUTS_DIR / "decision_regions_pls.pkl"
 
-# Número de puntos por eje de la rejilla: 300x300 = 90 000 puntos. Suficiente
-# para curvas suaves y barato de calcular en 2D.
 GRID_RESOLUTION: int = 300
-# Submuestreo de puntos de test sobre los que pintamos la clase verdadera.
 SCATTER_SAMPLE_SIZE: int = 1500
 
-# Colormap para los puntos de scatter (clase real): azul = no cancela, rojo = cancela.
+# azul = no cancela, rojo = cancela.
 _POINT_CMAP = ListedColormap(["#0b3d66", "#b32400"])
 
 
 def _build_2d_models() -> dict:
     """Devuelve los 5 modelos a reentrenar sobre el plano PLS.
 
-    Se usan los hiperparámetros base de ``config`` (excepto la red neuronal,
-    que se sustituye por un MLP de scikit-learn equivalente al de Keras pero
-    sin dependencia de TensorFlow ni callbacks, ya que aquí solo aprende de 2
-    variables y no necesita la maquinaria completa).
+    La red neuronal de Keras se sustituye por un ``MLPClassifier`` de sklearn
+    (sin TensorFlow): aquí solo aprende de 2 variables.
     """
     from ml_hotel_cancellations.ml.model_factory import build_classic_estimators
 
-    # Los 4 clásicos salen de la fábrica única.
     classic_models = build_classic_estimators()
     return {
         "Regresión logística": classic_models["Logistic Regression"],
@@ -104,9 +69,7 @@ def _build_2d_models() -> dict:
 def _compute_artifacts() -> dict:
     """Entrena PLS + los 5 modelos 2D y devuelve todo lo necesario para pintar.
 
-    Es la parte cara (≈30-45 s en CPU). Se ejecuta una sola vez desde el CLI y
-    el resultado se persiste en disco (``OUTPUT_ARTIFACTS_PATH``) para que la
-    UI no tenga que repetirlo.
+    Parte cara (~30-45 s); se ejecuta una vez desde el CLI y se persiste a disco.
     """
     logger.info("Cargando y preparando los datos…")
     X_train, X_test, y_train, y_test = load_and_prepare()
@@ -205,25 +168,9 @@ def _render_figure(
     sample_2d: tuple[float, float] | None = None,
     sample_label: str | None = None,
 ) -> Figure:
-    """Pinta la figura 2x3 con las regiones de decisión y, opcionalmente, una
-    nueva reserva marcada como una estrella.
+    """Pinta la figura 2x3 con las regiones de decisión.
 
-    Parameters
-    ----------
-    artifacts:
-        Diccionario devuelto por :func:`_compute_artifacts` o cargado de disco.
-    sample_2d:
-        Coordenadas ``(x, y)`` de la reserva a marcar en el plano PLS. Si es
-        ``None``, no se dibuja ningún marcador (modo "figura base").
-    sample_label:
-        Etiqueta corta que se añadirá al título de la figura (p. ej. la
-        probabilidad de cancelación predicha por el modelo principal).
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-        La figura lista para guardar (``fig.savefig``) o pintar en Streamlit
-        (``st.pyplot(fig)``).
+    Con ``sample_2d`` marca una reserva como estrella; sin él, genera la figura base.
     """
     xx = artifacts["xx"]
     yy = artifacts["yy"]
@@ -307,9 +254,7 @@ def generate_decision_regions_plot(
 
     logger.info("Pintando figura base…")
     fig = _render_figure(artifacts)
-    # `constrained_layout=True` ya gestiona el espaciado; `save_figure` aplicaría
-    # `tight_layout` (incompatible), así que aquí guardamos directamente con el
-    # DPI estandarizado del proyecto.
+    # Guardamos directo (no `save_figure`): su `tight_layout` choca con `constrained_layout`.
     fig.savefig(png_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
     logger.info("Figura guardada en %s", png_path)
@@ -317,12 +262,7 @@ def generate_decision_regions_plot(
 
 
 def load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
-    """Carga el pickle con los artefactos del plano PLS.
-
-    Función PÚBLICA: la interfaz la consume para situar una reserva en el mapa 2D
-    sin tener que importar un símbolo privado. Se mantiene fuera de Streamlit para
-    que la UI pueda envolverla con su propia caché.
-    """
+    """Carga el pickle con los artefactos del plano PLS (la consume la UI)."""
     if not artifacts_path.exists():
         raise FileNotFoundError(
             f"No se encontró {artifacts_path}. Ejecuta primero "
@@ -339,22 +279,7 @@ def project_booking(
     booking_df: pd.DataFrame,
     artifacts: dict,
 ) -> tuple[float, float]:
-    """Proyecta UNA reserva al plano PLS (mismo signo que la figura base).
-
-    Parameters
-    ----------
-    booking_df:
-        DataFrame de UNA fila con las MISMAS columnas que en entrenamiento
-        (las 27 features en crudo). Se normaliza igual que en
-        :func:`src.predict.prepare_for_inference`.
-    artifacts:
-        Diccionario devuelto por :func:`_load_artifacts`.
-
-    Returns
-    -------
-    tuple[float, float]
-        Coordenadas ``(x, y)`` de la reserva en el plano PLS.
-    """
+    """Proyecta UNA reserva (1 fila, 27 features crudas) al plano PLS, con el mismo signo que la figura base."""
     from ml_hotel_cancellations.ml.predict import prepare_for_inference
 
     X_one = prepare_for_inference(booking_df)
@@ -373,20 +298,7 @@ def plot_booking_on_2d(
 ):
     """Renderiza el mapa PLS con UNA reserva marcada como estrella.
 
-    Parameters
-    ----------
-    booking_df:
-        Reserva (una fila) a situar en el plano.
-    probability_canceled:
-        Probabilidad de cancelación devuelta por el modelo principal, opcional.
-        Si se pasa, aparece en el título de la figura.
-    artifacts:
-        Artefactos ya cargados (para evitar leer el pickle en cada llamada). Si
-        es ``None``, se cargan desde disco.
-
-    Returns
-    -------
-    matplotlib.figure.Figure
+    Si ``artifacts`` es ``None`` se cargan de disco; ``probability_canceled``, si se pasa, va en el título.
     """
     if artifacts is None:
         artifacts = _load_artifacts()

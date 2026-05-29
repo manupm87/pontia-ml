@@ -1,21 +1,8 @@
 """Balanceo de clases (bonus técnico).
 
-Compara tres estrategias para tratar el desbalance (~37 % de cancelaciones) en
-los modelos clásicos:
-
-- **baseline**: sin balanceo.
-- **class_weight**: reponderar la clase minoritaria (``class_weight='balanced'``
-  en scikit-learn; ``scale_pos_weight`` en XGBoost).
-- **SMOTE**: generar ejemplos sintéticos de la clase minoritaria
-  (*imbalanced-learn*), aplicado **solo al entrenamiento**.
-
-Idea clave: como la métrica principal (**ROC-AUC**) es independiente del umbral,
-el balanceo apenas la cambia. Su efecto real es **subir el recall** (detectar más
-cancelaciones) a costa de algo de precisión. Esta comparación lo evidencia.
-
-Para aislar el efecto del balanceo, se usan los hiperparámetros **base** (no los
-optimizados), de modo que la única variable que cambia entre filas es la
-estrategia de balanceo.
+Compara baseline, class_weight y SMOTE sobre el desbalance (~37 %) con
+hiperparámetros base. Efecto clave: sube el recall a costa de precisión; el
+ROC-AUC apenas cambia (es independiente del umbral).
 
 Uso::
 
@@ -61,9 +48,8 @@ def _make_estimators(strategy: str, pos_weight: float) -> dict:
 def _build_pipeline(strategy: str, estimator):
     """Pipeline preprocesado + (SMOTE) + modelo.
 
-    Para SMOTE se usa el ``Pipeline`` de *imbalanced-learn*, que aplica el
-    sobremuestreo **solo durante el entrenamiento** (nunca al evaluar), evitando
-    así inflar artificialmente las métricas de test.
+    Con SMOTE usa el ``Pipeline`` de imbalanced-learn, que sobremuestrea solo en
+    entrenamiento (no al evaluar) para no inflar las métricas de test.
     """
     if strategy == "SMOTE":
         from imblearn.over_sampling import SMOTE
@@ -147,18 +133,15 @@ def save_results(df: pd.DataFrame) -> None:
     save_figure(fig, config.BALANCING_PLOT_PATH, bbox_inches="tight")
 
 
-# Fuente única de verdad en `config` (compartida con train/tuning).
+# Fuente única en `config` (compartida con train/tuning).
 _MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
 
 _METRIC_COLS: tuple[str, ...] = ("accuracy", "precision", "recall", "f1", "roc_auc")
 
 
 def _log_to_mlflow(df: pd.DataFrame) -> None:
-    """Publica el experimento de balanceo en MLflow.
-
-    Estructura: un parent run ``balancing_strategies`` con un child run por
-    cada combinación (modelo × estrategia) — 12 en total. Los artefactos
-    (Markdown + PNG) se suben al run padre.
+    """Publica el experimento en MLflow: un parent run con un child por
+    combinación (modelo × estrategia); artefactos en el run padre.
     """
     if not tracking.tracking_enabled():
         return

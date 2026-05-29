@@ -1,14 +1,7 @@
 """Aplicación FastAPI que sirve el modelo de cancelaciones de reservas.
 
-Define los endpoints HTTP del contrato de la API. FastAPI genera además, de
-forma automática, la documentación interactiva (Swagger UI en ``/docs`` y ReDoc
-en ``/redoc``) a partir de los modelos Pydantic de ``schemas``.
-
-Cómo arrancar el servidor (desde la raíz del repo)::
-
-    uvicorn ml_hotel_cancellations.api.main:app --reload
-
-Luego abre http://127.0.0.1:8000/docs para probar los endpoints.
+Define los endpoints HTTP; la doc interactiva (Swagger/ReDoc) se genera sola.
+Arranque: ``uvicorn ml_hotel_cancellations.api.main:app --reload`` → /docs.
 """
 
 from __future__ import annotations
@@ -74,13 +67,7 @@ def health() -> HealthResponse:
     response_model=ModelInfo,
 )
 def model_info() -> ModelInfo:
-    """Expone el tipo de modelo, su métrica principal y las características usadas.
-
-    Incluye también el ORIGEN del modelo (registry MLflow vs pickle bundled),
-    su versión y stage si vienen del registry, y la razón del fallback si lo
-    hubo. Útil para verificar de un vistazo que la API esté sirviendo lo
-    esperado tras un despliegue.
-    """
+    """Expone tipo de modelo, métrica, características y el origen (registry vs bundled)."""
     return ModelInfo(**service.get_model_info_payload())
 
 

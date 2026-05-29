@@ -1,9 +1,7 @@
 """Sección 4 — Interpretabilidad.
 
-"Abre la caja negra" del modelo. Si existen gráficos SHAP (`shap_*.png`), los
-muestra con explicaciones; si todavía no se han generado, recurre a la
-importancia de variables clásica y avisa de que los SHAP aparecerán al ejecutar
-el módulo de interpretabilidad.
+"Abre la caja negra" del modelo: muestra los gráficos SHAP (`shap_*.png`) si
+existen y, en cualquier caso, la importancia de variables clásica como base.
 """
 
 from __future__ import annotations
@@ -57,8 +55,7 @@ def render() -> None:
             icon="ℹ️",
         )
 
-    # Siempre mostramos la importancia de variables como base interpretativa.
-    # Título y descripción salen del catálogo único de plots (`config.PLOTS`).
+    # Importancia de variables como base, siempre presente (catálogo `config.PLOTS`).
     fi_title, fi_description = config.PLOTS["feature_importance.png"]
     image_card(
         config.OUTPUTS_DIR / "feature_importance.png",

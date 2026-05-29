@@ -1,29 +1,9 @@
 """Registro de experimentos con MLflow (bonus técnico).
 
-Helpers finos para integrar **MLflow** en los scripts de entrenamiento sin
-acoplarlos a una infraestructura concreta. La idea es que el código de
-modelado siga funcionando **igual** si MLflow no está instalado o si no
-hay credenciales: los helpers devuelven ``False`` y los scripts se
-comportan como antes (no logging).
-
-Variables de entorno reconocidas
---------------------------------
-- ``MLFLOW_TRACKING_URI``: URL del servidor (p. ej. el de DagsHub).
-- ``MLFLOW_TRACKING_USERNAME``: usuario.
-- ``MLFLOW_TRACKING_PASSWORD``: token de acceso personal.
-
-Si las tres están definidas y ``mlflow`` está instalado, los scripts
-loguearán params, métricas y artefactos al servidor configurado. Si
-falta alguna o ``mlflow`` no se importa, todo el código de tracking se
-salta de forma silenciosa (no-op).
-
-Ejemplo de uso desde un script de entrenamiento::
-
-    from ml_hotel_cancellations.utils import tracking
-
-    tracking.init_tracking("pontia-cancellations-train")
-    with tracking.start_run(run_name="train_all_models"):
-        ...
+Helpers finos para loguear params/métricas/artefactos a MLflow sin acoplar el
+código de modelado: si faltan las env vars (``MLFLOW_TRACKING_URI`` /
+``MLFLOW_TRACKING_USERNAME`` / ``MLFLOW_TRACKING_PASSWORD``) o ``mlflow`` no está
+instalado, todo el tracking se salta de forma silenciosa (no-op).
 """
 
 from __future__ import annotations
@@ -57,17 +37,9 @@ def _has_required_env() -> bool:
 
 
 def init_tracking(experiment: str = DEFAULT_EXPERIMENT) -> bool:
-    """Configura MLflow contra el servidor remoto, si es posible.
+    """Configura MLflow contra el servidor remoto, si es posible (idempotente).
 
-    Idempotente: llamar varias veces es seguro. Devuelve ``True`` si el
-    tracking quedó activo; ``False`` si se omitió (por falta de env vars
-    o porque ``mlflow`` no está instalado en este entorno).
-
-    Parameters
-    ----------
-    experiment:
-        Nombre del experimento en el servidor. Puede sobrescribirse con
-        la variable de entorno ``MLFLOW_EXPERIMENT_NAME``.
+    Devuelve ``True`` si el tracking quedó activo; ``False`` si se omitió.
     """
     global _ENABLED
 
@@ -110,28 +82,9 @@ def tracking_enabled() -> bool:
 
 @contextmanager
 def start_run(run_name: str | None = None, nested: bool | None = None) -> Iterator[object]:
-    """Inicia un *run* MLflow si el tracking está activo; si no, no-op.
+    """Gestor de contexto sustituto de ``mlflow.start_run``; no-op si el tracking no está activo.
 
-    Usar como gestor de contexto sustituto de ``mlflow.start_run``::
-
-        with tracking.start_run(run_name="train_all_models") as run:
-            tracking.log_params({"random_state": 42})
-            ...
-
-    Si el tracking no está activo, ``run`` es ``None`` y el cuerpo del
-    bloque se ejecuta igualmente.
-
-    Parameters
-    ----------
-    run_name:
-        Nombre legible del run en la UI de MLflow.
-    nested:
-        - ``None`` (por defecto): se autodetecta. Si ya hay un run activo
-          (típicamente porque venimos llamados desde otro módulo que abrió
-          un *parent run*), se crea anidado; si no, se abre como raíz.
-        - ``True``/``False`` fuerzan el comportamiento, útil cuando sabes
-          que estás dentro de un bucle ``for x in ...`` y quieres marcar
-          cada iteración como child sí o sí.
+    Con ``nested=None`` se autodetecta: anida si ya hay un run activo, si no abre uno raíz.
     """
     if not _ENABLED:
         yield None
@@ -140,9 +93,6 @@ def start_run(run_name: str | None = None, nested: bool | None = None) -> Iterat
     import mlflow
 
     if nested is None:
-        # Si ya hay un run activo (p. ej. train.py llamó a tuning.py y este
-        # también abre un parent run), encadenamos como child. Si no, este
-        # run pasa a ser el raíz del experimento.
         nested = mlflow.active_run() is not None
 
     with mlflow.start_run(run_name=run_name, nested=nested) as run:

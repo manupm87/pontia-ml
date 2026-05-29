@@ -1,14 +1,5 @@
-"""Script principal: orquesta el flujo completo de entrenamiento.
-
-Ejecuta, de principio a fin, las cuatro fases exigidas por el enunciado:
-
-1. **Carga de datos**        (``data_loader``)
-2. **Preprocesamiento**      (``preprocessing``, embebido en cada ``Pipeline``)
-3. **Entrenamiento**         (``model_trainer``)
-4. **Evaluación y selección**(``evaluator``)
-
-Y persiste todos los artefactos: modelos individuales, mejor modelo, tabla de
-métricas y gráficos (curva ROC, matrices de confusión e importancia de variables).
+"""Script principal: orquesta carga, entrenamiento, evaluación y selección,
+y persiste los artefactos (modelos, mejor modelo, tabla de métricas y gráficos).
 
 Uso::
 
@@ -38,25 +29,20 @@ from ml_hotel_cancellations.utils.reporting import df_to_markdown
 logger = logging.getLogger(__name__)
 
 
-# Etiqueta de familia para cada modelo, útil para filtrar runs en la UI
-# de MLflow. Fuente única de verdad en `config` (compartida con tuning/balancing).
+# Familia de cada modelo; fuente única en `config` (compartida con tuning/balancing).
 _MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
 
 
 def _resolve_param_overrides(tune: bool, X_train, y_train) -> dict | None:
-    """Determina los hiperparámetros a usar: los óptimos buscados o los guardados.
-
-    Si ``tune`` es True, ejecuta la búsqueda (que persiste sus artefactos) y
-    devuelve los mejores encontrados. Si no, carga los óptimos previamente
-    guardados (o ``None`` si no existen).
+    """Hiperparámetros a usar: si ``tune``, busca y devuelve los óptimos;
+    si no, carga los previamente guardados (o ``None``).
     """
     from .tuning import HyperparameterTuner, load_best_params
 
     if tune:
         logger.info("=== Fase 1.5: optimización de hiperparámetros (--tune) ===")
         tuner = HyperparameterTuner()
-        # `tune()` ya persiste resultados + mejores params (una sola escritura);
-        # quedan como predeterminados para próximas ejecuciones.
+        # `tune()` ya persiste resultados + mejores params (quedan por defecto).
         tuner.tune(X_train, y_train)
         return tuner.best_params_
 
@@ -84,7 +70,7 @@ def _generate_plots(evaluator: Evaluator, models: dict, best: str) -> None:
     evaluator.plot_confusion_matrix(
         best, config.OUTPUTS_DIR / "confusion_matrix_best.png"
     )
-    # Importancia de variables a partir del Random Forest (modelo interpretable).
+    # Importancia de variables del Random Forest (modelo interpretable).
     if "Random Forest" in models:
         evaluator.plot_feature_importance(
             models["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png"
@@ -94,25 +80,17 @@ def _generate_plots(evaluator: Evaluator, models: dict, best: str) -> None:
 def run_pipeline(tune: bool = False) -> tuple:
     """Ejecuta el pipeline completo y devuelve ``(tabla_comparativa, mejor_modelo)``.
 
-    Parameters
-    ----------
-    tune:
-        Si es True, antes de entrenar se optimizan los hiperparámetros de los
-        modelos clásicos por validación cruzada (``src.tuning``) y se usan los
-        mejores encontrados. Por defecto False (hiperparámetros fijos y rápidos).
+    Con ``tune=True`` optimiza hiperparámetros por CV antes de entrenar.
     """
     config.ensure_directories()
-    # MLflow: activamos el tracking si hay credenciales. Si no, todos los
-    # `tracking.*` que vienen a continuación se comportan como no-op y el
-    # pipeline funciona exactamente igual que antes.
+    # MLflow: si no hay credenciales, los `tracking.*` son no-op.
     tracking.init_tracking("pontia-cancellations-train")
 
     # 1) Carga + limpieza + partición estratificada.
     logger.info("=== Fase 1: carga y preparación de datos ===")
     X_train, X_test, y_train, y_test = load_and_prepare()
 
-    # 1.5) Hiperparámetros: si se pide --tune, se buscan (y se persisten) ahora;
-    # si no, se usan los óptimos previamente guardados (si existen).
+    # 1.5) Hiperparámetros: buscados con --tune, o los previamente guardados.
     param_overrides = _resolve_param_overrides(tune, X_train, y_train)
 
     # 2 + 3) Construcción de pipelines (preprocesado + modelo) y entrenamiento.
@@ -138,14 +116,8 @@ def run_pipeline(tune: bool = False) -> tuple:
     joblib.dump(models[best], config.BEST_MODEL_PATH)
     logger.info("Mejor modelo guardado en: %s", config.BEST_MODEL_PATH)
 
-    # MLflow: registrar TODO el experimento en un único árbol de runs:
-    #   train_all_models          (run padre)
-    #   ├── Logistic Regression   (child run con params + métricas)
-    #   ├── Decision Tree
-    #   ├── ...
-    #   └── XGBoost               (también loguea el modelo como artefacto)
-    # Si el tracking no está activo, `tracking.*` no hace nada y este bloque
-    # se ejecuta en milisegundos (sin red, sin disco).
+    # MLflow: registra el experimento como un árbol de runs (padre + un child por
+    # modelo). No-op si el tracking no está activo.
     _log_training_run(trainer, evaluator, models, table, best, tuned=tune)
 
     _print_summary(table, best)
@@ -166,7 +138,7 @@ def _log_training_run(
         return
 
     with tracking.start_run(run_name="train_all_models"):
-        # Contexto del experimento entero a nivel de run padre.
+        # Run padre: contexto del experimento entero.
         tracking.set_tags(
             {
                 "phase": "training",
@@ -194,7 +166,7 @@ def _log_training_run(
                         "best": name == best,
                     }
                 )
-                # `get_params()` del estimador (sin el preprocesador).
+                # Params del estimador (sin el preprocesador).
                 model_params = trainer.models_[name].named_steps["model"].get_params()
                 tracking.log_params(model_params)
                 tracking.log_metrics(res["metrics"])
@@ -213,8 +185,8 @@ def _log_training_run(
         ):
             tracking.log_artifact(artifact)
 
-        # Modelo ganador: lo subimos al run padre como sub-carpeta `model/`
-        # para poder registrarlo después con `mlflow.register_model(...)`.
+        # Modelo ganador al run padre como `model/` (registrable luego con
+        # `mlflow.register_model(...)`).
         tracking.log_sklearn_model(models[best], artifact_path="model")
         logger.info(
             "MLflow: experimento publicado (mejor=%s, %s=%.4f).",

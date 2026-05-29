@@ -37,34 +37,9 @@ sns.set_theme(style="whitegrid")
 
 
 def compute_metrics(y_true, y_pred, y_proba) -> dict[str, float]:
-    """Calcula el conjunto de métricas de clasificación binaria.
+    """Calcula accuracy, precision, recall, f1 y roc_auc (ver docs/glosario.md).
 
-    Qué mide cada métrica (más detalle en ``docs/glosario.md``):
-
-    - **accuracy** (exactitud): porcentaje de aciertos totales. Engaña cuando hay
-      desbalance de clases.
-    - **precision** (precisión): de las predichas como cancelación, cuántas lo eran
-      de verdad → mide las "falsas alarmas".
-    - **recall** (sensibilidad): de las cancelaciones reales, cuántas se detectaron
-      → mide las cancelaciones que "se escapan".
-    - **f1**: media equilibrada (armónica) entre precisión y recall.
-    - **roc_auc**: área bajo la curva ROC (de 0.5 = azar a 1 = perfecto). Mide la
-      capacidad de **ordenar** las reservas por riesgo, sin depender del umbral. Es
-      la métrica principal del proyecto.
-
-    Parameters
-    ----------
-    y_true:
-        Etiquetas reales (lo que pasó de verdad).
-    y_pred:
-        Etiquetas predichas por el modelo (aplicando el umbral 0.5).
-    y_proba:
-        Probabilidad estimada de la clase positiva (que la reserva se cancele).
-
-    Returns
-    -------
-    dict[str, float]
-        Diccionario con accuracy, precision, recall, f1 y roc_auc.
+    ``y_pred`` aplica el umbral 0.5; ``y_proba`` es la probabilidad de cancelación.
     """
     return {
         "accuracy": accuracy_score(y_true, y_pred),
@@ -76,10 +51,9 @@ def compute_metrics(y_true, y_pred, y_proba) -> dict[str, float]:
 
 
 class Evaluator:
-    """Evalúa una colección de modelos entrenados y genera las visualizaciones.
+    """Evalúa modelos entrenados y genera las visualizaciones.
 
-    Tras llamar a :meth:`evaluate`, el resto de métodos (tablas, gráficos,
-    selección del mejor modelo) operan sobre los resultados almacenados.
+    Tras :meth:`evaluate`, el resto de métodos operan sobre los resultados guardados.
     """
 
     def __init__(
@@ -87,8 +61,7 @@ class Evaluator:
         class_labels: list[str] | None = None,
         metric_names: list[str] | None = None,
     ):
-        # Defaults a `None` y asignación interna para no usar listas mutables de
-        # `config` como valores por defecto de los parámetros.
+        # Defaults a `None` para no usar listas mutables de `config` como default.
         self.class_labels = class_labels if class_labels is not None else config.CLASS_LABELS
         self.metric_names = metric_names if metric_names is not None else config.METRIC_NAMES
         self.results_: dict[str, dict] = {}
@@ -123,18 +96,7 @@ class Evaluator:
         return self.results_
 
     def comparison_table(self, train_times: dict[str, float] | None = None) -> pd.DataFrame:
-        """Construye la tabla comparativa de métricas (ordenada por la principal).
-
-        Parameters
-        ----------
-        train_times:
-            Diccionario opcional ``nombre -> segundos de entrenamiento``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Filas = modelos, columnas = métricas (+ tiempo de entrenamiento).
-        """
+        """Tabla comparativa de métricas por modelo (ordenada por la principal)."""
         rows = {}
         for name, res in self.results_.items():
             row = {m: res["metrics"][m] for m in self.metric_names}
@@ -206,20 +168,7 @@ class Evaluator:
 
     @staticmethod
     def plot_feature_importance(model_pipeline, path, top_n: int = 20) -> None:
-        """Dibuja la importancia de variables de un modelo basado en árboles.
-
-        Extrae ``feature_importances_`` del estimador final del ``Pipeline`` y
-        los nombres de característica del preprocesador ajustado.
-
-        Parameters
-        ----------
-        model_pipeline:
-            ``Pipeline`` entrenado (preprocesador + modelo de árbol).
-        path:
-            Ruta donde guardar el PNG.
-        top_n:
-            Número de variables más importantes a mostrar.
-        """
+        """Dibuja las ``top_n`` variables más importantes de un modelo de árboles."""
         estimator = model_pipeline.named_steps["model"]
         if not hasattr(estimator, "feature_importances_"):
             logger.warning(

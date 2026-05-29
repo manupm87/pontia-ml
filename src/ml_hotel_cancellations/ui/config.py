@@ -1,13 +1,7 @@
 """Configuración de la interfaz visual.
 
 Centraliza rutas, URLs y constantes para que el resto de módulos no contengan
-valores "mágicos". Cambiar dónde está la API o las carpetas de artefactos se
-hace desde un único punto.
-
-Términos para estudiantes:
-- *API*: programa que expone el modelo por HTTP; la web le envía una reserva y
-  recibe la predicción. Aquí es la API FastAPI del proyecto.
-- *Artefacto*: fichero que produce el pipeline de ML (gráfico, tabla, modelo).
+valores "mágicos".
 """
 
 from __future__ import annotations
@@ -17,10 +11,7 @@ from pathlib import Path
 
 from ml_hotel_cancellations import config as _src_config
 
-# ---------------------------------------------------------------------------
-# Rutas del proyecto
-# ---------------------------------------------------------------------------
-# `PROJECT_ROOT` apunta a la raíz del repo (un nivel por encima de `ui/`).
+# Rutas del proyecto. `PROJECT_ROOT` es la raíz del repo.
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
 OUTPUTS_DIR: Path = PROJECT_ROOT / "outputs"
@@ -34,12 +25,8 @@ BEST_HYPERPARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 BALANCING_MD_PATH: Path = OUTPUTS_DIR / "balanceo_clases.md"
 TUNING_MD_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 
-# ---------------------------------------------------------------------------
-# API de predicción (FastAPI)
-# ---------------------------------------------------------------------------
-# La URL base se puede sobreescribir con la variable de entorno PONTIA_API_URL.
-# Así, en local apunta a localhost y en otro entorno (Docker, despliegue) basta
-# con cambiar la variable sin tocar el código.
+# API de predicción (FastAPI). La URL base se sobreescribe con PONTIA_API_URL
+# para cambiar de entorno (local, Docker, despliegue) sin tocar el código.
 API_BASE_URL: str = os.getenv("PONTIA_API_URL", "http://localhost:8000").rstrip("/")
 API_HEALTH_ENDPOINT: str = f"{API_BASE_URL}/health"
 API_PREDICT_ENDPOINT: str = f"{API_BASE_URL}/predict"
@@ -47,13 +34,11 @@ API_PREDICT_ENDPOINT: str = f"{API_BASE_URL}/predict"
 # Tiempo máximo (segundos) que esperamos a la API antes de darla por caída.
 API_TIMEOUT_S: float = 8.0
 
-# ---------------------------------------------------------------------------
-# Cifras de cabecera del proyecto (para destacar resultados de un vistazo)
-# ---------------------------------------------------------------------------
+# Cifras de cabecera del proyecto.
 BEST_MODEL_NAME: str = "XGBoost"
 
-# ROC-AUC del mejor modelo: leído del artefacto de métricas del entrenamiento
-# (no un literal) para que no se quede obsoleto. Respaldo si el CSV no estuviera.
+# ROC-AUC del mejor modelo: leído del artefacto de métricas (no un literal) para
+# que no se quede obsoleto. Respaldo si el CSV no estuviera.
 try:
     BEST_MODEL_ROC_AUC: float = round(_src_config.best_metric_value("roc_auc"), 4)
 except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún entorno
@@ -62,27 +47,20 @@ except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún entorno
 # Etiquetas legibles de las clases (derivadas de la fuente única en src.config).
 CLASS_LABELS: dict[int, str] = dict(enumerate(_src_config.CLASS_LABELS_SHORT))
 
-# Tasa de cancelación global del dataset (~37 %). Sirve de referencia ("línea
-# base") al interpretar una probabilidad concreta.
+# Tasa de cancelación global del dataset (~37 %). Referencia al interpretar
+# una probabilidad concreta.
 BASE_CANCELLATION_RATE: float = 0.37
 
-# Texto legible de la tasa base ("~37 %"), derivado del valor anterior para que
-# la cifra y la prosa nunca diverjan.
+# Texto legible de la tasa base, derivado del valor anterior para que cifra y
+# prosa nunca diverjan.
 BASE_CANCELLATION_RATE_TEXT: str = f"~{BASE_CANCELLATION_RATE * 100:.0f} %"
 
-# Cadenas que en el CSV representan ausencia de valor (reexportadas de src.config
-# para que la interfaz no mantenga su propia copia de la lista).
+# Reexportados de src.config para no mantener copias propias.
 NA_TOKENS: list[str] = _src_config.NA_TOKENS
-
-# Nombre de la columna objetivo en el dataset crudo.
 TARGET_COLUMN: str = _src_config.TARGET_COLUMN
 
-# ---------------------------------------------------------------------------
-# Paleta y proporciones de columnas
-# ---------------------------------------------------------------------------
-# Colores de las clases (no cancelada / cancelada) para los gráficos. Se
-# centralizan aquí —igual que `IMAGE_COLUMN_RATIO` en `layout.py`— para que la
-# misma codificación de color se use en todas las secciones.
+# Colores de las clases para los gráficos, centralizados para usar la misma
+# codificación en todas las secciones.
 CLASS_COLORS: dict[str, str] = {
     "No cancelada": "#2c7fb8",
     "Cancelada": "#de2d26",
@@ -94,11 +72,7 @@ BEST_ROW_HIGHLIGHT: str = "#d4edda"
 # Proporciones de columnas usadas con `st.columns(...)` en las secciones.
 CHART_TABLE_RATIO: tuple[int, int] = (2, 1)  # gráfico ancho + tabla estrecha
 
-# ---------------------------------------------------------------------------
-# Selecciones para el EDA (Análisis Exploratorio de Datos)
-# ---------------------------------------------------------------------------
-# Variables numéricas que resume la vista de EDA (antelación, tarifa media,
-# noches entre semana y peticiones especiales).
+# Variables numéricas que resume la vista de EDA.
 EDA_NUMERIC_COLUMNS: list[str] = [
     "lead_time",
     "adr",
@@ -106,19 +80,15 @@ EDA_NUMERIC_COLUMNS: list[str] = [
     "total_of_special_requests",
 ]
 
-# Meses en orden natural (no alfabético), para ordenar el desplegable de mes
-# de llegada de forma que tenga sentido.
+# Meses en orden natural (no alfabético) para ordenar el desplegable de mes.
 MONTH_ORDER: list[str] = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ]
 
-# ---------------------------------------------------------------------------
-# Catálogo de gráficos exportados a `outputs/`
-# ---------------------------------------------------------------------------
-# Metadatos (título + descripción didáctica) de cada PNG generado por el
-# pipeline. Las secciones seleccionan las claves que les interesan en vez de
-# repetir los textos, de modo que un cambio de copy se hace en un único sitio.
+# Catálogo de gráficos exportados a `outputs/`: título + descripción didáctica
+# de cada PNG. Las secciones seleccionan las claves que necesitan, así un cambio
+# de copy se hace en un único sitio.
 PLOTS: dict[str, tuple[str, str]] = {
     "roc_curves.png": (
         "Curvas ROC",

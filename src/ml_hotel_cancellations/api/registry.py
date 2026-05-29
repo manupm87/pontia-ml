@@ -1,14 +1,9 @@
 """Cliente del Model Registry de MLflow vía REST (sin la librería ``mlflow``).
 
-Resuelve y descarga el modelo publicado en el **Model Registry** de MLflow
-(DagsHub) usando solo ``requests`` + ``joblib``. Razón de no usar la librería
-``mlflow``: en Render free (512 MB de RAM) importarla añade ~50-150 MB de
-superficie que rebasa el límite; aquí solo necesitamos un par de endpoints REST y
-``joblib.load`` (el mismo formato que usa ``mlflow.sklearn``). Tradeoff: si DagsHub
-cambia sus endpoints habría que tocar este módulo.
-
-Variables de entorno (solo se usan si ``MLFLOW_MODEL_URI`` está definida):
-``MLFLOW_TRACKING_URI`` / ``MLFLOW_TRACKING_USERNAME`` / ``MLFLOW_TRACKING_PASSWORD``.
+Descarga el modelo de DagsHub con solo ``requests`` + ``joblib`` para no importar
+``mlflow`` (~50-150 MB), que rebasaría el límite de RAM de Render free.
+Env vars: ``MLFLOW_TRACKING_URI`` / ``_USERNAME`` / ``_PASSWORD``.
+Ver docs/arquitectura.md para la justificación completa.
 """
 
 from __future__ import annotations
@@ -25,20 +20,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# Directorio raíz para cachear modelos descargados del registry. ``/tmp`` es
-# escribible en Render free y sobrevive a warm-restarts (pero no a cold-starts:
-# si el contenedor se destruye por inactividad, la próxima carga re-descarga).
+# `/tmp` sobrevive a warm-restarts en Render free (no a cold-starts: re-descarga).
 _REGISTRY_CACHE_ROOT: Path = Path(os.getenv("PONTIA_REGISTRY_CACHE", "/tmp/pontia_models"))
 
 
 @dataclass
 class LoadInfo:
-    """Metadatos tipados del origen del modelo cargado (lo reporta ``/model-info``).
-
-    Fuente única de las claves de origen del modelo. Los loaders construyen y
-    devuelven instancias de ``LoadInfo``; la capa de servicio las serializa a
-    ``dict`` con ``dataclasses.asdict``.
-    """
+    """Metadatos tipados del origen del modelo cargado (lo reporta ``/model-info``)."""
 
     source: str | None = None
     registry_uri: str | None = None
@@ -56,12 +44,7 @@ def _registry_cache_dir(uri: str) -> Path:
 
 
 def _require_env(name: str) -> str:
-    """Devuelve la variable de entorno ``name`` o lanza un error explicativo.
-
-    Evita el ``KeyError`` opaco de ``os.environ[...]``: si falta una credencial
-    de MLflow, el mensaje deja claro POR QUÉ se necesita, de modo que el
-    ``fallback_reason`` de ``/model-info`` sea autoexplicativo.
-    """
+    """Devuelve la env var ``name`` o lanza un ``RuntimeError`` explicativo (no un ``KeyError`` opaco)."""
     value = os.environ.get(name)
     if not value:
         raise RuntimeError(
@@ -80,11 +63,9 @@ def _mlflow_auth() -> tuple[str, str]:
 
 
 def _resolve_registry_uri(uri: str) -> dict:
-    """Resuelve ``models:/name/<stage|version>`` contra la API REST MLflow.
+    """Resuelve ``models:/name/<stage|version>`` vía REST y devuelve el dict de metadatos de la versión.
 
-    Devuelve el dict de metadatos de la versión (``source``, ``version``,
-    ``current_stage``, ``run_id``). Lanza ``RuntimeError`` si no hay versión en el
-    stage pedido, o propaga ``requests.HTTPError`` si la auth/URL son inválidas.
+    Lanza ``RuntimeError`` si no hay versión en el stage pedido.
     """
     if not uri.startswith("models:/"):
         raise ValueError(f"URI no soportada para el registry: {uri!r}")
@@ -147,11 +128,9 @@ def _download_artifact_file(source_uri: str, dest_pkl: Path) -> None:
 
 
 def load_from_registry(uri: str) -> tuple[object, LoadInfo]:
-    """Carga ``(pipeline, LoadInfo)`` desde el registry usando HTTP + joblib.
+    """Carga ``(pipeline, LoadInfo)`` desde el registry (HTTP + joblib), reutilizando la caché si existe.
 
-    Si el pickle ya está cacheado (warm restart), lo reutiliza; si no, resuelve el
-    URI vía REST, descarga ``model.pkl`` y lo deserializa. Lanza si algo falla
-    (auth, red, versión inexistente, etc.); el caller cae al pickle bundled.
+    Lanza si algo falla (auth, red, versión inexistente); el caller cae al bundled.
     """
     cache_dir = _registry_cache_dir(uri)
     pkl_path = cache_dir / "model.pkl"

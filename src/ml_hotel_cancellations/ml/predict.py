@@ -1,9 +1,7 @@
-"""Inferencia con el mejor modelo seleccionado.
+"""Inferencia con el mejor modelo (``models/best_model.pkl``).
 
-Carga ``models/best_model.pkl`` (el ``Pipeline`` completo: preprocesado + modelo)
-y genera predicciones de cancelación para nuevas reservas. Como el modelo es un
-``Pipeline``, recibe el DataFrame en crudo y aplica internamente el mismo
-preprocesado que en entrenamiento.
+El modelo es un ``Pipeline``, así que recibe el DataFrame en crudo y aplica
+internamente el mismo preprocesado que en entrenamiento.
 
 Uso::
 
@@ -39,11 +37,10 @@ def load_best_model(path=config.BEST_MODEL_PATH):
 
 
 def prepare_for_inference(df: pd.DataFrame) -> pd.DataFrame:
-    """Aplica las transformaciones necesarias para predecir (sin descartar filas).
+    """Prepara el DataFrame para predecir sin descartar filas.
 
-    A diferencia del entrenamiento, aquí NO se eliminan registros: se conserva
-    una predicción por cada fila de entrada. Solo se normalizan las categóricas y
-    se descarta el target si viniera incluido.
+    A diferencia del entrenamiento, NO elimina registros (una predicción por fila):
+    solo normaliza categóricas y descarta el target si viniera incluido.
     """
     df = normalize_categoricals(df)
     if config.TARGET_COLUMN in df.columns:
@@ -52,13 +49,7 @@ def prepare_for_inference(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def predict_dataframe(df: pd.DataFrame, model=None) -> pd.DataFrame:
-    """Genera predicciones para un DataFrame de reservas.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Columnas ``prediction`` (0/1) y ``probability_canceled`` (probabilidad).
-    """
+    """Predice por reserva: devuelve ``prediction`` (0/1) y ``probability_canceled``."""
     if model is None:
         model = load_best_model()
     X = prepare_for_inference(df)
@@ -94,8 +85,7 @@ def main() -> None:
     result = predict_dataframe(df, model=model)
 
     if args.output:
-        # Conservamos el índice (que `predict_dataframe` hereda de la entrada)
-        # para poder casar cada fila de salida con su reserva de origen.
+        # Conservamos el índice para casar cada salida con su reserva de origen.
         result.to_csv(args.output, index=True)
         logger.info("Predicciones guardadas en %s", args.output)
     else:

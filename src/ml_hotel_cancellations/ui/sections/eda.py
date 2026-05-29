@@ -1,8 +1,7 @@
 """Sección 5 — Exploración de datos (EDA).
 
-Análisis Exploratorio de Datos: una mirada a los datos crudos antes de modelar.
-Se muestran la tasa de cancelación por distintas categorías (qué grupos cancelan
-más), el balance de clases y un resumen de variables numéricas.
+Mirada a los datos crudos antes de modelar: tasa de cancelación por categorías,
+balance de clases y resumen de variables numéricas.
 """
 
 from __future__ import annotations

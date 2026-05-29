@@ -1,16 +1,8 @@
 """Interfaz visual del proyecto (Streamlit) — punto de entrada.
 
-Arranque (desde la raíz del repo, con el paquete instalado vía `pip install -e .`):
-
-    streamlit run src/ml_hotel_cancellations/ui/app.py
-
-La navegación entre secciones está en la barra lateral. Cada sección vive en su
-propio módulo dentro de `ui/sections/` y expone una función `render()`, de modo
-que este fichero solo se ocupa de la estructura general (layout, navegación,
-estado de la API), no del contenido.
-
-La sección de predicción consume la **API FastAPI** del proyecto; su URL se lee
-de la variable de entorno `PONTIA_API_URL` (por defecto `http://localhost:8000`).
+Arranque: `streamlit run src/ml_hotel_cancellations/ui/app.py`. Solo gestiona la
+estructura general (layout, navegación, estado de la API); cada sección vive en
+`ui/sections/` y expone una función `render()`.
 """
 
 from __future__ import annotations
@@ -47,8 +39,8 @@ def _configure_page() -> None:
 
 
 def _render_sidebar() -> str:
-    """Dibuja la barra lateral (navegación + estado de la API). Devuelve la
-    sección elegida por el usuario."""
+    """Dibuja la barra lateral (navegación + estado de la API) y devuelve la
+    sección elegida."""
     st.sidebar.title("🏨 Pontia ML")
     st.sidebar.markdown(
         "Escaparate del proyecto de **predicción de cancelaciones** de reservas "
@@ -88,9 +80,8 @@ _PREWARM_FLAG = "_api_prewarmed"
 def _prewarm_api() -> None:
     """Despierta la API remota una sola vez por sesión.
 
-    Usa un *flag* en `st.session_state` como guard one-shot: la primera vez que
-    se carga la aplicación dispara la petición; los `rerun` siguientes la saltan.
-    En localhost es no-op (`warm_up_api` devuelve True inmediatamente).
+    Usa un *flag* en `st.session_state` como guard one-shot: dispara la petición
+    en la primera carga y la salta en los `rerun`. En localhost es no-op.
     """
     if st.session_state.get(_PREWARM_FLAG):
         return
@@ -100,23 +91,18 @@ def _prewarm_api() -> None:
 
 def main() -> None:
     _configure_page()
-    # Lanza el *pre-warm* antes de pintar nada: si la API estaba dormida
-    # en Render, esta llamada se ejecuta mientras el usuario lee la
-    # interfaz, de modo que cuando intente predecir la API ya esté lista.
+    # Pre-warm antes de pintar: arranca la API dormida mientras el usuario lee.
     _prewarm_api()
     choice = _render_sidebar()
-    # Renderiza la sección seleccionada.
     SECTIONS[choice]()
 
 
 def _running_under_streamlit() -> bool:
     """¿Se está ejecutando dentro del runtime de Streamlit (`streamlit run`)?
 
-    Distingue el arranque real de la app de una importación normal (p. ej. un
-    test que hace `import ui.app`): solo en el primer caso existe un *script run
-    context* activo y tiene sentido renderizar. Capturamos `ImportError` por si
-    la API interna de Streamlit cambia de ubicación entre versiones; cualquier
-    otro fallo debe propagarse en lugar de enmascararse.
+    Distingue el arranque real de una importación (p. ej. un test): solo en el
+    primero hay *script run context* activo. Captura `ImportError` por si la API
+    interna de Streamlit cambia entre versiones.
     """
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
@@ -125,8 +111,8 @@ def _running_under_streamlit() -> bool:
     return get_script_run_ctx() is not None
 
 
-# `streamlit run src/ml_hotel_cancellations/ui/app.py` ejecuta el script con `__name__ == "__main__"`, pero
-# algunas versiones lo importan como módulo; cubrimos ambos casos detectando el
-# runtime. Al importarlo desde un test (sin runtime) no se renderiza nada.
+# `streamlit run` puede ejecutar el script como `__main__` o importarlo como
+# módulo: cubrimos ambos casos. Al importarlo desde un test (sin runtime) no se
+# renderiza nada.
 if __name__ == "__main__" or _running_under_streamlit():
     main()

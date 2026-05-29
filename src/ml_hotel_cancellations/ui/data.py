@@ -1,16 +1,9 @@
 """Lógica de datos de la interfaz (sin Streamlit en el núcleo).
 
-Aquí vive todo lo que NO es renderizado: cargar la tabla de métricas, leer una
-muestra del dataset, calcular agregaciones para el EDA y llamar a la API de
-predicción. Mantenerlo separado de las páginas tiene dos ventajas didácticas:
-
-1. Se puede importar y probar sin arrancar Streamlit (no hay efectos de página).
-2. Las funciones pesadas se cachean con `st.cache_data`, de modo que el CSV de
-   16 MB no se relee en cada interacción del usuario.
-
-Si Streamlit no está disponible (por ejemplo, al ejecutar un test), las
-funciones siguen funcionando: el decorador de caché se sustituye por uno que no
-hace nada (ver `_cache_data`).
+Todo lo que NO es renderizado: cargar métricas, leer muestras del dataset,
+calcular agregaciones para el EDA y llamar a la API. Separarlo de las páginas
+permite importarlo y probarlo sin arrancar Streamlit, y cachear lo pesado
+(el CSV de 16 MB no se relee en cada interacción).
 """
 
 from __future__ import annotations
@@ -26,12 +19,8 @@ import requests
 from . import config
 
 
-# ---------------------------------------------------------------------------
-# Caché tolerante a la ausencia de Streamlit
-# ---------------------------------------------------------------------------
-# `st.cache_data` solo existe dentro de una app Streamlit. Para que estos
-# helpers se puedan importar en tests o en la consola, definimos un decorador
-# que usa la caché de Streamlit si está, y `functools.lru_cache` como respaldo.
+# Caché tolerante a la ausencia de Streamlit: usa `st.cache_data` si está
+# disponible y `functools.lru_cache` como respaldo (tests, consola).
 try:  # pragma: no cover - depende del entorno de ejecución
     import streamlit as st
 
@@ -52,26 +41,19 @@ except Exception:  # pragma: no cover - entorno sin Streamlit (tests)
         return lru_cache(maxsize=None)(func)
 
     def _cache_data_ttl(ttl: int):
-        # Sin Streamlit no hay expiración: `lru_cache` basta para los tests.
+        # Sin Streamlit no hay expiración; `lru_cache` basta para los tests.
         def decorator(func):
             return lru_cache(maxsize=None)(func)
 
         return decorator
 
 
-# ---------------------------------------------------------------------------
-# Carga de artefactos y datos
-# ---------------------------------------------------------------------------
 @_cache_data
 def load_metrics_table() -> pd.DataFrame:
-    """Carga la tabla comparativa de los 5 modelos (`metricas_modelos.csv`).
-
-    La primera columna del CSV no tiene cabecera (es el nombre del modelo); la
-    renombramos a "Modelo" y la dejamos como columna normal para mostrarla.
-    """
+    """Carga la tabla comparativa de los 5 modelos (`metricas_modelos.csv`)."""
     df = pd.read_csv(config.METRICS_CSV_PATH)
+    # La primera columna del CSV no tiene cabecera (es el nombre del modelo).
     df = df.rename(columns={df.columns[0]: "Modelo"})
-    # Ordenamos por la métrica principal (ROC-AUC) de mejor a peor.
     if "roc_auc" in df.columns:
         df = df.sort_values("roc_auc", ascending=False).reset_index(drop=True)
     return df
@@ -90,8 +72,8 @@ def load_best_hyperparams() -> dict[str, Any]:
 def load_dataset(nrows: int | None = None) -> pd.DataFrame:
     """Carga el dataset crudo (o las primeras `nrows` filas).
 
-    Se respetan los tokens de nulo del proyecto ("NULL", "NA", ...) para que las
-    columnas como `agent`/`company` se interpreten bien.
+    Respeta los tokens de nulo del proyecto para interpretar bien columnas
+    como `agent`/`company`.
     """
     return pd.read_csv(
         config.RAW_DATASET_PATH,
@@ -113,10 +95,9 @@ def load_dataset_sample(n: int) -> pd.DataFrame:
 def get_categorical_options() -> dict[str, list[str]]:
     """Valores únicos de las categóricas, para poblar los desplegables del form.
 
-    Derivar las opciones del propio dataset hace que el formulario sea realista
-    (no inventamos categorías que el modelo nunca vio). Para variables de alta
-    cardinalidad (`country`, `agent`) devolvemos solo las más frecuentes, que es
-    lo que cubre el OneHotEncoder del modelo; el resto cae en "infrequent".
+    Se derivan del propio dataset para que el formulario sea realista. Para alta
+    cardinalidad (`country`, `agent`) solo las más frecuentes, que es lo que
+    cubre el OneHotEncoder; el resto cae en "infrequent".
     """
     df = load_dataset()
     options: dict[str, list[str]] = {}
@@ -142,8 +123,8 @@ def get_categorical_options() -> dict[str, list[str]]:
     # País: las 30 más frecuentes (el resto agrupado por el modelo).
     options["country"] = df["country"].dropna().value_counts().head(30).index.tolist()
 
-    # Agente: identificador categórico. En el CSV se lee como float (9.0); lo
-    # pasamos a string entero ("9") para casar con el contrato de la API.
+    # Agente: en el CSV se lee como float (9.0); lo pasamos a string entero ("9")
+    # para casar con el contrato de la API.
     agent_values = df["agent"].dropna()
     agent_strings = agent_values.map(lambda v: str(int(v))).value_counts()
     options["agent"] = agent_strings.head(30).index.tolist()
@@ -151,16 +132,13 @@ def get_categorical_options() -> dict[str, list[str]]:
     return options
 
 
-# ---------------------------------------------------------------------------
-# Agregaciones para el EDA (Análisis Exploratorio de Datos)
-# ---------------------------------------------------------------------------
+# Agregaciones para el EDA
 @_cache_data
 def cancellation_rate_by(column: str) -> pd.DataFrame:
     """Tasa de cancelación (media de `is_canceled`) por categoría de `column`.
 
-    Devuelve un DataFrame con la categoría, la tasa de cancelación (0-1) y el
-    número de reservas, ordenado de mayor a menor tasa. Es la agregación clave
-    del EDA: muestra qué grupos cancelan más.
+    Devuelve categoría, tasa (0-1) y número de reservas, de mayor a menor tasa:
+    muestra qué grupos cancelan más.
     """
     df = load_dataset()
     grouped = (
@@ -176,11 +154,7 @@ def cancellation_rate_by(column: str) -> pd.DataFrame:
 
 @_cache_data
 def class_balance() -> pd.DataFrame:
-    """Reparto de la variable objetivo (cuántas reservas se cancelan o no).
-
-    El desbalance (~37 % de cancelaciones) justifica usar ROC-AUC como métrica
-    principal y explorar técnicas de balanceo.
-    """
+    """Reparto de la variable objetivo (cuántas reservas se cancelan o no)."""
     df = load_dataset()
     counts = df[config.TARGET_COLUMN].value_counts().sort_index()
     return pd.DataFrame(
@@ -200,41 +174,31 @@ def numeric_summary() -> pd.DataFrame:
     return df[cols].describe().T.round(2).reset_index().rename(columns={"index": "variable"})
 
 
-# ---------------------------------------------------------------------------
 # Cliente de la API de predicción
-# ---------------------------------------------------------------------------
-# Hosts que se consideran "locales": si la URL de la API contiene alguno, la API
-# NO es remota.
+# Hosts considerados "locales": si la URL los contiene, la API NO es remota.
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0")
 
 
 def is_remote_api() -> bool:
     """¿La API configurada es remota (no localhost)?
 
-    Útil para decidir si mostrar el aviso de *cold start* (servicios free
-    como Render se duermen tras 15 min de inactividad y tardan ~30-50 s en
-    despertar) y para activar el *pre-warm* en `app.py`. Se evalúa sobre
-    ``config.API_BASE_URL`` en cada llamada (es una comprobación trivial) para
-    reflejar siempre la configuración vigente.
+    Útil para decidir si mostrar el aviso de *cold start* y activar el *pre-warm*.
     """
     url = config.API_BASE_URL.lower()
     return not any(host in url for host in _LOCAL_HOSTS)
 
 
 # Timeout largo para el pre-warm: en Render free el primer arranque tras
-# inactividad puede pasar de 30 s. Solo se usa en `warm_up_api`.
+# inactividad puede pasar de 30 s.
 WARMUP_TIMEOUT_S: float = 60.0
 
 
 def warm_up_api() -> bool:
     """Pide `/health` con timeout largo para despertar a la API si dormía.
 
-    Se llama una sola vez por sesión Streamlit (la cachea `app.py` con
-    `st.cache_resource`). Está pensada para hostings free con *cold start*
-    (Render, Koyeb, etc.): mientras el usuario lee la barra lateral, esta
-    llamada provoca el arranque del servicio. Ignora errores: si falla,
-    el chequeo en vivo (`check_api_health`) lo reportará después con un
-    mensaje claro.
+    Pensada para hostings free con *cold start*: mientras el usuario lee la barra
+    lateral, esta llamada arranca el servicio. Ignora errores; el chequeo en vivo
+    (`check_api_health`) los reportará después.
     """
     if not is_remote_api():
         return True  # localhost: no hace falta despertar nada
@@ -249,16 +213,9 @@ def warm_up_api() -> bool:
 def check_api_health() -> tuple[bool, dict[str, Any] | str]:
     """Comprueba si la API está viva consultando `GET /health`.
 
-    Cacheada brevemente (TTL 10 s) para que un mismo render —que consulta el
-    estado en la barra lateral y en la página de predicción— no dispare varias
-    peticiones HTTP síncronas. El TTL corto mantiene el estado razonablemente
-    fresco entre interacciones.
-
-    Returns
-    -------
-    (ok, info)
-        `ok` es True si la API responde 200; `info` es el JSON de respuesta o,
-        en caso de error, un mensaje explicativo (string).
+    Cacheada brevemente (TTL 10 s) para que un mismo render no dispare varias
+    peticiones HTTP. Devuelve `(ok, info)`: `info` es el JSON de respuesta o,
+    si falla, un mensaje de error.
     """
     try:
         resp = requests.get(config.API_HEALTH_ENDPOINT, timeout=config.API_TIMEOUT_S)
@@ -275,15 +232,8 @@ def check_api_health() -> tuple[bool, dict[str, Any] | str]:
 def predict_booking(booking: dict[str, Any]) -> tuple[bool, dict[str, Any] | str]:
     """Envía una reserva a `POST /predict` y devuelve la predicción.
 
-    El cuerpo (`booking`) debe seguir el contrato de la API: las 27 variables de
-    la reserva con los nombres EXACTOS. La respuesta esperada es::
-
-        {"prediction": 0|1, "label": "...", "probability": <float>}
-
-    Returns
-    -------
-    (ok, resultado)
-        `ok` True con el JSON de la predicción, o False con un mensaje de error.
+    `booking` debe seguir el contrato de la API (27 variables, nombres EXACTOS).
+    Devuelve `(ok, resultado)`: el JSON de la predicción o un mensaje de error.
     """
     try:
         resp = requests.post(
@@ -309,16 +259,12 @@ def predict_booking(booking: dict[str, Any]) -> tuple[bool, dict[str, Any] | str
         return False, f"Error llamando a la API: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# Utilidades de presentación de artefactos
-# ---------------------------------------------------------------------------
 @_cache_data_ttl(30)
 def find_shap_pngs() -> list[Path]:
-    """Localiza los gráficos SHAP (`shap_*.png`) si el módulo de interpretabilidad
-    ya se ejecutó. Devuelve lista vacía si aún no existen.
+    """Localiza los gráficos SHAP (`shap_*.png`); lista vacía si aún no existen.
 
-    Cacheada con TTL corto (30 s) para no hacer un *glob* de filesystem en cada
-    render; el TTL permite que aparezcan los SHAP recién generados sin reiniciar.
+    Cacheada con TTL corto (30 s) para no hacer *glob* en cada render, dejando
+    que aparezcan los SHAP recién generados sin reiniciar.
     """
     if not config.OUTPUTS_DIR.exists():
         return []

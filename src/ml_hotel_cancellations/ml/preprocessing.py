@@ -1,10 +1,7 @@
 """Construcción del preprocesador de características.
 
-Se define un único :class:`~sklearn.compose.ColumnTransformer` que aplica
-transformaciones distintas a las variables numéricas y categóricas. Encapsular el
-preprocesado en un objeto de scikit-learn permite reutilizarlo dentro de un
-``Pipeline`` (evitando *data leakage* entre train y test) y persistirlo junto al
-modelo para la inferencia.
+Un ``ColumnTransformer`` con ramas distintas para numéricas y categóricas, apto
+para insertarse en un ``Pipeline`` (evita *data leakage*) y persistirse con el modelo.
 """
 
 from __future__ import annotations
@@ -18,25 +15,10 @@ from ml_hotel_cancellations import config
 
 
 def build_preprocessor() -> ColumnTransformer:
-    """Crea el ``ColumnTransformer`` con las dos ramas de preprocesado.
-
-    - **Numéricas**: imputación por mediana (robusta a outliers como ``adr``) y
-      estandarización (media 0, desviación 1), necesaria sobre todo para la
-      regresión logística y la red neuronal.
-    - **Categóricas**: imputación por constante (``"Unknown"``) y codificación
-      *one-hot*. Para variables de alta cardinalidad (``country``, ``agent``...)
-      se limita el número de categorías con ``max_categories``; las menos
-      frecuentes se agrupan automáticamente en una categoría "infrequent", lo que
-      controla la dimensionalidad y reduce el sobreajuste.
-
-    Returns
-    -------
-    sklearn.compose.ColumnTransformer
-        Preprocesador sin ajustar, listo para insertarse en un ``Pipeline``.
+    """Crea el ``ColumnTransformer`` con dos ramas: numéricas (imputación por
+    mediana + estandarización) y categóricas (imputación "Unknown" + one-hot con
+    cardinalidad acotada). Devuelve el preprocesador sin ajustar.
     """
-    # Mapeo con `recursos/` (ver informe §4.5): SimpleImputer ≈ `.fillna(mediana)`,
-    # pero aprende la mediana en train y la reaplica en test/predicción.
-    # StandardScaler: la misma herramienta de clase (allí solo en KNN/SVM).
     numeric_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
@@ -44,9 +26,7 @@ def build_preprocessor() -> ColumnTransformer:
         ]
     )
 
-    # SimpleImputer(constant) ≈ `.fillna("Unknown")`; OneHotEncoder ≈
-    # `pd.get_dummies(X)` de `recursos/`, pero tolera categorías no vistas en
-    # predicción y limita la cardinalidad con `max_categories` (ver informe §4.5).
+    # OneHotEncoder tolera categorías no vistas y acota la cardinalidad (ver §4.5).
     categorical_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="constant", fill_value="Unknown")),
@@ -61,8 +41,6 @@ def build_preprocessor() -> ColumnTransformer:
         ]
     )
 
-    # ColumnTransformer: aplica cada rama por tipo de columna (en `recursos/` esto
-    # se haría a mano con pandas). Equivalencias completas en informe §4.5.
     preprocessor = ColumnTransformer(
         transformers=[
             ("num", numeric_transformer, config.NUMERIC_COLUMNS),
@@ -77,9 +55,8 @@ def build_preprocessor() -> ColumnTransformer:
 def make_pipeline(estimator) -> Pipeline:
     """Envuelve un estimador con un preprocesador nuevo en un ``Pipeline``.
 
-    Fuente única del patrón ``Pipeline([("preprocessor", build_preprocessor()),
-    ("model", estimator)])`` que antes se reimplementaba en model_trainer/tuning/
-    balancing.
+    Fuente única del patrón preprocesador + modelo (reutilizado por
+    model_trainer/tuning/balancing).
     """
     return Pipeline(
         steps=[
@@ -90,18 +67,5 @@ def make_pipeline(estimator) -> Pipeline:
 
 
 def get_feature_names(fitted_preprocessor: ColumnTransformer) -> list[str]:
-    """Devuelve los nombres de las características tras el preprocesado.
-
-    Útil para etiquetar los gráficos de importancia de variables.
-
-    Parameters
-    ----------
-    fitted_preprocessor:
-        ``ColumnTransformer`` ya ajustado (tras ``fit``).
-
-    Returns
-    -------
-    list[str]
-        Lista de nombres de columna resultantes del preprocesado.
-    """
+    """Nombres de las características tras el preprocesado (preprocesador ya ajustado)."""
     return list(fitted_preprocessor.get_feature_names_out())
