@@ -43,20 +43,20 @@ def df_to_markdown(
         return str(value)
 
     if index_label is not None:
-        encabezado = f"| {index_label} | " + " | ".join(str(c) for c in cols) + " |"
-        separador = "|" + "---|" * (len(cols) + 1)
-        filas = [
-            "| " + str(idx) + " | " + " | ".join(fmt(v) for v in fila) + " |"
-            for idx, fila in zip(df.index, df.to_numpy())
+        header = f"| {index_label} | " + " | ".join(str(c) for c in cols) + " |"
+        separator = "|" + "---|" * (len(cols) + 1)
+        rows = [
+            "| " + str(idx) + " | " + " | ".join(fmt(v) for v in row) + " |"
+            for idx, row in zip(df.index, df.to_numpy())
         ]
     else:
-        encabezado = "| " + " | ".join(str(c) for c in cols) + " |"
-        separador = "|" + "---|" * len(cols)
-        filas = [
-            "| " + " | ".join(fmt(v) for v in fila) + " |"
-            for fila in df.to_numpy()
+        header = "| " + " | ".join(str(c) for c in cols) + " |"
+        separator = "|" + "---|" * len(cols)
+        rows = [
+            "| " + " | ".join(fmt(v) for v in row) + " |"
+            for row in df.to_numpy()
         ]
-    return "\n".join([encabezado, separador, *filas])
+    return "\n".join([header, separator, *rows])
 
 
 def save_figure(fig, path, *, dpi: int = 120, bbox_inches: str | None = None) -> None:

@@ -104,18 +104,18 @@ class Evaluator:
         """
         self.y_test_ = np.asarray(y_test)
         self.results_ = {}
-        for nombre, modelo in models.items():
-            y_pred = np.asarray(modelo.predict(X_test)).ravel()
-            y_proba = np.asarray(modelo.predict_proba(X_test))[:, 1]
+        for name, model in models.items():
+            y_pred = np.asarray(model.predict(X_test)).ravel()
+            y_proba = np.asarray(model.predict_proba(X_test))[:, 1]
             metrics = compute_metrics(self.y_test_, y_pred, y_proba)
-            self.results_[nombre] = {
+            self.results_[name] = {
                 "y_pred": y_pred,
                 "y_proba": y_proba,
                 "metrics": metrics,
             }
             logger.info(
                 "%-24s | acc=%.4f f1=%.4f roc_auc=%.4f",
-                nombre,
+                name,
                 metrics["accuracy"],
                 metrics["f1"],
                 metrics["roc_auc"],
@@ -135,38 +135,38 @@ class Evaluator:
         pandas.DataFrame
             Filas = modelos, columnas = métricas (+ tiempo de entrenamiento).
         """
-        filas = {}
-        for nombre, res in self.results_.items():
-            fila = {m: res["metrics"][m] for m in self.metric_names}
-            if train_times and nombre in train_times:
-                fila["train_time_s"] = train_times[nombre]
-            filas[nombre] = fila
-        tabla = pd.DataFrame(filas).T
-        tabla = tabla.sort_values(by=config.PRIMARY_METRIC, ascending=False)
-        return tabla
+        rows = {}
+        for name, res in self.results_.items():
+            row = {m: res["metrics"][m] for m in self.metric_names}
+            if train_times and name in train_times:
+                row["train_time_s"] = train_times[name]
+            rows[name] = row
+        table = pd.DataFrame(rows).T
+        table = table.sort_values(by=config.PRIMARY_METRIC, ascending=False)
+        return table
 
     def select_best(self, primary_metric: str = config.PRIMARY_METRIC) -> str:
         """Devuelve el nombre del mejor modelo según la métrica principal."""
-        mejor = max(
+        best = max(
             self.results_.items(),
             key=lambda kv: kv[1]["metrics"][primary_metric],
         )[0]
         logger.info(
             "Mejor modelo según %s: %s (%.4f)",
             primary_metric,
-            mejor,
-            self.results_[mejor]["metrics"][primary_metric],
+            best,
+            self.results_[best]["metrics"][primary_metric],
         )
-        return mejor
+        return best
 
     # -- Visualizaciones ----------------------------------------------------
     def plot_roc_curves(self, path) -> None:
         """Dibuja la curva ROC de todos los modelos en una misma figura."""
         fig = plt.figure(figsize=(8, 7))
-        for nombre, res in self.results_.items():
+        for name, res in self.results_.items():
             fpr, tpr, _ = roc_curve(self.y_test_, res["y_proba"])
             auc = res["metrics"]["roc_auc"]
-            plt.plot(fpr, tpr, label=f"{nombre} (AUC = {auc:.3f})", linewidth=2)
+            plt.plot(fpr, tpr, label=f"{name} (AUC = {auc:.3f})", linewidth=2)
         plt.plot([0, 1], [0, 1], linestyle="--", color="grey", label="Azar (AUC = 0.5)")
         plt.xlabel("Tasa de Falsos Positivos (FPR)")
         plt.ylabel("Tasa de Verdaderos Positivos (TPR)")
@@ -189,9 +189,9 @@ class Evaluator:
         nrows = int(np.ceil(n / ncols))
         fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4.2 * nrows))
         axes = np.atleast_1d(axes).ravel()
-        for ax, (nombre, res) in zip(axes, self.results_.items()):
-            self._plot_cm(ax, nombre, res, colorbar=False)
-            ax.set_title(nombre)
+        for ax, (name, res) in zip(axes, self.results_.items()):
+            self._plot_cm(ax, name, res, colorbar=False)
+            ax.set_title(name)
         for ax in axes[n:]:  # ocultar ejes sobrantes de la cuadrícula
             ax.axis("off")
         fig.suptitle("Matrices de confusión por modelo", fontsize=14)
@@ -220,16 +220,16 @@ class Evaluator:
         top_n:
             Número de variables más importantes a mostrar.
         """
-        estimador = model_pipeline.named_steps["model"]
-        if not hasattr(estimador, "feature_importances_"):
+        estimator = model_pipeline.named_steps["model"]
+        if not hasattr(estimator, "feature_importances_"):
             logger.warning(
                 "El modelo no expone feature_importances_; se omite el gráfico."
             )
             return
-        nombres = model_pipeline.named_steps["preprocessor"].get_feature_names_out()
-        importancias = estimador.feature_importances_
-        serie = pd.Series(importancias, index=nombres).sort_values(ascending=False)
-        top = serie.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
+        names = model_pipeline.named_steps["preprocessor"].get_feature_names_out()
+        importances = estimator.feature_importances_
+        series = pd.Series(importances, index=names).sort_values(ascending=False)
+        top = series.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
 
         fig = plt.figure(figsize=(9, 0.42 * len(top) + 1.5))
         sns.barplot(x=top.values, y=top.index, color="#2c7fb8")

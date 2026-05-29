@@ -59,11 +59,11 @@ def build_classic_estimators(
     overrides = overrides or {}
     n_jobs = n_jobs or {}
 
-    def params(nombre: str, base: dict) -> dict:
+    def params(name: str, base: dict) -> dict:
         """Combina los parámetros base con los overrides para ese modelo."""
-        merged = {**base, **overrides.get(nombre, {})}
-        if nombre in n_jobs:
-            merged["n_jobs"] = n_jobs[nombre]
+        merged = {**base, **overrides.get(name, {})}
+        if name in n_jobs:
+            merged["n_jobs"] = n_jobs[name]
         return merged
 
     sklearn_cw = {"class_weight": class_weight} if class_weight is not None else {}

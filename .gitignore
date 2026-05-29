@@ -14,6 +14,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .ipynb_checkpoints/
+# Artefactos de build del paquete (setuptools / pip wheel)
+build/
+dist/
+*.whl
 
 # --- Datos procesados (regenerables) ---
 data/processed/

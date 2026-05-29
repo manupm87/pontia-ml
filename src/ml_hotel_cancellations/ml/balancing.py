@@ -44,7 +44,7 @@ from ml_hotel_cancellations.utils.reporting import df_to_markdown, save_figure
 
 logger = logging.getLogger(__name__)
 
-ESTRATEGIAS = ["baseline", "class_weight", "SMOTE"]
+STRATEGIES = ["baseline", "class_weight", "SMOTE"]
 
 
 def _make_estimators(strategy: str, pos_weight: float) -> dict:
@@ -84,16 +84,16 @@ def compare(X_train, X_test, y_train, y_test) -> pd.DataFrame:
     n_neg, n_pos = (y_train == 0).sum(), (y_train == 1).sum()
     pos_weight = n_neg / n_pos  # para scale_pos_weight de XGBoost
 
-    filas = []
-    for strategy in ESTRATEGIAS:
-        for nombre, estimator in _make_estimators(strategy, pos_weight).items():
+    rows = []
+    for strategy in STRATEGIES:
+        for name, estimator in _make_estimators(strategy, pos_weight).items():
             pipe = _build_pipeline(strategy, estimator)
             pipe.fit(X_train, y_train)
             proba = pipe.predict_proba(X_test)[:, 1]
             pred = (proba >= config.DECISION_THRESHOLD).astype(int)
-            filas.append(
+            rows.append(
                 {
-                    "modelo": nombre,
+                    "modelo": name,
                     "estrategia": strategy,
                     "accuracy": accuracy_score(y_test, pred),
                     "precision": precision_score(y_test, pred),
@@ -104,18 +104,18 @@ def compare(X_train, X_test, y_train, y_test) -> pd.DataFrame:
             )
             logger.info(
                 "  %-20s | %-12s | recall=%.3f precision=%.3f roc_auc=%.3f",
-                nombre,
+                name,
                 strategy,
-                filas[-1]["recall"],
-                filas[-1]["precision"],
-                filas[-1]["roc_auc"],
+                rows[-1]["recall"],
+                rows[-1]["precision"],
+                rows[-1]["roc_auc"],
             )
-    return pd.DataFrame(filas)
+    return pd.DataFrame(rows)
 
 
 def save_results(df: pd.DataFrame) -> None:
     """Guarda la tabla comparativa (Markdown) y un gráfico del efecto en XGBoost."""
-    texto = [
+    text = [
         "# Balanceo de clases — comparación de estrategias\n",
         "Desbalance del problema: ~37 % de cancelaciones. Métricas sobre el conjunto "
         "de test, con hiperparámetros base (para aislar el efecto del balanceo).\n",
@@ -127,7 +127,7 @@ def save_results(df: pd.DataFrame) -> None:
         "compromiso hacia detectar más positivos, útil si al hotel le cuesta más una "
         "cancelación no detectada que una falsa alarma.\n",
     ]
-    config.BALANCING_RESULTS_PATH.write_text("\n".join(texto) + "\n", encoding="utf-8")
+    config.BALANCING_RESULTS_PATH.write_text("\n".join(text) + "\n", encoding="utf-8")
     logger.info("Tabla de balanceo guardada en: %s", config.BALANCING_RESULTS_PATH)
 
     # Gráfico: efecto en XGBoost (recall, precision, f1, roc_auc por estrategia).
@@ -136,10 +136,10 @@ def save_results(df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
     x = np.arange(len(metr))
     width = 0.25
-    colores = {"baseline": "#9ecae1", "class_weight": "#fdae6b", "SMOTE": "#a1d99b"}
-    for i, estrategia in enumerate(ESTRATEGIAS):
-        ax.bar(x + (i - 1) * width, sub.loc[estrategia, metr].values, width,
-               label=estrategia, color=colores[estrategia], edgecolor="k", linewidth=0.4)
+    colors = {"baseline": "#9ecae1", "class_weight": "#fdae6b", "SMOTE": "#a1d99b"}
+    for i, strategy in enumerate(STRATEGIES):
+        ax.bar(x + (i - 1) * width, sub.loc[strategy, metr].values, width,
+               label=strategy, color=colors[strategy], edgecolor="k", linewidth=0.4)
     ax.set_xticks(x); ax.set_xticklabels(metr)
     ax.set_ylim(0, 1); ax.set_ylabel("valor (test)")
     ax.set_title("Efecto del balanceo en XGBoost\n(sube recall, baja precisión; ROC-AUC casi igual)")
@@ -167,23 +167,23 @@ def _log_to_mlflow(df: pd.DataFrame) -> None:
         tracking.set_tags(
             {
                 "phase": "balancing",
-                "n_strategies": len(ESTRATEGIAS),
+                "n_strategies": len(STRATEGIES),
                 "n_models": int(df["modelo"].nunique()),
             }
         )
 
-        for fila in df.itertuples(index=False):
-            run_name = f"{fila.modelo} · {fila.estrategia}"
+        for row in df.itertuples(index=False):
+            run_name = f"{row.modelo} · {row.estrategia}"
             with tracking.start_run(run_name=run_name, nested=True):
                 tracking.set_tags(
                     {
-                        "strategy": fila.estrategia,
-                        "model": fila.modelo,
-                        "model_family": _MODEL_FAMILY.get(fila.modelo, "other"),
+                        "strategy": row.estrategia,
+                        "model": row.modelo,
+                        "model_family": _MODEL_FAMILY.get(row.modelo, "other"),
                     }
                 )
                 tracking.log_metrics(
-                    {m: float(getattr(fila, m)) for m in _METRIC_COLS}
+                    {m: float(getattr(row, m)) for m in _METRIC_COLS}
                 )
 
         # Artefactos comunes al experimento.
@@ -204,7 +204,7 @@ def main() -> None:
     save_results(df)
     _log_to_mlflow(df)  # tras `save_results`, los artefactos ya existen en disco
     print("\n" + "=" * 70)
-    print("COMPARACIÓN DE ESTRATEGIAS DE BALANCEO (test)")
+    print("COMPARACIÓN DE STRATEGIES DE BALANCEO (test)")
     print("=" * 70)
     print(df.round(3).to_string(index=False))
     print("=" * 70 + "\n")

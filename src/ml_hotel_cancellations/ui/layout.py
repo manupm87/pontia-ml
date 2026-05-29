@@ -96,11 +96,11 @@ def render_api_status(container, *, verbose: bool) -> bool:
     remote = data.is_remote_api()
 
     if ok:
-        modelo_ok = isinstance(info, dict) and info.get("model_loaded")
+        model_ok = isinstance(info, dict) and info.get("model_loaded")
         if verbose:
             container.success(
                 f"API conectada en `{config.API_BASE_URL}` "
-                f"(modelo cargado: {'sí' if modelo_ok else 'no'}).",
+                f"(modelo cargado: {'sí' if model_ok else 'no'}).",
                 icon="✅",
             )
         else:

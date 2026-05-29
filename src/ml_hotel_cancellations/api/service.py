@@ -239,10 +239,10 @@ def predict_many(bookings: list[dict]) -> list[dict]:
         return []
 
     df = pd.DataFrame(bookings)
-    resultado = predict_dataframe(df, model=get_model())
+    result = predict_dataframe(df, model=get_model())
     return [
         _format_result(row.prediction, row.probability_canceled)
-        for row in resultado.itertuples(index=False)
+        for row in result.itertuples(index=False)
     ]
 
 

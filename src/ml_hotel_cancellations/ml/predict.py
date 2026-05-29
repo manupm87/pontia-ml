@@ -91,15 +91,15 @@ def main() -> None:
         logger.info("Usando %d filas de muestra del dataset original.", n)
 
     model = load_best_model()
-    resultado = predict_dataframe(df, model=model)
+    result = predict_dataframe(df, model=model)
 
     if args.output:
         # Conservamos el índice (que `predict_dataframe` hereda de la entrada)
         # para poder casar cada fila de salida con su reserva de origen.
-        resultado.to_csv(args.output, index=True)
+        result.to_csv(args.output, index=True)
         logger.info("Predicciones guardadas en %s", args.output)
     else:
-        print(resultado.to_string())
+        print(result.to_string())
 
 
 if __name__ == "__main__":

@@ -84,12 +84,12 @@ def _build_2d_models() -> dict:
     from ml_hotel_cancellations.ml.model_factory import build_classic_estimators
 
     # Los 4 clásicos salen de la fábrica única.
-    clasicos = build_classic_estimators()
+    classic_models = build_classic_estimators()
     return {
-        "Regresión logística": clasicos["Logistic Regression"],
-        "Árbol de decisión": clasicos["Decision Tree"],
-        "Random Forest": clasicos["Random Forest"],
-        "XGBoost": clasicos["XGBoost"],
+        "Regresión logística": classic_models["Logistic Regression"],
+        "Árbol de decisión": classic_models["Decision Tree"],
+        "Random Forest": classic_models["Random Forest"],
+        "XGBoost": classic_models["XGBoost"],
         "Red neuronal (MLP)": MLPClassifier(
             hidden_layer_sizes=(64, 32),
             max_iter=400,

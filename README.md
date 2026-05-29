@@ -13,7 +13,7 @@
 
 | Componente | URL | Tier |
 |---|---|---|
-| 🖥️ **Interfaz web** (Streamlit) | <https://pontia-ml-cancellations-manupm87.streamlit.app> | Streamlit Community Cloud (free) |
+| 🖥️ **Interfaz web** (Streamlit) | <https://ml-hotel-cancellations-manupm87.streamlit.app> | Streamlit Community Cloud (free) |
 | 🔌 **API REST** (FastAPI + Swagger) | <https://pontia-api-fi8t.onrender.com/docs> | Render (free) |
 | 🧪 **Experimentos MLflow + Registry** | <https://dagshub.com/manupm87/pontia-ml.mlflow> | DagsHub (free) |
 

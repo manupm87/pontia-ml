@@ -95,8 +95,8 @@ def predict(booking: Booking) -> PredictionResponse:
 
     Devuelve la clase (0/1), su etiqueta legible y la probabilidad de cancelación.
     """
-    resultado = service.predict_one(booking.model_dump())
-    return PredictionResponse(**resultado)
+    result = service.predict_one(booking.model_dump())
+    return PredictionResponse(**result)
 
 
 @app.post(
@@ -108,5 +108,5 @@ def predict(booking: Booking) -> PredictionResponse:
 def predict_batch(request: BatchRequest) -> BatchResponse:
     """Predice la cancelación para una lista de reservas (procesado por lotes)."""
     bookings = [b.model_dump() for b in request.bookings]
-    resultados = service.predict_many(bookings)
-    return BatchResponse(predictions=[PredictionResponse(**r) for r in resultados])
+    results = service.predict_many(bookings)
+    return BatchResponse(predictions=[PredictionResponse(**r) for r in results])

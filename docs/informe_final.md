@@ -466,7 +466,7 @@ servicios *cloud* de uso gratuito:
 |---|---|---|
 | API REST (FastAPI) | Render | <https://pontia-api-fi8t.onrender.com> |
 | Documentación Swagger | Render | <https://pontia-api-fi8t.onrender.com/docs> |
-| Interfaz visual (Streamlit) | Streamlit Community Cloud | <https://pontia-ml-cancellations-manupm87.streamlit.app> |
+| Interfaz visual (Streamlit) | Streamlit Community Cloud | <https://ml-hotel-cancellations-manupm87.streamlit.app> |
 | MLflow Tracking + Model Registry | DagsHub | <https://dagshub.com/manupm87/pontia-ml.mlflow> |
 
 La interfaz Streamlit consume la API por HTTPS; su URL se inyecta como

@@ -176,8 +176,8 @@ class HyperparameterTuner:
         """Implementación del bucle de búsqueda (lo separamos del setup de MLflow)."""
         self.results_ = {}
         self.best_params_ = {}
-        for nombre, (estimador, grid, kind, default_params) in self._catalog().items():
-            self._tune_one(nombre, estimador, grid, kind, default_params, X_train, y_train)
+        for name, (estimator, grid, kind, default_params) in self._catalog().items():
+            self._tune_one(name, estimator, grid, kind, default_params, X_train, y_train)
 
         # Persistimos los resultados ANTES de subirlos como artefactos para
         # asegurar que los ficheros existen. Esta es la ÚNICA escritura de
@@ -210,22 +210,22 @@ class HyperparameterTuner:
         )
         return search, "RandomizedSearchCV"
 
-    def _baseline_cv(self, estimador, default_params: dict, njobs: int, X_train, y_train) -> float:
+    def _baseline_cv(self, estimator, default_params: dict, njobs: int, X_train, y_train) -> float:
         """CV con los hiperparámetros por defecto del proyecto (baseline)."""
         extra = {"n_jobs": 1} if "n_jobs" in default_params else {}
-        base = estimador.__class__(**{**default_params, **extra})
+        base = estimator.__class__(**{**default_params, **extra})
         return cross_val_score(
             _pipeline(base), X_train, y_train, scoring=self.scoring, cv=self.cv, n_jobs=njobs
         ).mean()
 
-    def _log_model_run(self, nombre: str, tipo: str, best: dict, cv_default: float,
+    def _log_model_run(self, name: str, search_type: str, best: dict, cv_default: float,
                        search, elapsed: float) -> None:
         """MLflow: un child run por modelo con sus params + métricas de CV."""
-        with tracking.start_run(run_name=nombre, nested=True):
+        with tracking.start_run(run_name=name, nested=True):
             tracking.set_tags(
                 {
-                    "model_family": _MODEL_FAMILY.get(nombre, "other"),
-                    "search": tipo,
+                    "model_family": _MODEL_FAMILY.get(name, "other"),
+                    "search": search_type,
                     "phase": "tuning",
                 }
             )
@@ -242,24 +242,24 @@ class HyperparameterTuner:
                 }
             )
 
-    def _tune_one(self, nombre: str, estimador, grid, kind: str, default_params: dict,
+    def _tune_one(self, name: str, estimator, grid, kind: str, default_params: dict,
                   X_train, y_train) -> None:
         """Optimiza un modelo: búsqueda + baseline + registro de resultados/MLflow."""
-        pipe = _pipeline(estimador)
+        pipe = _pipeline(estimator)
         njobs = -1  # la búsqueda CV paraleliza sobre todos los núcleos (CPU)
-        search, tipo = self._build_search(pipe, grid, kind, njobs)
+        search, search_type = self._build_search(pipe, grid, kind, njobs)
 
-        logger.info("Optimizando %s con %s...", nombre, tipo)
-        inicio = time.perf_counter()
+        logger.info("Optimizando %s con %s...", name, search_type)
+        start = time.perf_counter()
         search.fit(X_train, y_train)
 
-        cv_default = self._baseline_cv(estimador, default_params, njobs, X_train, y_train)
-        elapsed = time.perf_counter() - inicio
+        cv_default = self._baseline_cv(estimator, default_params, njobs, X_train, y_train)
+        elapsed = time.perf_counter() - start
 
         best = _strip_prefix(search.best_params_)
-        self.best_params_[nombre] = best
-        self.results_[nombre] = {
-            "search": tipo,
+        self.best_params_[name] = best
+        self.results_[name] = {
+            "search": search_type,
             "n_combos": len(search.cv_results_["params"]),
             "cv_default": cv_default,
             "cv_tuned": search.best_score_,
@@ -269,19 +269,19 @@ class HyperparameterTuner:
         }
         logger.info(
             "  -> %s: CV %s  %.4f (default) -> %.4f (tuned)  [%.0fs]",
-            nombre,
+            name,
             self.scoring,
             cv_default,
             search.best_score_,
             elapsed,
         )
 
-        self._log_model_run(nombre, tipo, best, cv_default, search, elapsed)
+        self._log_model_run(name, search_type, best, cv_default, search, elapsed)
 
     def results_table(self) -> pd.DataFrame:
         """Devuelve los resultados como tabla ordenada por CV ``tuned``."""
-        filas = {
-            nombre: {
+        rows = {
+            name: {
                 "busqueda": r["search"],
                 "combinaciones": r["n_combos"],
                 f"cv_{self.scoring}_default": round(r["cv_default"], 4),
@@ -289,25 +289,25 @@ class HyperparameterTuner:
                 "mejora": round(r["mejora"], 4),
                 "segundos": round(r["segundos"], 1),
             }
-            for nombre, r in self.results_.items()
+            for name, r in self.results_.items()
         }
-        return pd.DataFrame(filas).T.sort_values(
+        return pd.DataFrame(rows).T.sort_values(
             f"cv_{self.scoring}_tuned", ascending=False
         )
 
     def save_results(self, path=config.TUNING_RESULTS_PATH) -> None:
         """Escribe un informe Markdown con la tabla y los mejores hiperparámetros."""
-        tabla = self.results_table()
+        table = self.results_table()
         # Los valores de la tabla ya vienen redondeados (str(v) los respeta).
-        lineas = [
+        lines = [
             "# Optimización de hiperparámetros\n",
             f"Métrica optimizada: **{self.scoring}** · CV de **{self.cv}** particiones.\n",
-            df_to_markdown(tabla, index_label="Modelo", float_fmt="{}"),
+            df_to_markdown(table, index_label="Modelo", float_fmt="{}"),
             "\n## Mejores hiperparámetros por modelo\n",
         ]
-        for nombre, params in self.best_params_.items():
-            lineas.append(f"- **{nombre}**: `{params}`")
-        path.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+        for name, params in self.best_params_.items():
+            lines.append(f"- **{name}**: `{params}`")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         logger.info("Resultados de la búsqueda guardados en: %s", path)
 
     def save_best_params(self, path=config.BEST_PARAMS_PATH) -> None:

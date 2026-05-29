@@ -69,25 +69,25 @@ def _resolve_param_overrides(tune: bool, X_train, y_train) -> dict | None:
     return param_overrides
 
 
-def _write_metric_tables(tabla) -> None:
+def _write_metric_tables(table) -> None:
     """Persiste la tabla comparativa de métricas en CSV y Markdown."""
-    tabla.to_csv(config.METRICS_TABLE_PATH)
+    table.to_csv(config.METRICS_TABLE_PATH)
     md_path = config.OUTPUTS_DIR / "metricas_modelos.md"
-    md_path.write_text(df_to_markdown(tabla.round(4)) + "\n", encoding="utf-8")
+    md_path.write_text(df_to_markdown(table.round(4)) + "\n", encoding="utf-8")
     logger.info("Tabla de métricas guardada: %s", config.METRICS_TABLE_PATH)
 
 
-def _generate_plots(evaluator: Evaluator, modelos: dict, mejor: str) -> None:
+def _generate_plots(evaluator: Evaluator, models: dict, best: str) -> None:
     """Genera las visualizaciones exigidas por el enunciado."""
     evaluator.plot_roc_curves(config.OUTPUTS_DIR / "roc_curves.png")
     evaluator.plot_confusion_matrices(config.OUTPUTS_DIR / "confusion_matrices.png")
     evaluator.plot_confusion_matrix(
-        mejor, config.OUTPUTS_DIR / "confusion_matrix_best.png"
+        best, config.OUTPUTS_DIR / "confusion_matrix_best.png"
     )
     # Importancia de variables a partir del Random Forest (modelo interpretable).
-    if "Random Forest" in modelos:
+    if "Random Forest" in models:
         evaluator.plot_feature_importance(
-            modelos["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png"
+            models["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png"
         )
 
 
@@ -118,24 +118,24 @@ def run_pipeline(tune: bool = False) -> tuple:
     # 2 + 3) Construcción de pipelines (preprocesado + modelo) y entrenamiento.
     logger.info("=== Fase 2-3: entrenamiento de modelos ===")
     trainer = ModelTrainer(param_overrides=param_overrides)
-    modelos = trainer.train(X_train, y_train)
+    models = trainer.train(X_train, y_train)
     trainer.save_models()
 
     # 4) Evaluación sobre el conjunto de test.
     logger.info("=== Fase 4: evaluación y selección ===")
     evaluator = Evaluator()
-    evaluator.evaluate(modelos, X_test, y_test)
+    evaluator.evaluate(models, X_test, y_test)
 
-    tabla = evaluator.comparison_table(trainer.train_times_)
-    _write_metric_tables(tabla)
+    table = evaluator.comparison_table(trainer.train_times_)
+    _write_metric_tables(table)
 
-    mejor = evaluator.select_best()
+    best = evaluator.select_best()
 
     # Visualizaciones exigidas por el enunciado.
-    _generate_plots(evaluator, modelos, mejor)
+    _generate_plots(evaluator, models, best)
 
     # Persistir el mejor modelo para producción / inferencia.
-    joblib.dump(modelos[mejor], config.BEST_MODEL_PATH)
+    joblib.dump(models[best], config.BEST_MODEL_PATH)
     logger.info("Mejor modelo guardado en: %s", config.BEST_MODEL_PATH)
 
     # MLflow: registrar TODO el experimento en un único árbol de runs:
@@ -146,18 +146,18 @@ def run_pipeline(tune: bool = False) -> tuple:
     #   └── XGBoost               (también loguea el modelo como artefacto)
     # Si el tracking no está activo, `tracking.*` no hace nada y este bloque
     # se ejecuta en milisegundos (sin red, sin disco).
-    _log_training_run(trainer, evaluator, modelos, tabla, mejor, tuned=tune)
+    _log_training_run(trainer, evaluator, models, table, best, tuned=tune)
 
-    _print_summary(tabla, mejor)
-    return tabla, mejor
+    _print_summary(table, best)
+    return table, best
 
 
 def _log_training_run(
     trainer: ModelTrainer,
     evaluator: Evaluator,
-    modelos: dict,
-    tabla,
-    mejor: str,
+    models: dict,
+    table,
+    best: str,
     *,
     tuned: bool,
 ) -> None:
@@ -171,8 +171,8 @@ def _log_training_run(
             {
                 "phase": "training",
                 "tuned": tuned,
-                "n_models": len(modelos),
-                "best_model": mejor,
+                "n_models": len(models),
+                "best_model": best,
                 "primary_metric": config.PRIMARY_METRIC,
                 "random_state": config.RANDOM_STATE,
             }
@@ -180,30 +180,30 @@ def _log_training_run(
         tracking.log_metrics(
             {
                 f"best_{config.PRIMARY_METRIC}": float(
-                    tabla.loc[mejor, config.PRIMARY_METRIC]
+                    table.loc[best, config.PRIMARY_METRIC]
                 ),
             }
         )
 
         # Un child run por modelo, con sus params + métricas + tiempo.
-        for nombre, res in evaluator.results_.items():
-            with tracking.start_run(run_name=nombre, nested=True):
+        for name, res in evaluator.results_.items():
+            with tracking.start_run(run_name=name, nested=True):
                 tracking.set_tags(
                     {
-                        "model_family": _MODEL_FAMILY.get(nombre, "other"),
-                        "best": nombre == mejor,
+                        "model_family": _MODEL_FAMILY.get(name, "other"),
+                        "best": name == best,
                     }
                 )
                 # `get_params()` del estimador (sin el preprocesador).
-                model_params = trainer.models_[nombre].named_steps["model"].get_params()
+                model_params = trainer.models_[name].named_steps["model"].get_params()
                 tracking.log_params(model_params)
                 tracking.log_metrics(res["metrics"])
                 tracking.log_metrics(
-                    {"train_time_s": float(trainer.train_times_.get(nombre, 0.0))}
+                    {"train_time_s": float(trainer.train_times_.get(name, 0.0))}
                 )
 
         # Artefactos comunes (las 5 figuras y la tabla CSV/markdown).
-        for artefacto in (
+        for artifact in (
             config.METRICS_TABLE_PATH,
             config.OUTPUTS_DIR / "metricas_modelos.md",
             config.OUTPUTS_DIR / "roc_curves.png",
@@ -211,29 +211,29 @@ def _log_training_run(
             config.OUTPUTS_DIR / "confusion_matrix_best.png",
             config.OUTPUTS_DIR / "feature_importance.png",
         ):
-            tracking.log_artifact(artefacto)
+            tracking.log_artifact(artifact)
 
         # Modelo ganador: lo subimos al run padre como sub-carpeta `model/`
         # para poder registrarlo después con `mlflow.register_model(...)`.
-        tracking.log_sklearn_model(modelos[mejor], artifact_path="model")
+        tracking.log_sklearn_model(models[best], artifact_path="model")
         logger.info(
             "MLflow: experimento publicado (mejor=%s, %s=%.4f).",
-            mejor,
+            best,
             config.PRIMARY_METRIC,
-            tabla.loc[mejor, config.PRIMARY_METRIC],
+            table.loc[best, config.PRIMARY_METRIC],
         )
 
 
-def _print_summary(tabla, mejor: str) -> None:
+def _print_summary(table, best: str) -> None:
     """Imprime un resumen final claro por consola."""
     print("\n" + "=" * 70)
     print("RESUMEN DE LA COMPARATIVA DE MODELOS")
     print("=" * 70)
     with pd.option_context("display.float_format", lambda v: f"{v:.4f}"):
-        print(tabla.to_string())
+        print(table.to_string())
     print("-" * 70)
     print(f"Métrica principal de selección : {config.PRIMARY_METRIC}")
-    print(f"MEJOR MODELO                   : {mejor}")
+    print(f"MEJOR MODELO                   : {best}")
     print(f"Artefactos guardados en        : {config.OUTPUTS_DIR} y {config.MODELS_DIR}")
     print("=" * 70 + "\n")
 

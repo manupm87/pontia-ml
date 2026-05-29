@@ -331,7 +331,7 @@ correspondiente, operación que toma milisegundos.
 
 | Recurso | URL |
 |---|---|
-| Interfaz web (Streamlit) | <https://pontia-ml-cancellations-manupm87.streamlit.app> |
+| Interfaz web (Streamlit) | <https://ml-hotel-cancellations-manupm87.streamlit.app> |
 | API + documentación Swagger | <https://pontia-api-fi8t.onrender.com/docs> |
 | API: sonda de salud | <https://pontia-api-fi8t.onrender.com/health> |
 | API: metadatos del modelo | <https://pontia-api-fi8t.onrender.com/model-info> |

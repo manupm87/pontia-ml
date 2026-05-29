@@ -62,8 +62,8 @@ def render() -> None:
     )
 
     # --- Tabla comparativa ----------------------------------------------------
-    modelos_txt = f"de los {n_models} modelos" if n_models is not None else "de modelos"
-    st.subheader(f"Comparativa {modelos_txt}")
+    models_text = f"de los {n_models} modelos" if n_models is not None else "de modelos"
+    st.subheader(f"Comparativa {models_text}")
     st.caption(
         "Ordenados por ROC-AUC (de mejor a peor). `train_time_s` es el tiempo de "
         "entrenamiento en segundos."

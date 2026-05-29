@@ -399,7 +399,7 @@ def permutation_importance_report(
         n_jobs=-1,
     )
 
-    tabla = (
+    table = (
         pd.DataFrame(
             {
                 "variable": X.columns,
@@ -411,7 +411,7 @@ def permutation_importance_report(
         .reset_index(drop=True)
     )
 
-    top = tabla.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
+    top = table.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
     path = output_dir / "permutation_importance.png"
     fig = plt.figure(figsize=(9, 0.42 * len(top) + 1.5))
     plt.barh(top["variable"], top["importancia_media"], xerr=top["importancia_std"], color="#2c7fb8")
@@ -420,7 +420,7 @@ def permutation_importance_report(
     plt.title(f"Importancia por permutación (top {len(top)})")
     save_figure(fig, path)
 
-    return tabla, path
+    return table, path
 
 
 # ---------------------------------------------------------------------------
@@ -472,20 +472,20 @@ def main() -> None:
     # 2) Explicaciones locales: una reserva que el modelo da por cancelada y otra
     #    que da por no cancelada. Recorremos ambos extremos en vez de duplicar la
     #    llamada.
-    ejemplos = find_examples(pipeline, X_test)
+    examples = find_examples(pipeline, X_test)
     proba = pipeline.predict_proba(X_test)[:, 1]
-    casos = [
+    cases = [
         ("alta_prob", "shap_waterfall_ejemplo1.png", "alta"),
         ("baja_prob", "shap_waterfall_ejemplo2.png", "baja"),
     ]
-    for clave, filename, etiqueta in casos:
-        idx = ejemplos[clave]
+    for key, filename, label in cases:
+        idx = examples[key]
         explain_local(
             pipeline,
             X_test,
             idx,
             filename=filename,
-            title=f"Reserva con {etiqueta} probabilidad de cancelación (p={proba[idx]:.3f})",
+            title=f"Reserva con {label} probabilidad de cancelación (p={proba[idx]:.3f})",
         )
 
     # 3) Importancia por permutación (complemento agnóstico al modelo).

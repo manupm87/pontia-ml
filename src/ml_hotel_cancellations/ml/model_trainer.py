@@ -140,15 +140,15 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
 
         # `Input`: define cuántas características entran. Luego, capas densas con
         # ReLU y dropout intercalado.
-        capas = [layers.Input(shape=(n_features,), name="entrada")]
-        for i, unidades in enumerate(self.hidden_units, start=1):
-            capas.append(layers.Dense(unidades, activation="relu", name=f"oculta_{i}"))
+        layers_list = [layers.Input(shape=(n_features,), name="entrada")]
+        for i, units in enumerate(self.hidden_units, start=1):
+            layers_list.append(layers.Dense(units, activation="relu", name=f"oculta_{i}"))
             if self.dropout and self.dropout > 0:
-                capas.append(layers.Dropout(self.dropout, name=f"dropout_{i}"))
+                layers_list.append(layers.Dropout(self.dropout, name=f"dropout_{i}"))
         # Capa de salida: 1 neurona sigmoide -> probabilidad de cancelación.
-        capas.append(layers.Dense(1, activation="sigmoid", name="salida"))
+        layers_list.append(layers.Dense(1, activation="sigmoid", name="salida"))
 
-        model = models.Sequential(capas)
+        model = models.Sequential(layers_list)
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
             loss="binary_crossentropy",
@@ -249,8 +249,8 @@ class ModelTrainer:
         from .model_factory import build_classic_estimators
 
         # Los 4 clásicos salen de la fábrica única.
-        modelos = build_classic_estimators(overrides=self.param_overrides)
-        modelos["Neural Network (Keras)"] = KerasMLPClassifier(
+        models = build_classic_estimators(overrides=self.param_overrides)
+        models["Neural Network (Keras)"] = KerasMLPClassifier(
             hidden_units=config.NN_PARAMS["hidden_units"],
             dropout=config.NN_PARAMS["dropout"],
             epochs=config.NN_PARAMS["epochs"],
@@ -260,7 +260,7 @@ class ModelTrainer:
             early_stopping_patience=config.NN_PARAMS["early_stopping_patience"],
             random_state=self.random_state,
         )
-        return {nombre: self._make_pipeline(est) for nombre, est in modelos.items()}
+        return {name: self._make_pipeline(est) for name, est in models.items()}
 
     def train(self, X_train, y_train) -> dict[str, Pipeline]:
         """Entrena todos los modelos y registra sus tiempos de entrenamiento.
@@ -272,14 +272,14 @@ class ModelTrainer:
         """
         self.models_ = {}
         self.train_times_ = {}
-        for nombre, pipeline in self.build_models().items():
-            logger.info("Entrenando modelo: %s", nombre)
-            inicio = time.perf_counter()
+        for name, pipeline in self.build_models().items():
+            logger.info("Entrenando modelo: %s", name)
+            start = time.perf_counter()
             pipeline.fit(X_train, y_train)
-            elapsed = time.perf_counter() - inicio
-            self.models_[nombre] = pipeline
-            self.train_times_[nombre] = elapsed
-            logger.info("  -> %s entrenado en %.1f s", nombre, elapsed)
+            elapsed = time.perf_counter() - start
+            self.models_[name] = pipeline
+            self.train_times_[name] = elapsed
+            logger.info("  -> %s entrenado en %.1f s", name, elapsed)
         return self.models_
 
     def save_models(self, directory=config.MODELS_DIR) -> None:
@@ -289,8 +289,8 @@ class ModelTrainer:
         import joblib
 
         directory.mkdir(parents=True, exist_ok=True)
-        for nombre, pipeline in self.models_.items():
-            slug = re.sub(r"[^a-z0-9]+", "_", nombre.lower()).strip("_")
-            ruta = directory / f"{slug}.pkl"
-            joblib.dump(pipeline, ruta)
-            logger.info("Modelo guardado: %s", ruta)
+        for name, pipeline in self.models_.items():
+            slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+            path = directory / f"{slug}.pkl"
+            joblib.dump(pipeline, path)
+            logger.info("Modelo guardado: %s", path)
