@@ -36,7 +36,8 @@ from __future__ import annotations
 import argparse
 import logging
 
-from . import config, tracking
+from ml_hotel_cancellations import config
+from . import tracking
 
 logger = logging.getLogger(__name__)
 

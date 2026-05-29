@@ -33,7 +33,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from . import config
+from ml_hotel_cancellations import config
 
 config.use_agg_backend()  # backend no interactivo: guarda PNG sin necesidad de pantalla.
 
@@ -452,7 +452,7 @@ def main() -> None:
     # Importaciones locales para que el módulo se pueda importar sin cargar datos.
     import joblib
 
-    from .data_loader import load_and_prepare
+    from ml_hotel_cancellations.ml.data_loader import load_and_prepare
 
     config.ensure_directories()
 

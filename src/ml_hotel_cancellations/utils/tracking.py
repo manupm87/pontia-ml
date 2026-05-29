@@ -19,7 +19,7 @@ salta de forma silenciosa (no-op).
 
 Ejemplo de uso desde un script de entrenamiento::
 
-    from . import tracking
+    from ml_hotel_cancellations.utils import tracking
 
     tracking.init_tracking("pontia-cancellations-train")
     with tracking.start_run(run_name="train_all_models"):

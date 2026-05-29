@@ -41,7 +41,7 @@ from pathlib import Path
 
 import joblib
 
-from . import config
+from ml_hotel_cancellations import config
 
 config.use_agg_backend()  # Backend sin GUI: imprescindible para escribir PNG en CI/headless.
 import matplotlib.pyplot as plt
@@ -52,8 +52,8 @@ from matplotlib.figure import Figure
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.neural_network import MLPClassifier
 
-from .data_loader import load_and_prepare
-from .preprocessing import build_preprocessor
+from ml_hotel_cancellations.ml.data_loader import load_and_prepare
+from ml_hotel_cancellations.ml.preprocessing import build_preprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def _build_2d_models() -> dict:
     sin dependencia de TensorFlow ni callbacks, ya que aquí solo aprende de 2
     variables y no necesita la maquinaria completa).
     """
-    from .model_factory import build_classic_estimators
+    from ml_hotel_cancellations.ml.model_factory import build_classic_estimators
 
     # Los 4 clásicos salen de la fábrica única.
     clasicos = build_classic_estimators()
@@ -355,7 +355,7 @@ def project_booking(
     tuple[float, float]
         Coordenadas ``(x, y)`` de la reserva en el plano PLS.
     """
-    from .predict import prepare_for_inference
+    from ml_hotel_cancellations.ml.predict import prepare_for_inference
 
     X_one = prepare_for_inference(booking_df)
     Z = artifacts["preprocessor"].transform(X_one)
