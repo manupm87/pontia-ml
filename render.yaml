@@ -25,17 +25,16 @@ services:
     runtime: python
     plan: free                        # 512 MB RAM, sleeps tras 15 min inactivo
     region: frankfurt                 # más cerca de España que oregon (default)
-    # `rootDir` omitido a propósito: tras la refactorización del repo
-    # (mayo 2026), el código de la API vive directamente en la raíz
-    # del repositorio. Render usa "." por defecto.
+    # `rootDir` omitido: Render usa "." (la raíz del repo) por defecto.
 
-    # Solo requirements.txt (runtime): tensorflow + mlflow viven en
-    # requirements-train.txt y no son necesarios para servir.
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    # Instala el paquete `ml_hotel_cancellations` (src-layout) con sus deps de
+    # runtime declaradas en pyproject.toml. El extra [train] (tensorflow,
+    # mlflow…) NO se instala: no hace falta para servir.
+    buildCommand: pip install --upgrade pip && pip install -e .
 
     # $PORT lo inyecta Render; uvicorn escucha en él. --host 0.0.0.0 es
     # imprescindible (loopback no funciona detrás del proxy de Render).
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn ml_hotel_cancellations.api.main:app --host 0.0.0.0 --port $PORT
 
     # /health devuelve 200 con {"status":"ok","model_loaded":true} si el
     # pickle (o el modelo del registry) cargó correctamente.
@@ -56,7 +55,7 @@ services:
       # Descomentar (o añadirlas vía dashboard) cuando se quiera que la
       # API sirva la versión "Production" del registry en lugar del pickle
       # bundled. Si la descarga falla, la API cae automáticamente al pkl
-      # local (ver api/service.py).
+      # local (ver ml_hotel_cancellations/api/service.py + registry.py).
       - key: MLFLOW_MODEL_URI
         sync: false                   # set in dashboard
       - key: MLFLOW_TRACKING_URI

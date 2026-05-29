@@ -141,48 +141,45 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   ├── playground/                       # Notebook autónomo estilo `recursos/` (XGBoost end-to-end)
 │   └── _PLANTILLA_modelo.ipynb           # Plantilla para crear un notebook de modelo
 ├── outputs/            # Gráficos y tablas que genera el sistema
-├── src/                # Código fuente (el "motor" del proyecto)
-│   ├── config.py          # Configuración: rutas, ajustes y constantes
-│   ├── data_loader.py     # Cargar, limpiar y dividir los datos
-│   ├── preprocessing.py   # Preparar los datos para el modelo
-│   ├── model_trainer.py   # Definir y entrenar los modelos
-│   ├── evaluator.py       # Calcular métricas y crear gráficos
-│   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
-│   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
-│   ├── interpretability.py # Interpretabilidad con SHAP + importancia por permutación (bonus)
-│   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
-│   ├── train.py           # 🚀 Programa principal (--tune opcional)
-│   └── predict.py         # Hacer predicciones con el mejor modelo
-├── api/                # 🔌 API REST (FastAPI) que sirve el modelo (bonus)
-│   ├── main.py            # App FastAPI y endpoints (/predict, /health, /model-info)
-│   ├── schemas.py         # Esquemas de entrada/salida (Pydantic)
-│   ├── service.py         # Carga del modelo y lógica de predicción
-│   ├── tests/             # Tests de la API (pytest)
-│   └── README.md          # Cómo arrancar y consumir la API
-├── ui/                 # 🖥️ Interfaz visual (Streamlit) (bonus)
-│   ├── app.py             # Punto de entrada de la app web
-│   ├── config.py / data.py / booking.py  # Configuración, datos y formulario
-│   ├── sections/          # Una pantalla por sección (resumen, predicción, EDA…)
-│   └── README.md          # Cómo arrancar la interfaz
-├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
+├── src/                                    # Código fuente (src-layout PyPA)
+│   └── ml_hotel_cancellations/             # 📦 El paquete instalable del proyecto
+│       ├── config.py        # Fuente única: rutas, columnas, constantes, ejemplo
+│       ├── ml/              # 🤖 Pipeline ML (entrenamiento + inferencia + experimentos)
+│       │   ├── data_loader.py · preprocessing.py · model_factory.py
+│       │   ├── model_trainer.py · evaluator.py
+│       │   ├── train.py      # 🚀 Programa principal (--tune opcional)
+│       │   ├── predict.py    # Inferencia con el mejor modelo
+│       │   └── tuning.py · balancing.py        # bonus (búsqueda CV / balanceo)
+│       ├── api/            # 🔌 API REST (FastAPI)
+│       │   ├── main.py · schemas.py · service.py
+│       │   └── registry.py  # Cliente REST del Model Registry de MLflow
+│       ├── ui/             # 🖥️ Interfaz Streamlit
+│       │   ├── app.py · config.py · data.py · booking.py · layout.py
+│       │   └── sections/    # Una pantalla por sección (resumen, predicción, EDA…)
+│       └── utils/          # 🔧 Transversales (reporting, viz 2D, SHAP, MLflow)
+│           ├── reporting.py · visualization_2d.py · interpretability.py
+│           └── tracking.py · register_model.py
+├── tests/              # 🧪 Suite de tests (pipeline + contract tests de fuente única)
+├── conftest.py         # Fixtures compartidas (datos sintéticos, modelo, API)
+├── pyproject.toml      # Metadatos, dependencias (+extras), scripts y config de pytest
+├── requirements.txt    # Una línea `-e .` (para plataformas que solo leen este fichero)
 ├── render.yaml         # Configuración del despliegue en Render (API)
-├── requirements-train.txt   # Dependencias EXTRA para entrenar / abrir notebooks
-├── requirements.txt    # Dependencias de runtime (API + UI + inferencia)
 ├── recursos/           # 📚 Material de referencia (no parte del entregable):
 │   │                   #    notebooks de clase + enunciado original
 │   └── 2.Proyecto Final de Módulo/   # Enunciado y dataset originales
 └── README.md
 ```
 
-> Un **módulo** es simplemente un fichero `.py` con código que cumple una función
-> concreta. Juntos forman el **paquete** `src`.
+> El código vive en un **paquete instalable** (`ml_hotel_cancellations`) bajo
+> `src/`, dividido por responsabilidad: `ml/` (pipeline), `api/` (FastAPI),
+> `ui/` (Streamlit) y `utils/` (transversales). Se instala con `pip install -e .`.
 
 ---
 
 ## ⚙️ Preparar el entorno (paso a paso)
 
 Necesitas **Python 3.11 ó 3.12** (recomendado 3.12). El requirements está
-pensado para que `pip install -r requirements.txt` funcione "out of the box"
+pensado para que `pip install -e .` funcione "out of the box"
 en **Linux x86_64**, **Windows x86_64** y **macOS** (tanto Intel como Apple
 Silicon). El techo lo fija TensorFlow 2.16.2 (última versión con rueda para
 macOS x86_64), que arrastra `numpy<2` y los pines compatibles del resto.
@@ -209,20 +206,20 @@ python3 -m venv .venv
 source .venv/bin/activate          # Linux / macOS
 # .venv\Scripts\activate           # Windows (PowerShell)
 
-# 4) Instalar las librerías necesarias
+# 4) Instalar el paquete (las dependencias están en pyproject.toml)
 pip install --upgrade pip
-pip install -r requirements.txt              # runtime: API + UI + inferencia
-pip install -r requirements-train.txt        # opcional: para reentrenar + MLflow
+pip install -e .                  # runtime: API + UI + inferencia
+pip install -e ".[train,dev]"    # + reentrenar/MLflow (train) y tests (dev)
 ```
 
 > Cuando el entorno está activado verás `(.venv)` al principio de la línea de tu
 > terminal. Para salir de él: `deactivate`.
 >
-> 💡 `requirements.txt` solo trae lo necesario para servir el modelo
-> (`xgboost`, `fastapi`, `streamlit`, `shap`, etc.). Para **entrenar**
-> (`python -m src.train`) hace falta también `requirements-train.txt`, que
-> incluye `tensorflow`, `imbalanced-learn` y `mlflow`. La división mantiene
-> el entorno de despliegue (Render / Streamlit Cloud) bajo 400 MB.
+> 💡 Las dependencias se declaran en `pyproject.toml`. La instalación base
+> (`pip install -e .`) trae solo lo necesario para **servir** el modelo
+> (`xgboost`, `fastapi`, `streamlit`, `shap`…), lo que mantiene el despliegue
+> (Render / Streamlit Cloud) ligero. El extra `[train]` añade lo de **entrenar**
+> (`tensorflow`, `imbalanced-learn`, `mlflow`) y `[dev]` las herramientas de test.
 
 ---
 
@@ -234,7 +231,7 @@ activado.
 ### 1. Entrenar y comparar todos los modelos (proceso completo)
 
 ```bash
-python -m src.train
+python -m ml_hotel_cancellations.ml.train
 ```
 
 Este único comando ejecuta el flujo de principio a fin:
@@ -249,14 +246,14 @@ elegir el mejor**. Al terminar guarda automáticamente:
 #### Optimización de hiperparámetros (bonus)
 
 Los hiperparámetros óptimos **ya están buscados y se usan por defecto**: están
-guardados en `outputs/best_hiperparametros.json`, y `python -m src.train` los
+guardados en `outputs/best_hiperparametros.json`, y `python -m ml_hotel_cancellations.ml.train` los
 carga automáticamente. Sin ese fichero, el pipeline recurre a unos valores base.
 
 Para **rehacer la búsqueda** por validación cruzada:
 
 ```bash
-python -m src.train --tune        # busca, guarda el JSON y entrena con lo mejor
-python -m src.tuning              # solo la búsqueda (escribe el JSON y el informe .md)
+python -m ml_hotel_cancellations.ml.train --tune        # busca, guarda el JSON y entrena con lo mejor
+python -m ml_hotel_cancellations.ml.tuning              # solo la búsqueda (escribe el JSON y el informe .md)
 ```
 
 Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
@@ -271,7 +268,7 @@ learning_rate=0.03`, alcanzando **0.9614** de ROC-AUC en test; el detalle queda 
 Comparamos cómo afecta tratar el desbalance (~37 % de cancelaciones):
 
 ```bash
-python -m src.balancing   # escribe outputs/balanceo_clases.md y .png
+python -m ml_hotel_cancellations.ml.balancing   # escribe outputs/balanceo_clases.md y .png
 ```
 
 Contrasta **sin balanceo**, **class_weight** (reponderar la clase minoritaria) y
@@ -281,27 +278,14 @@ mientras el **ROC-AUC apenas cambia** (es independiente del umbral). Por eso el
 pipeline principal no balancea: optimizamos ROC-AUC y el compromiso
 recall/precisión se ajustaría moviendo el umbral según el coste de negocio.
 
-#### Aceleración por GPU (opcional)
-
-El proyecto corre en **CPU por defecto** (para este tamaño de datos la GPU no
-acelera y la CPU es 100 % reproducible). El código es *GPU-aware*: si tienes una
-GPU NVIDIA y quieres que **XGBoost** la use, define la variable de entorno:
-
-```bash
-PONTIA_USE_GPU=1 python -m src.train     # XGBoost con device='cuda' (si hay GPU)
-```
-
-Si la GPU no es utilizable, cae automáticamente a CPU. *(La red neuronal usaría
-GPU solo con un TensorFlow compilado con CUDA; aquí se usa `tensorflow-cpu`.)*
-
 ### 2. Predecir con el mejor modelo
 
 ```bash
 # Demostración rápida: usa 10 reservas de ejemplo del propio dataset
-python -m src.predict --sample 10
+python -m ml_hotel_cancellations.ml.predict --sample 10
 
 # Sobre tu propio fichero CSV de reservas
-python -m src.predict --input mis_reservas.csv --output predicciones.csv
+python -m ml_hotel_cancellations.ml.predict --input mis_reservas.csv --output predicciones.csv
 ```
 
 Devuelve, para cada reserva, la predicción (0/1) y la **probabilidad** de
@@ -340,7 +324,7 @@ Explica **por qué** el modelo decide, a nivel global (qué variables pesan más
 local (una reserva concreta). Genera los gráficos en `outputs/`:
 
 ```bash
-python -m src.interpretability
+python -m ml_hotel_cancellations.utils.interpretability
 ```
 
 Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el notebook
@@ -351,7 +335,7 @@ Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el not
 Sirve el mejor modelo por HTTP para consumirlo desde otros sistemas:
 
 ```bash
-uvicorn api.main:app --reload      # desde la raíz del repo
+uvicorn ml_hotel_cancellations.api.main:app --reload      # desde la raíz del repo
 ```
 
 Abre la documentación interactiva en <http://127.0.0.1:8000/docs>. Endpoints:
@@ -370,8 +354,8 @@ Una web que reúne todo: resultados, gráficos de los modelos, un formulario de
 **predicción que consume la API**, interpretabilidad (SHAP) y exploración:
 
 ```bash
-uvicorn api.main:app --reload      # 1) en una terminal: la API (para predecir)
-streamlit run ui/app.py            # 2) en otra terminal: la interfaz
+uvicorn ml_hotel_cancellations.api.main:app --reload      # 1) en una terminal: la API (para predecir)
+streamlit run src/ml_hotel_cancellations/ui/app.py            # 2) en otra terminal: la interfaz
 ```
 
 La URL de la API se configura con la variable `PONTIA_API_URL` (por defecto
@@ -400,10 +384,10 @@ set -a; source .env; set +a
 A partir de entonces, los tres scripts loguean a DagsHub:
 
 ```bash
-python -m src.train          # parent run "train_all_models" + 5 child runs
-python -m src.tuning         # parent run "tuning_hyperparameters" + 4 child runs
-python -m src.balancing      # parent run "balancing_strategies" + 12 child runs
-python -m src.register_model # registra el ganador como pontia-cancellations:vN @ Production
+python -m ml_hotel_cancellations.ml.train          # parent run "train_all_models" + 5 child runs
+python -m ml_hotel_cancellations.ml.tuning         # parent run "tuning_hyperparameters" + 4 child runs
+python -m ml_hotel_cancellations.ml.balancing      # parent run "balancing_strategies" + 12 child runs
+python -m ml_hotel_cancellations.utils.register_model # registra el ganador como pontia-cancellations:vN @ Production
 ```
 
 Sin las variables MLflow, los scripts se comportan **exactamente igual que
@@ -413,7 +397,7 @@ La API consume el registry si exportas `MLFLOW_MODEL_URI`:
 
 ```bash
 export MLFLOW_MODEL_URI="models:/pontia-cancellations/Production"
-uvicorn api.main:app --reload
+uvicorn ml_hotel_cancellations.api.main:app --reload
 curl -s http://127.0.0.1:8000/model-info | python -m json.tool
 # → "source": "registry", "version": 1, "stage": "Production", ...
 ```
@@ -421,6 +405,30 @@ curl -s http://127.0.0.1:8000/model-info | python -m json.tool
 Si la descarga falla por cualquier motivo (red, token), la API cae automáticamente
 al pickle local y refleja el fallo en `fallback_reason`. La arquitectura
 completa del sistema, con diagramas, está en [`docs/arquitectura.md`](docs/arquitectura.md).
+
+### 8. Ejecutar los tests (pytest)
+
+El proyecto incluye una suite de tests que cubre la lógica del pipeline (`ml/`), el
+contrato de la API y la lógica de la interfaz, además de unos *contract tests* que
+garantizan que las constantes compartidas (etiquetas de clase, umbral de decisión,
+reserva de ejemplo, familias de modelo...) tengan una **única fuente de verdad** en
+`ml_hotel_cancellations/config.py`.
+
+```bash
+# Suite completa
+.venv/bin/python -m pytest
+
+# Solo los tests rápidos (omite los que cargan el modelo entrenado)
+.venv/bin/python -m pytest -m "not slow"
+
+# Un módulo concreto
+.venv/bin/python -m pytest tests/test_contracts.py -q
+```
+
+Los tests que cargan el `Pipeline` completo desde disco están marcados con
+`@pytest.mark.slow`. La configuración de pytest vive en `pyproject.toml`
+(`[tool.pytest.ini_options]`) y las *fixtures* compartidas (DataFrame sintético de
+reservas, modelo bundled, cliente de la API) en `conftest.py`.
 
 ---
 

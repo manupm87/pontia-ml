@@ -48,7 +48,7 @@ respuesta sobre datos nuevos.
 - *Parámetros*: los valores internos que el modelo **aprende solo** al entrenar.
 - *Hiperparámetros*: los ajustes que **decidimos nosotros antes** de entrenar
   (p. ej. cuántos árboles tiene un Random Forest). En el proyecto están en
-  `src/config.py`.
+  `src/ml_hotel_cancellations/config.py`.
 
 **Sobreajuste (overfitting).** Cuando el modelo "se memoriza" los datos de
 entrenamiento y luego falla con datos nuevos. Es el principal enemigo a vigilar.
@@ -297,7 +297,7 @@ envían datos y reciben una respuesta. *REST* es el estilo más común para APIs
 
 **FastAPI / Uvicorn.** *FastAPI* es la librería con la que construimos la API en
 Python (rápida y con validación automática de los datos de entrada). *Uvicorn* es el
-servidor que la ejecuta (`uvicorn api.main:app`).
+servidor que la ejecuta (`uvicorn ml_hotel_cancellations.api.main:app`).
 
 **Swagger / OpenAPI.** Documentación **interactiva** de la API que FastAPI genera
 sola en `/docs`: permite ver los endpoints y probarlos desde el navegador.
