@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-hotel-cancellations"
+version = "1.0.0"
+description = "Predicción de cancelaciones de reservas hoteleras (proyecto final ML)."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.26,<2.0",
+    "pandas>=2.2,<3.0",
+    "scikit-learn>=1.5,<1.7",
+    "scipy>=1.13,<1.15",
+    "joblib>=1.4",
+    "xgboost>=2.1,<3.3",
+    "shap>=0.46,<0.50",
+    "numba>=0.59,<0.63",
+    "llvmlite>=0.42,<0.46",
+    "matplotlib>=3.8,<3.11",
+    "plotly>=5.20",
+    "fastapi>=0.110,<0.120",
+    "uvicorn[standard]>=0.30",
+    "requests>=2.32",
+    "streamlit>=1.36,<1.50",
+]
+
+[project.optional-dependencies]
+train = [
+    "tensorflow-cpu==2.16.2; sys_platform != 'darwin'",
+    "tensorflow==2.16.2; sys_platform == 'darwin'",
+    "keras>=3.3,<3.6",
+    "imbalanced-learn>=0.12,<0.14",
+    "seaborn>=0.13",
+    "mlflow>=2.16,<3.0",
+    "jupyter>=1.0",
+    "ipykernel>=6.29",
+    "nbformat>=5.10",
+    "nbconvert>=7.16",
+    "notebook>=7.2",
+]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+train = "ml_hotel_cancellations.ml.train:main"
+predict = "ml_hotel_cancellations.ml.predict:main"
+tune = "ml_hotel_cancellations.ml.tuning:main"
+balance = "ml_hotel_cancellations.ml.balancing:main"
+register-model = "ml_hotel_cancellations.utils.register_model:main"
+explain = "ml_hotel_cancellations.utils.interpretability:main"
+viz2d = "ml_hotel_cancellations.utils.visualization_2d:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: tests que cargan el modelo bundled o son lentos por otros motivos.",
+    "integration: tests que ejercitan varios componentes a la vez.",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+]
