@@ -228,6 +228,22 @@ pip install -e ".[train,dev]"    # + reentrenar/MLflow (train) y tests (dev)
 Ejecuta todo desde la raíz del repo (`pontia-ml/`) con el entorno virtual
 activado.
 
+> 🧰 **Atajos con `make` (Linux / macOS / WSL).** Hay un `Makefile` que envuelve
+> todos los comandos de abajo: `make setup` (o `make setup-dev`) prepara el
+> entorno, `make run` levanta API + UI a la vez, y `make train` / `tune` /
+> `balance` / `predict` / `explain` / `viz2d` / `register-model` / `test` lanzan
+> cada tarea (pásale argumentos con `ARGS`, p. ej. `make train ARGS="--tune"` o
+> `make predict ARGS="--sample 10"`). `make help` los lista todos.
+>
+> 🪟 **En Windows** `make` no viene de serie: usa directamente los comandos
+> `python -m …` de cada sección (son idénticos a lo que ejecuta cada atajo, solo
+> que sin el envoltorio `make`). Recuerda activar el venv con
+> `.venv\Scripts\activate` y, si lo prefieres, invoca la API y la UI como módulo:
+> `python -m uvicorn ml_hotel_cancellations.api.main:app --reload` y
+> `python -m streamlit run src/ml_hotel_cancellations/ui/app.py`. Si quieres los
+> atajos `make` también en Windows, instálalo (`winget install GnuWin32.Make`) o
+> trabaja dentro de **WSL**.
+
 ### 1. Entrenar y comparar todos los modelos (proceso completo)
 
 ```bash

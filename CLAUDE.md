@@ -13,9 +13,11 @@ in a Streamlit UI.
 - **In SPANISH**: comments, *docstrings*, all visible UI text (Streamlit), log/error
   messages, generated-report headers, and **all `.md` files** (except this CLAUDE.md).
 - **Output column keys** (e.g. `"tasa_cancelacion"`, `"reservas"`, `"clase"`,
-  `"modelo"`, `"estrategia"`) and the **API contract field names** (Pydantic in
-  `api/schemas.py`) are user-facing data/output: **keep them in Spanish** even though
-  they are string literals in the code.
+  `"modelo"`, `"estrategia"`) are user-facing data: **keep them in Spanish** even
+  though they are string literals in the code.
+- **API JSON field names** (Pydantic in `api/schemas.py`, e.g. `prediction`, `label`,
+  `probability`) follow the standard REST convention and stay in **English** — but
+  their *values* are the Spanish user-facing layer (e.g. `label: "No cancelada"`).
 
 Rule of thumb: translate Python identifiers to English; **never** touch string
 literals, comments or docstrings (that is the Spanish layer).
@@ -50,6 +52,28 @@ pip install -e .                # runtime only (API + UI + inference)
 Dependencies live in `pyproject.toml` (extras `[train]` and `[dev]`).
 `requirements.txt` is just `-e .` (for platforms that only read that file).
 **Python 3.12** (`requires-python = ">=3.11,<3.13"`; TF 2.16 and numba/llvmlite cap at 3.12).
+
+### Makefile (recommended dev entrypoint — Unix/macOS/WSL)
+
+A root `Makefile` wraps everything below; `make help` lists targets. It uses a venv at
+`.venv` and **validates the Python version** (3.11/3.12) before creating it — *guard
+only, it does not install Python*; point it at a specific interpreter with
+`make setup PYTHON=python3.12`.
+
+| Target | What it does |
+|---|---|
+| `make setup` / `setup-dev` | venv + `pip install -e .` (runtime) / `.[train,dev]` (dev+train) |
+| `make run` | API + UI together (Ctrl-C stops both, no orphans) |
+| `make api` / `ui` | either one alone |
+| `make train` / `tune` / `balance` / `register-model` | pipeline/bonus CLIs (need `setup-dev`); pass flags with `ARGS="--tune"` |
+| `make predict` / `explain` / `viz2d` | inference/interpretability (runtime install is enough); `ARGS="--sample 5"` |
+| `make test` | pytest (needs `setup-dev`) |
+| `make clean` | remove `.venv` + build artifacts |
+
+**Windows has no `make`**: use the `python -m …` / `uvicorn` / `streamlit` commands
+directly (identical to what each target runs), or work inside WSL. `register-model`
+needs MLflow env vars (`MLFLOW_TRACKING_URI/USERNAME/PASSWORD`) or it exits with a clear
+"not configured" error by design.
 
 CLIs (console scripts in `pyproject.toml`, or the `python -m` form):
 
