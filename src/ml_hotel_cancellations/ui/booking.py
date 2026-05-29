@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src import config
+from ml_hotel_cancellations import config
 
 # Reserva de ejemplo (contrato de la API). Nombres de campo EXACTOS.
 # Fuente única de verdad en `src.config`, compartida con el esquema de la API.

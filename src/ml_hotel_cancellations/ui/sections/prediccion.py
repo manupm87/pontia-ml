@@ -21,7 +21,7 @@ from .. import booking, config, data, layout
 @st.cache_resource(show_spinner=False)
 def _load_best_model():
     """Carga el ``Pipeline`` del mejor modelo una sola vez por sesión."""
-    from src.predict import load_best_model
+    from ml_hotel_cancellations.ml.predict import load_best_model
 
     return load_best_model()
 
@@ -33,7 +33,7 @@ def _load_pls_artifacts():
     Pesa ~5 MB en memoria; cargarlo una sola vez evita parar la UI cada vez que
     el usuario predice una reserva.
     """
-    from src.visualization_2d import load_artifacts
+    from ml_hotel_cancellations.utils.visualization_2d import load_artifacts
 
     return load_artifacts()
 
@@ -51,7 +51,7 @@ def _render_shap_explanation(payload: dict) -> None:
         "= empuja hacia *no cancela*."
     )
     try:
-        from src.interpretability import explain_booking_to_figure
+        from ml_hotel_cancellations.utils.interpretability import explain_booking_to_figure
 
         with st.spinner("Calculando contribuciones SHAP…"):
             pipeline = _load_best_model()
@@ -77,7 +77,7 @@ def _render_position_on_2d(payload: dict, probability: float) -> None:
         "zona azul, en lo contrario; cerca de la línea negra, el modelo duda."
     )
     try:
-        from src.visualization_2d import plot_booking_on_2d
+        from ml_hotel_cancellations.utils.visualization_2d import plot_booking_on_2d
 
         with st.spinner("Proyectando la reserva al plano PLS…"):
             artifacts = _load_pls_artifacts()

@@ -1,8 +1,8 @@
 """Interfaz visual del proyecto (Streamlit) — punto de entrada.
 
-Arranque (desde la raíz del repo):
+Arranque (desde la raíz del repo, con el paquete instalado vía `pip install -e .`):
 
-    streamlit run ui/app.py
+    streamlit run src/ml_hotel_cancellations/ui/app.py
 
 La navegación entre secciones está en la barra lateral. Cada sección vive en su
 propio módulo dentro de `ui/sections/` y expone una función `render()`, de modo
@@ -15,19 +15,10 @@ de la variable de entorno `PONTIA_API_URL` (por defecto `http://localhost:8000`)
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import streamlit as st
 
-# Permite ejecutar `streamlit run ui/app.py` desde la raíz del repo: añadimos
-# esa raíz al path para que `import ui...` resuelva al paquete local.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from ui import config, data, layout  # noqa: E402
-from ui.sections import (  # noqa: E402
+from ml_hotel_cancellations.ui import config, data, layout
+from ml_hotel_cancellations.ui.sections import (
     eda,
     interpretabilidad,
     prediccion,

@@ -15,13 +15,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from src import config as _src_config
+from ml_hotel_cancellations import config as _src_config
 
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
 # ---------------------------------------------------------------------------
 # `PROJECT_ROOT` apunta a la raíz del repo (un nivel por encima de `ui/`).
-PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
 OUTPUTS_DIR: Path = PROJECT_ROOT / "outputs"
 DATA_DIR: Path = PROJECT_ROOT / "data"
