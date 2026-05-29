@@ -57,8 +57,8 @@ import joblib
 import pandas as pd
 import requests
 
-from src import config
-from src.predict import load_best_model, predict_dataframe
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.ml.predict import load_best_model, predict_dataframe
 
 logger = logging.getLogger(__name__)
 

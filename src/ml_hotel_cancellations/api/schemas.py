@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src import config
+from ml_hotel_cancellations import config
 
 # Ejemplo de reserva válido reutilizado en el esquema y en la documentación.
 # Sirve para que Swagger muestre un cuerpo de petición listo para "probar".
