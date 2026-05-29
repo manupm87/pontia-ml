@@ -303,7 +303,7 @@ servidor que la ejecuta (`uvicorn ml_hotel_cancellations.api.main:app`).
 sola en `/docs`: permite ver los endpoints y probarlos desde el navegador.
 
 **Streamlit.** Librería para crear **aplicaciones web** de datos en Python con muy
-poco código. La usamos para la interfaz visual (`ui/app.py`): tablas, gráficos y un
+poco código. La usamos para la interfaz visual (`src/ml_hotel_cancellations/ui/app.py`): tablas, gráficos y un
 formulario de predicción que llama a la API.
 
 **MLOps.** Conjunto de prácticas que aplican la disciplina del *DevOps* (despliegue
@@ -320,7 +320,7 @@ Registry** versiona los modelos resultantes y les asocia *stages* (`Staging`,
 
 **Run / Experiment (MLflow).** Un *run* es una ejecución concreta de entrenamiento;
 un *experiment* agrupa runs relacionados. El proyecto crea un *run* padre por cada
-ejecución de los scripts `src.train`, `src.tuning` y `src.balancing`, con uno o
+ejecución de los scripts `train`, `tune` y `balance`, con uno o
 varios *child runs* anidados (uno por modelo o por combinación).
 
 **Stage / Promoción de un modelo.** Cada versión registrada en el *Model Registry*

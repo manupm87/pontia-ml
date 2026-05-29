@@ -8,26 +8,29 @@ externa (por ejemplo, una app de Streamlit).
 ## Estructura (modular y didáctica)
 
 ```
-api/
+ml_hotel_cancellations/api/
 ├── __init__.py      # documentación del paquete
 ├── schemas.py       # contratos de entrada/salida (Pydantic)
 ├── service.py       # carga del modelo (1 sola vez) + lógica de predicción
+├── registry.py      # cliente REST del Model Registry de MLflow (bonus)
 ├── main.py          # la app FastAPI con los endpoints
-├── README.md        # este fichero
-└── tests/
-    └── test_api.py  # pruebas con TestClient (pytest)
+└── README.md        # este fichero
 ```
 
-El preprocesado de la entrada se hace **reutilizando** `src.predict` y
-`src.data_loader.normalize_categoricals`, de modo que la API "ve" los datos
-exactamente igual que el entrenamiento (misma normalización de categóricas,
-`agent` como texto, etc.).
+Los tests viven en `tests/test_api.py` (raíz del repo), no dentro del paquete.
+
+El preprocesado de la entrada se hace **reutilizando**
+`ml_hotel_cancellations.ml.predict` y
+`ml_hotel_cancellations.ml.data_loader.normalize_categoricals`, de modo que la
+API "ve" los datos exactamente igual que el entrenamiento (misma normalización
+de categóricas, `agent` como texto, etc.).
 
 ## Requisitos previos
 
 - El modelo entrenado debe existir en `models/best_model.pkl`
   (genéralo con `python -m ml_hotel_cancellations.ml.train` si no está).
-- Dependencias instaladas (ver `requirements.txt`): `fastapi`, `uvicorn[standard]`.
+- Dependencias instaladas con `pip install -e .` (incluyen `fastapi` y
+  `uvicorn[standard]`; ver `pyproject.toml`).
 
 ## Cómo arrancar el servidor
 
@@ -149,5 +152,5 @@ Si falta un campo obligatorio o el tipo es incorrecto, FastAPI responde con
 Desde la raíz del repo:
 
 ```bash
-python -m pytest api/tests -q
+python -m pytest tests/test_api.py -q
 ```

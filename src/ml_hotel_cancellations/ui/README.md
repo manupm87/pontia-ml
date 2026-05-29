@@ -10,8 +10,9 @@ la **API FastAPI** para predecir en vivo.
 
 ## Requisitos
 
-- Python con las dependencias del proyecto instaladas (`requirements.txt`), que
-  ya incluyen `streamlit`, `requests`, `plotly`, `pandas` y `matplotlib`.
+- Python con las dependencias del proyecto instaladas (`pip install -e .`; ver
+  `pyproject.toml`), que ya incluyen `streamlit`, `requests`, `plotly`, `pandas`
+  y `matplotlib`.
 - Para la sección de **Predicción**, la API FastAPI del proyecto en marcha.
 
 ## Cómo arrancar la interfaz
@@ -68,8 +69,9 @@ La lógica (carga de datos, agregaciones, llamadas a la API) está separada del
 renderizado de cada página, para que sea fácil de probar e iterar.
 
 ```
-ui/
-├── app.py            # Punto de entrada: layout, navegación y estado de la API.
+ml_hotel_cancellations/ui/
+├── app.py            # Punto de entrada: navegación y estado de la API.
+├── layout.py         # Composición del layout y la barra lateral.
 ├── config.py         # Rutas, URL de la API (PONTIA_API_URL) y constantes.
 ├── data.py           # Helpers cacheados: métricas, dataset, EDA y cliente API.
 ├── booking.py        # Esquema de las 27 variables del formulario y su payload.

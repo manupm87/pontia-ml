@@ -306,10 +306,9 @@ validación cruzada), el finetuning encontró
 detalle (CV base vs. optimizada) queda en `outputs/tuning_hiperparametros.md`.
 Implementado en `src/ml_hotel_cancellations/ml/tuning.py`.
 
-> *Nota de hardware:* el código es **GPU-aware** — XGBoost puede entrenar en una
-> GPU NVIDIA con `PONTIA_USE_GPU=1` —, pero por defecto se ejecuta en **CPU**,
-> porque a esta escala de datos la GPU no acelera y la CPU es plenamente
-> reproducible (`src/gpu.py`).
+> *Nota de hardware:* todo el entrenamiento se ejecuta en **CPU**, porque a
+> esta escala de datos la GPU no acelera y la CPU es plenamente reproducible
+> (semilla `RANDOM_STATE=42`).
 
 ### 6.2. Balanceo de clases
 
@@ -354,9 +353,10 @@ detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
 ### 6.4. API REST con FastAPI
 
 Para **productivizar** el modelo (poder consumirlo desde otros sistemas) creamos una
-**API REST** con **FastAPI** (`api/`). Carga `models/best_model.pkl` una sola
-vez y reutiliza el **mismo preprocesado** del pipeline (`src.predict`), de modo que la
-inferencia es idéntica al entrenamiento. Endpoints:
+**API REST** con **FastAPI** (`ml_hotel_cancellations/api/`). Carga
+`models/best_model.pkl` una sola vez y reutiliza el **mismo preprocesado** del
+pipeline (`ml_hotel_cancellations.ml.predict`), de modo que la inferencia es
+idéntica al entrenamiento. Endpoints:
 
 - `GET /health` — comprobación de estado.
 - `GET /model-info` — modelo, métrica y variables que espera.
@@ -367,7 +367,7 @@ inferencia es idéntica al entrenamiento. Endpoints:
 Incluye **documentación interactiva automática** (Swagger UI en `/docs`) y **tests**
 (`pytest`, 6 casos que pasan). Arrancar desde la raíz del repo:
 `uvicorn ml_hotel_cancellations.api.main:app --reload`. Guía completa en
-[`api/README.md`](../api/README.md).
+[`api/README.md`](../src/ml_hotel_cancellations/api/README.md).
 
 ### 6.5. Interfaz visual con Streamlit
 
@@ -391,7 +391,7 @@ pantalla). Incluye:
 
 Arrancar desde la raíz del repo: `streamlit run src/ml_hotel_cancellations/ui/app.py` (con la API levantada para que
 funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
-[`ui/README.md`](../ui/README.md).
+[`ui/README.md`](../src/ml_hotel_cancellations/ui/README.md).
 
 ### 6.6. Registro de experimentos con MLflow
 
@@ -412,11 +412,13 @@ scripts de entrenamiento en una topología de *runs* coherente:
 | `python -m ml_hotel_cancellations.ml.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, mejora, combinaciones probadas |
 | `python -m ml_hotel_cancellations.ml.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas de test por combinación, *tags* `strategy` y `model_family` |
 
-Cuando `src.tuning` se invoca desde `python -m ml_hotel_cancellations.ml.train --tune`, su *run*
-queda **anidado** bajo el padre de entrenamiento, presentando todo el
-experimento como un único árbol navegable.
+Cuando la búsqueda de hiperparámetros se invoca desde
+`python -m ml_hotel_cancellations.ml.train --tune`, su *run* queda **anidado**
+bajo el padre de entrenamiento, presentando todo el experimento como un único
+árbol navegable.
 
-El helper `src.tracking` es deliberadamente **silencioso**: si las variables
+El helper `ml_hotel_cancellations.utils.tracking` es deliberadamente
+**silencioso**: si las variables
 de entorno `MLFLOW_TRACKING_URI`, `MLFLOW_TRACKING_USERNAME` y
 `MLFLOW_TRACKING_PASSWORD` no están definidas, los scripts se comportan
 exactamente como si MLflow no estuviera presente. Activar el *tracking* se

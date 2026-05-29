@@ -13,7 +13,7 @@ responsabilidades, herramientas y artefactos bien delimitados:
 
 | Plano | Responsabilidad | Herramientas | Ubicación |
 |---|---|---|---|
-| 1. **Experimentación** | Entrenar, evaluar y seleccionar modelos | `src.train`, `src.tuning`, `src.balancing` (Python 3.12) | Entorno local |
+| 1. **Experimentación** | Entrenar, evaluar y seleccionar modelos | scripts `train`, `tune`, `balance` (Python 3.12) | Entorno local |
 | 2. **Trazabilidad** | Registrar experimentos y versionar modelos | MLflow Tracking + Model Registry | DagsHub (servicio gestionado) |
 | 3. **Repositorio** | Persistir código y modelo de producción | Git, GitHub | `manupm87/pontia-ml` |
 | 4. **Servicio** | Exponer el modelo y la interfaz al usuario | FastAPI (backend), Streamlit (frontend) | Render + Streamlit Community Cloud |
@@ -39,9 +39,9 @@ flowchart LR
 
     subgraph PLANE1["Plano 1 · Experimentación (local)"]
         direction TB
-        T1["src.train<br/>5 modelos · ROC-AUC"]:::train
-        T2["src.tuning<br/>GridSearchCV<br/>RandomizedSearchCV"]:::train
-        T3["src.balancing<br/>baseline · class_weight<br/>SMOTE"]:::train
+        T1["train<br/>5 modelos · ROC-AUC"]:::train
+        T2["tune<br/>GridSearchCV<br/>RandomizedSearchCV"]:::train
+        T3["balance<br/>baseline · class_weight<br/>SMOTE"]:::train
     end
     DATA --> PLANE1
 
@@ -57,7 +57,7 @@ flowchart LR
     PLANE1 -- "joblib.dump" --> PKL
 
     subgraph PLANE3["Plano 3 · Repositorio (GitHub)"]
-        REPO[/"manupm87/pontia-ml<br/>src · api · ui<br/>models · outputs"/]:::artifact
+        REPO[/"manupm87/pontia-ml<br/>src/ml_hotel_cancellations<br/>(ml · api · ui · utils)<br/>models · outputs"/]:::artifact
     end
     PKL --> REPO
 
@@ -141,28 +141,31 @@ en el límite de RAM del *tier* gratuito.
 
 ### 4.1 Plano 1 — Experimentación
 
-Tres puntos de entrada en `src/`:
+Tres puntos de entrada en el paquete `ml_hotel_cancellations.ml`
+(expuestos como console scripts `train` / `tune` / `balance`):
 
-- `src.train` carga el dataset, construye un *Pipeline* de scikit-learn
-  por modelo (preprocesamiento + estimador), entrena los cinco modelos
-  exigidos por el enunciado, los evalúa sobre el conjunto de test y
-  selecciona el ganador por **ROC-AUC** (ver justificación en
+- `train` (`ml_hotel_cancellations.ml.train`) carga el dataset, construye
+  un *Pipeline* de scikit-learn por modelo (preprocesamiento +
+  estimador), entrena los cinco modelos exigidos por el enunciado, los
+  evalúa sobre el conjunto de test y selecciona el ganador por
+  **ROC-AUC** (ver justificación en
   [`informe_final.md`](informe_final.md) §4.1).
-- `src.tuning` optimiza los hiperparámetros de los modelos clásicos
-  mediante validación cruzada (`GridSearchCV` para los espacios pequeños,
-  `RandomizedSearchCV` para los grandes) y persiste los mejores en
+- `tune` (`ml_hotel_cancellations.ml.tuning`) optimiza los
+  hiperparámetros de los modelos clásicos mediante validación cruzada
+  (`GridSearchCV` para los espacios pequeños, `RandomizedSearchCV` para
+  los grandes) y persiste los mejores en
   `outputs/best_hiperparametros.json`, de modo que las siguientes
-  ejecuciones de `src.train` los reutilicen por defecto.
-- `src.balancing` compara estrategias de balanceo de clases
-  (`baseline`, `class_weight`, SMOTE) para cuantificar su efecto sobre
-  *recall*, *precisión* y ROC-AUC.
+  ejecuciones de `train` los reutilicen por defecto.
+- `balance` (`ml_hotel_cancellations.ml.balancing`) compara estrategias
+  de balanceo de clases (`baseline`, `class_weight`, SMOTE) para
+  cuantificar su efecto sobre *recall*, *precisión* y ROC-AUC.
 
 Los tres scripts comparten una característica importante: si las
 variables de entorno de MLflow no están definidas, su comportamiento es
 idéntico al de un proyecto sin instrumentación de *tracking*. El helper
-`src.tracking` actúa como adaptador silencioso (*no-op*) hasta que
-detecta credenciales, momento en el cual cada ejecución pasa a publicar
-un árbol de *runs* en DagsHub.
+`ml_hotel_cancellations.utils.tracking` actúa como adaptador silencioso
+(*no-op*) hasta que detecta credenciales, momento en el cual cada
+ejecución pasa a publicar un árbol de *runs* en DagsHub.
 
 ### 4.2 Plano 2 — Trazabilidad con MLflow
 
@@ -171,11 +174,12 @@ gratuita y pública. La instrumentación produce:
 
 | Script | *Parent run* | *Child runs* | Datos registrados |
 |---|---|---|---|
-| `src.train` | `train_all_models` | 5 (uno por modelo) | `params`, `metrics`, `train_time_s`, modelo ganador como artefacto sklearn |
-| `src.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, `improvement`, `n_combos_tried` |
-| `src.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas test + *tags* `strategy` y `model_family` |
+| `train` | `train_all_models` | 5 (uno por modelo) | `params`, `metrics`, `train_time_s`, modelo ganador como artefacto sklearn |
+| `tune` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, `improvement`, `n_combos_tried` |
+| `balance` | `balancing_strategies` | 12 (estrategia × modelo) | métricas test + *tags* `strategy` y `model_family` |
 
-La promoción a producción se realiza con `src.register_model`, un CLI
+La promoción a producción se realiza con `register-model`
+(`ml_hotel_cancellations.utils.register_model`), un CLI
 que registra el último *run* `train_all_models` como nueva versión del
 *Registered Model* `pontia-cancellations` y transiciona dicha versión
 al *stage* `Production`. Este paso se ejecuta vía API de MLflow porque
@@ -203,7 +207,7 @@ una reserva del usuario sobre el mapa de regiones de decisión.
 
 #### Backend: FastAPI sobre Render
 
-La API (`api/`) implementa cuatro *endpoints*:
+La API (`ml_hotel_cancellations/api/`) implementa cuatro *endpoints*:
 
 - `GET /health` — sonda de salud, retorna `{status, model_loaded}`.
 - `GET /model-info` — metadatos del modelo servido: tipo, métrica
@@ -235,7 +239,7 @@ a un servicio con mayor capacidad.
 
 #### Frontend: Streamlit Community Cloud
 
-La interfaz (`ui/`) está organizada en módulos por sección:
+La interfaz (`ml_hotel_cancellations/ui/`) está organizada en módulos por sección:
 
 - **Resumen y resultados** (`sections/resumen.py`): cifras clave, tabla
   comparativa de los cinco modelos, curvas ROC, matrices de confusión
@@ -275,13 +279,17 @@ configuración relevantes son:
 
 ### 5.1 División de dependencias
 
-El proyecto mantiene dos ficheros de dependencias:
+Las dependencias se declaran en `pyproject.toml` y se dividen en dos
+niveles mediante *extras*:
 
-- `requirements.txt` — *runtime*: lo estrictamente necesario para servir
-  la API y la UI (≈ 350 MB instalados).
-- `requirements-train.txt` — extras: TensorFlow/Keras, *imbalanced-learn*,
-  Jupyter, MLflow (cliente completo). Solo se necesitan para reentrenar
-  o publicar nuevos *runs* en DagsHub.
+- **Base** (`pip install -e .`) — *runtime*: lo estrictamente necesario
+  para servir la API y la UI (≈ 350 MB instalados).
+- **Extra `[train]`** (`pip install -e ".[train]"`): TensorFlow/Keras,
+  *imbalanced-learn*, Jupyter, MLflow (cliente completo). Solo se
+  necesitan para reentrenar o publicar nuevos *runs* en DagsHub. El extra
+  `[dev]` añade además las herramientas de test (`pytest`, `httpx`).
+  El fichero `requirements.txt` es solo `-e .` (para plataformas que solo
+  leen ese fichero, como Render o Streamlit Cloud).
 
 Esta división mantiene el contenedor de Render por debajo del límite
 de RAM del *tier* gratuito y reduce el tiempo de build de cada
@@ -305,7 +313,7 @@ El *pin* de versiones del proyecto está condicionado por TensorFlow
 2.16.2, que exige `numpy<2`. Esta restricción arrastra a su vez
 `shap<0.50`, versión que no soporta el formato actual del campo
 `base_score` que XGBoost ≥ 2.x serializa como `"[0.37]"` (con
-corchetes). `src/interpretability.py` aplica un *monkey-patch*
+corchetes). `ml_hotel_cancellations/utils/interpretability.py` aplica un *monkey-patch*
 idempotente al decodificador UBJ de SHAP que normaliza el valor antes
 de que SHAP intente convertirlo a `float`.
 
@@ -314,7 +322,7 @@ de que SHAP intente convertirlo a `float`.
 El mapa de regiones de decisión 2D requiere reentrenar versiones
 ligeras de los cinco modelos sobre una proyección PLS supervisada,
 proceso que toma ~45 segundos. Para evitar ese coste en cada inicio de
-la UI, `src.visualization_2d` precalcula y persiste:
+la UI, `ml_hotel_cancellations.utils.visualization_2d` precalcula y persiste:
 
 - El preprocesador, el ajuste PLS y el signo de orientación de la
   primera componente.
