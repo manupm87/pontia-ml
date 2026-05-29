@@ -1,69 +1,7 @@
-# Dependencias de RUNTIME — Python 3.11 ó 3.12
-# Instalación: pip install -r requirements.txt
+# Las dependencias del proyecto viven en pyproject.toml (fuente única).
+# Este fichero existe solo para plataformas que instalan desde requirements.txt
+# (p. ej. Streamlit Community Cloud): instala el paquete y sus deps de runtime.
 #
-# Este fichero contiene SOLO lo necesario para arrancar la API (FastAPI) y
-# la interfaz visual (Streamlit) y para hacer inferencia con el modelo ya
-# entrenado. Para reentrenar (TensorFlow), aplicar SMOTE, abrir notebooks
-# o registrar experimentos con MLflow, instala también
-# `requirements-train.txt`.
-#
-# La división mantiene el tamaño del entorno público (Render / Streamlit
-# Cloud) por debajo de ~400 MB, dejando margen suficiente en sus tiers
-# gratuitos (~512 MB-1 GB de RAM).
-#
-# Las versiones se han elegido para que `pip install -r requirements.txt`
-# funcione "out of the box" en las cuatro plataformas objetivo, sin pasos
-# manuales:
-#
-#   - Linux  x86_64                (manylinux)
-#   - Windows x86_64               (win_amd64)
-#   - macOS Intel  (x86_64)
-#   - macOS Apple Silicon (arm64)
-#
-# Los topes (numpy<2, scikit-learn<1.7, shap<0.50, etc.) los hereda
-# `requirements-train.txt` desde TensorFlow 2.16.2, así que las versiones
-# son coherentes entre ambos ficheros.
-
-# --- Núcleo de datos y ML clásico ---
-numpy>=1.26,<2.0
-pandas>=2.2,<3.0
-scikit-learn>=1.5,<1.7
-scipy>=1.13,<1.15
-joblib>=1.4
-
-# --- Gradient Boosting (modelo en producción) ---
-xgboost>=2.1,<3.3
-
-# --- Interpretabilidad (bonus): SHAP ---
-# La UI calcula explicaciones locales (waterfall) para cada reserva, así
-# que SHAP es runtime. Numba/llvmlite son sus dependencias nativas.
-shap>=0.46,<0.50
-# numba 0.63+ dejó de publicar ruedas para macOS x86_64; lo capamos para
-# que `pip install` no intente compilar llvmlite desde fuentes (necesitaría
-# cmake + LLVM). 0.62.1 sigue teniendo ruedas para las 4 plataformas.
-numba>=0.59,<0.63
-llvmlite>=0.42,<0.46
-
-# --- Visualización ---
-matplotlib>=3.8,<3.11
-plotly>=5.20
-
-# --- API (bonus): FastAPI ---
-fastapi>=0.110,<0.120
-uvicorn[standard]>=0.30
-requests>=2.32
-
-# --- UI (bonus): Streamlit ---
-streamlit>=1.36,<1.50
-
-# --- MLflow Model Registry desde la API ---
-# La API descarga el modelo del registry vía REST directa (con `requests`,
-# ya listado arriba) cuando `MLFLOW_MODEL_URI` está definida. NO instalamos
-# `mlflow` ni `mlflow-skinny` en runtime: solo cargar la librería suma
-# ~50-150 MB de RSS y no caben en los 512 MB de RAM de Render free. La
-# API solo necesita dos endpoints HTTP del servidor MLflow + `joblib.load`
-# del `model.pkl` para reconstruir el `Pipeline` (mismo formato que usa
-# `mlflow.sklearn`). El cliente HTTP completo vive en `api/service.py`.
-#
-# `mlflow` completo solo lo necesitan los scripts de entrenamiento (para
-# `mlflow.sklearn.log_model`) y vive en `requirements-train.txt`.
+# Para desarrollo / reentrenamiento / tests usa los extras:
+#   pip install -e ".[train,dev]"
+-e .
