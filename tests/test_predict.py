@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src import predict
+from ml_hotel_cancellations.ml import predict
 
 pytestmark = pytest.mark.slow
 
@@ -29,7 +29,7 @@ def test_predict_dataframe_values_in_range(bundled_model, raw_like_df: pd.DataFr
 
 def test_predict_dataframe_preserves_input_index(bundled_model) -> None:
     """La salida conserva el índice de entrada (alineación fila a fila)."""
-    from api.schemas import BOOKING_EXAMPLE
+    from ml_hotel_cancellations.api.schemas import BOOKING_EXAMPLE
 
     df = pd.DataFrame([BOOKING_EXAMPLE, BOOKING_EXAMPLE], index=["reserva_A", "reserva_B"])
     result = predict.predict_dataframe(df, model=bundled_model)
@@ -37,8 +37,8 @@ def test_predict_dataframe_preserves_input_index(bundled_model) -> None:
 
 
 def test_prepare_for_inference_drops_target(bundled_model) -> None:
-    from api.schemas import BOOKING_EXAMPLE
-    from src import config
+    from ml_hotel_cancellations.api.schemas import BOOKING_EXAMPLE
+    from ml_hotel_cancellations import config
 
     df = pd.DataFrame([{**BOOKING_EXAMPLE, config.TARGET_COLUMN: 1}])
     prepared = predict.prepare_for_inference(df)

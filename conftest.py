@@ -12,7 +12,7 @@ import copy
 import pandas as pd
 import pytest
 
-from api.schemas import BOOKING_EXAMPLE
+from ml_hotel_cancellations.api.schemas import BOOKING_EXAMPLE
 
 
 def _make_booking(**overrides) -> dict:
@@ -66,7 +66,7 @@ def raw_like_df() -> pd.DataFrame:
 @pytest.fixture(scope="session")
 def bundled_model():
     """Carga el `models/best_model.pkl` una sola vez por sesión (es costoso)."""
-    from src.predict import load_best_model
+    from ml_hotel_cancellations.ml.predict import load_best_model
 
     return load_best_model()
 
@@ -76,7 +76,7 @@ def api_client():
     """Cliente HTTP en memoria contra la app FastAPI (sin servidor real)."""
     from fastapi.testclient import TestClient
 
-    from api.main import app
+    from ml_hotel_cancellations.api.main import app
 
     with TestClient(app) as client:
         yield client

@@ -6,7 +6,7 @@ columnas, métricas y rangos de las constantes clave.
 
 from __future__ import annotations
 
-from src import config
+from ml_hotel_cancellations import config
 
 
 def test_feature_counts() -> None:

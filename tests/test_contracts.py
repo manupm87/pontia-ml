@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src import config
+from ml_hotel_cancellations import config
 
 
 # ---------------------------------------------------------------------------
@@ -22,13 +22,13 @@ def test_canonical_class_labels_exist() -> None:
 
 
 def test_api_class_labels_derive_from_config() -> None:
-    from api import service
+    from ml_hotel_cancellations.api import service
 
     assert list(service.CLASS_LABELS) == config.CLASS_LABELS_SHORT
 
 
 def test_ui_class_labels_derive_from_config() -> None:
-    from ui import config as ui_config
+    from ml_hotel_cancellations.ui import config as ui_config
 
     assert ui_config.CLASS_LABELS[0] == config.CLASS_LABELS_SHORT[0]
     assert ui_config.CLASS_LABELS[1] == config.CLASS_LABELS_SHORT[1]
@@ -46,7 +46,7 @@ def test_predict_uses_config_threshold() -> None:
     """`src.predict` no debe llevar el 0.5 hardcodeado."""
     import inspect
 
-    from src import predict
+    from ml_hotel_cancellations.ml import predict
 
     source = inspect.getsource(predict.predict_dataframe)
     assert ">= 0.5" not in source
@@ -59,15 +59,15 @@ def test_predict_uses_config_threshold() -> None:
 def test_booking_example_single_source() -> None:
     """El ejemplo de reserva vive en `src.config` y lo reutilizan api y ui."""
     assert hasattr(config, "BOOKING_EXAMPLE")
-    from api import schemas
-    from ui import booking
+    from ml_hotel_cancellations.api import schemas
+    from ml_hotel_cancellations.ui import booking
 
     assert schemas.BOOKING_EXAMPLE is config.BOOKING_EXAMPLE
     assert booking.EXAMPLE_BOOKING is config.BOOKING_EXAMPLE
 
 
 def test_booking_example_matches_schema_fields() -> None:
-    from api.schemas import Booking
+    from ml_hotel_cancellations.api.schemas import Booking
 
     assert set(config.BOOKING_EXAMPLE) == set(Booking.model_fields)
 
@@ -89,7 +89,7 @@ def test_model_family_map_in_config() -> None:
 
 def test_modules_reuse_config_model_family() -> None:
     """train/tuning/balancing no redefinen su propio mapa de familias."""
-    from src import balancing, train, tuning
+    from ml_hotel_cancellations.ml import balancing, train, tuning
 
     assert train._MODEL_FAMILY is config.MODEL_FAMILY
     assert tuning._MODEL_FAMILY is config.MODEL_FAMILY
@@ -103,6 +103,6 @@ def test_reported_roc_auc_matches_metrics_artifact() -> None:
     metrics = pd.read_csv(config.METRICS_TABLE_PATH, index_col=0)
     best_auc = metrics["roc_auc"].max()
 
-    from api import service
+    from ml_hotel_cancellations.api import service
 
     assert round(service.MODEL_ROC_AUC, 4) == round(float(best_auc), 4)

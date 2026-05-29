@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src import config, data_loader, preprocessing
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.ml import data_loader, preprocessing
 
 
 def _fit_transform(raw_like_df: pd.DataFrame):

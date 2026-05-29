@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import config
+from ml_hotel_cancellations import config
 
 
 @pytest.mark.slow

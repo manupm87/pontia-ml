@@ -10,9 +10,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from ui import booking
-from ui import config as ui_config
-from ui import data as ui_data
+from ml_hotel_cancellations.ui import booking
+from ml_hotel_cancellations.ui import config as ui_config
+from ml_hotel_cancellations.ui import data as ui_data
 
 
 # ---------------------------------------------------------------------------

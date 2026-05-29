@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from api.main import app
-from api.schemas import BOOKING_EXAMPLE
+from ml_hotel_cancellations.api.main import app
+from ml_hotel_cancellations.api.schemas import BOOKING_EXAMPLE
 
 client = TestClient(app)
 

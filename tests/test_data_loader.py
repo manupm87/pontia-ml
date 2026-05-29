@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src import config, data_loader
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.ml import data_loader
 
 
 def test_clean_data_drops_leakage_columns(raw_like_df: pd.DataFrame) -> None:

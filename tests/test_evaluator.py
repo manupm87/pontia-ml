@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from src import config
-from src.evaluator import Evaluator, compute_metrics
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.ml.evaluator import Evaluator, compute_metrics
 
 
 class _FakeModel:
