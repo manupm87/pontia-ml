@@ -159,10 +159,11 @@ dos `requirements*.txt`:
 - `[tool.pytest.ini_options]`: `testpaths = ["tests"]`, `pythonpath = ["src"]`,
   `markers`, `filterwarnings` (se elimina `pytest.ini`).
 
-`requirements.txt` / `requirements-train.txt`: se sustituyen por instalación del
-paquete. **Decisión a confirmar** (ver Riesgos): mantener un `requirements.txt`
-mínimo con una sola línea `-e .` para plataformas que solo leen ese fichero
-(Streamlit Cloud), y usar `pip install -e .` en Render.
+`requirements.txt` / `requirements-train.txt`: **se consolidan en `pyproject.toml`**
+(decisión tomada). Se conserva un `requirements.txt` mínimo de una sola línea
+`-e .` para las plataformas que solo leen ese fichero (Streamlit Cloud); Render usa
+`pip install -e .`. `requirements-train.txt` se elimina (su contenido pasa al extra
+`[train]`).
 
 ## Cambios de entrypoint / despliegue
 
@@ -201,10 +202,9 @@ amplio: se hará en una rama y se validará en bloque.
   Cloud. Confirmar que Streamlit Community Cloud instala desde `requirements.txt`
   con `-e .` (es lo habitual). Probar el deploy tras el merge.
 - **Rutas `__file__` (medio).** Recalcular `parents[...]`; cubierto por tests.
-- **Consolidar requirements en pyproject (medio).** Cambia cómo se resuelven deps.
-  Alternativa de menor riesgo: conservar `requirements.txt`/`-train.txt` tal cual y
-  hacer `pip install -r requirements.txt && pip install -e . --no-deps`. **A decidir
-  en la revisión.**
+- **Consolidar requirements en pyproject (medio, ACEPTADO).** Cambia cómo se
+  resuelven deps en el despliegue. Mitigación: probar el deploy de Render y Streamlit
+  Cloud tras el merge; mantener los topes de versión exactos al migrarlos.
 - **Notebooks (bajo).** Si algún notebook hace `from src import …`, actualizar; no
   forma parte de la suite, revisión manual rápida.
 
