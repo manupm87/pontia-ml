@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import logging
 
-from . import tracking
+from . import config, tracking
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,8 @@ DEFAULT_STAGE: str = "Production"
 def _find_latest_run_id(experiment_name: str, run_name: str) -> str:
     """Devuelve el ID del run más reciente cuyo nombre coincide.
 
-    Lanza ``SystemExit`` con un mensaje útil si no encuentra nada.
+    Lanza ``RuntimeError`` con un mensaje útil si no encuentra nada (la
+    conversión a ``SystemExit`` se hace solo en ``main()``).
     """
     import mlflow
     from mlflow.tracking import MlflowClient
@@ -60,7 +61,7 @@ def _find_latest_run_id(experiment_name: str, run_name: str) -> str:
     client = MlflowClient()
     experiment = client.get_experiment_by_name(experiment_name)
     if experiment is None:
-        raise SystemExit(
+        raise RuntimeError(
             f"❌ No existe el experimento '{experiment_name}' en "
             f"{mlflow.get_tracking_uri()}. ¿Ejecutaste primero "
             "`python -m src.train`?"
@@ -72,7 +73,7 @@ def _find_latest_run_id(experiment_name: str, run_name: str) -> str:
         max_results=1,
     )
     if not runs:
-        raise SystemExit(
+        raise RuntimeError(
             f"❌ No se encontraron runs llamados '{run_name}' en el "
             f"experimento '{experiment_name}'. Lanza `python -m src.train` "
             "para generar uno."
@@ -104,7 +105,7 @@ def register_model(
         La versión creada (útil si lo llamas desde otro script).
     """
     if not tracking.init_tracking(experiment_name):
-        raise SystemExit(
+        raise RuntimeError(
             "❌ MLflow no está configurado. Asegúrate de tener las "
             "variables MLFLOW_TRACKING_URI/USERNAME/PASSWORD definidas "
             "(p. ej. con `set -a; source .env; set +a`)."
@@ -150,11 +151,7 @@ def register_model(
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    config.configure_logging()
     parser = argparse.ArgumentParser(
         description=(
             "Registra el modelo entrenado en el Model Registry de MLflow "
@@ -189,12 +186,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    register_model(
-        run_id=args.run_id,
-        model_name=args.name,
-        stage=args.stage,
-        experiment_name=args.experiment,
-    )
+    # Las funciones reutilizables lanzan excepciones de dominio (RuntimeError);
+    # aquí, en el CLI, las convertimos en SystemExit con el mensaje útil.
+    try:
+        register_model(
+            run_id=args.run_id,
+            model_name=args.name,
+            stage=args.stage,
+            experiment_name=args.experiment,
+        )
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

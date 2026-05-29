@@ -30,9 +30,41 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.pipeline import Pipeline
 
 from . import config
-from .preprocessing import build_preprocessor
+from .preprocessing import make_pipeline
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# (De)serialización de la red de Keras
+# ---------------------------------------------------------------------------
+# Los modelos de Keras no se serializan con pickle de forma fiable, así que se
+# convierten a/desde bytes usando el formato nativo ``.keras``. Esto permite que
+# ``joblib.dump`` funcione aunque el mejor modelo sea la red. Se usa un
+# ``TemporaryDirectory`` para garantizar la limpieza del temporal aunque
+# ``save``/``load_model`` lance.
+def _serialize_keras_model(model) -> bytes:
+    """Vuelca un modelo Keras al formato ``.keras`` y devuelve sus bytes."""
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / "model.keras"
+        model.save(tmp_path)
+        return tmp_path.read_bytes()
+
+
+def _deserialize_keras_model(data: bytes):
+    """Reconstruye un modelo Keras a partir de los bytes de un fichero ``.keras``."""
+    import tempfile
+    from pathlib import Path
+
+    import tensorflow as tf
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / "model.keras"
+        tmp_path.write_bytes(data)
+        return tf.keras.models.load_model(tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -157,25 +189,17 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
         return np.column_stack([1.0 - p1, p1])
 
     def predict(self, X):
-        """Devuelve la clase predicha aplicando el umbral 0.5."""
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        """Devuelve la clase predicha aplicando el umbral de decisión del proyecto."""
+        return (self.predict_proba(X)[:, 1] >= config.DECISION_THRESHOLD).astype(int)
 
     # -- Serialización ------------------------------------------------------
-    # Los modelos de Keras no se serializan con pickle de forma fiable, así que
-    # se convierten a/desde bytes usando el formato nativo ``.keras``. Esto
-    # permite que ``joblib.dump`` funcione aunque el mejor modelo sea la red.
+    # La (de)serialización de la red Keras se delega en los helpers de módulo
+    # ``_serialize_keras_model`` / ``_deserialize_keras_model``.
     def __getstate__(self):
         state = self.__dict__.copy()
         model = state.get("model_", None)
         if model is not None and not isinstance(model, (bytes, bytearray)):
-            import tempfile
-
-            with tempfile.NamedTemporaryFile(suffix=".keras", delete=False) as tmp:
-                tmp_path = tmp.name
-            model.save(tmp_path)
-            with open(tmp_path, "rb") as fh:
-                state["model_"] = fh.read()
-            os.remove(tmp_path)
+            state["model_"] = _serialize_keras_model(model)
             state["_model_serialized"] = True
         return state
 
@@ -183,15 +207,7 @@ class KerasMLPClassifier(ClassifierMixin, BaseEstimator):
         serialized = state.pop("_model_serialized", False)
         self.__dict__.update(state)
         if serialized and isinstance(self.model_, (bytes, bytearray)):
-            import tempfile
-
-            import tensorflow as tf
-
-            with tempfile.NamedTemporaryFile(suffix=".keras", delete=False) as tmp:
-                tmp.write(self.model_)
-                tmp_path = tmp.name
-            self.model_ = tf.keras.models.load_model(tmp_path)
-            os.remove(tmp_path)
+            self.model_ = _deserialize_keras_model(self.model_)
 
 
 # ---------------------------------------------------------------------------
@@ -220,12 +236,7 @@ class ModelTrainer:
     @staticmethod
     def _make_pipeline(estimator) -> Pipeline:
         """Envuelve un estimador con un preprocesador nuevo en un ``Pipeline``."""
-        return Pipeline(
-            steps=[
-                ("preprocessor", build_preprocessor()),
-                ("model", estimator),
-            ]
-        )
+        return make_pipeline(estimator)
 
     def build_models(self) -> dict[str, Pipeline]:
         """Define el catálogo de modelos a entrenar (los 5 algoritmos exigidos).
@@ -235,42 +246,20 @@ class ModelTrainer:
         dict[str, Pipeline]
             Diccionario ``nombre -> Pipeline`` sin ajustar.
         """
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.tree import DecisionTreeClassifier
-        from xgboost import XGBClassifier
+        from .model_factory import build_classic_estimators
 
-        from . import gpu
-
-        def params(nombre: str, base: dict) -> dict:
-            """Combina los parámetros base con los overrides para ese modelo."""
-            return {**base, **self.param_overrides.get(nombre, {})}
-
-        # XGBoost usa GPU (device='cuda') si hay una disponible; si no, CPU.
-        xgb_params = {**params("XGBoost", config.XGBOOST_PARAMS), **gpu.xgboost_gpu_kwargs()}
-
-        modelos = {
-            "Logistic Regression": LogisticRegression(
-                **params("Logistic Regression", config.LOGISTIC_REGRESSION_PARAMS)
-            ),
-            "Decision Tree": DecisionTreeClassifier(
-                **params("Decision Tree", config.DECISION_TREE_PARAMS)
-            ),
-            "Random Forest": RandomForestClassifier(
-                **params("Random Forest", config.RANDOM_FOREST_PARAMS)
-            ),
-            "XGBoost": XGBClassifier(**xgb_params),
-            "Neural Network (Keras)": KerasMLPClassifier(
-                hidden_units=config.NN_PARAMS["hidden_units"],
-                dropout=config.NN_PARAMS["dropout"],
-                epochs=config.NN_PARAMS["epochs"],
-                batch_size=config.NN_PARAMS["batch_size"],
-                learning_rate=config.NN_PARAMS["learning_rate"],
-                validation_split=config.NN_PARAMS["validation_split"],
-                early_stopping_patience=config.NN_PARAMS["early_stopping_patience"],
-                random_state=self.random_state,
-            ),
-        }
+        # Los 4 clásicos salen de la fábrica única.
+        modelos = build_classic_estimators(overrides=self.param_overrides)
+        modelos["Neural Network (Keras)"] = KerasMLPClassifier(
+            hidden_units=config.NN_PARAMS["hidden_units"],
+            dropout=config.NN_PARAMS["dropout"],
+            epochs=config.NN_PARAMS["epochs"],
+            batch_size=config.NN_PARAMS["batch_size"],
+            learning_rate=config.NN_PARAMS["learning_rate"],
+            validation_split=config.NN_PARAMS["validation_split"],
+            early_stopping_patience=config.NN_PARAMS["early_stopping_patience"],
+            random_state=self.random_state,
+        )
         return {nombre: self._make_pipeline(est) for nombre, est in modelos.items()}
 
     def train(self, X_train, y_train) -> dict[str, Pipeline]:

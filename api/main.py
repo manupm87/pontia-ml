@@ -16,8 +16,6 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src import config
-
 from . import service
 from .schemas import (
     BatchRequest,
@@ -83,23 +81,7 @@ def model_info() -> ModelInfo:
     hubo. Útil para verificar de un vistazo que la API esté sirviendo lo
     esperado tras un despliegue.
     """
-    load_info = service.get_load_info()
-    return ModelInfo(
-        model_type="XGBoost",
-        primary_metric=config.PRIMARY_METRIC,
-        roc_auc=service.MODEL_ROC_AUC,
-        n_features=len(config.NUMERIC_COLUMNS) + len(config.CATEGORICAL_COLUMNS),
-        features={
-            "numeric": config.NUMERIC_COLUMNS,
-            "categorical": config.CATEGORICAL_COLUMNS,
-        },
-        source=load_info.get("source", "bundled"),
-        registry_uri=load_info.get("registry_uri"),
-        version=load_info.get("version"),
-        stage=load_info.get("stage"),
-        run_id=load_info.get("run_id"),
-        fallback_reason=load_info.get("fallback_reason"),
-    )
+    return ModelInfo(**service.get_model_info_payload())
 
 
 @app.post(

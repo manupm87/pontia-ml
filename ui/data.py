@@ -38,10 +38,25 @@ try:  # pragma: no cover - depende del entorno de ejecución
     def _cache_data(func):
         return st.cache_data(show_spinner=False)(func)
 
+    def _cache_data_ttl(ttl: int):
+        """Variante de `_cache_data` con expiración (TTL en segundos)."""
+
+        def decorator(func):
+            return st.cache_data(ttl=ttl, show_spinner=False)(func)
+
+        return decorator
+
 except Exception:  # pragma: no cover - entorno sin Streamlit (tests)
 
     def _cache_data(func):
         return lru_cache(maxsize=None)(func)
+
+    def _cache_data_ttl(ttl: int):
+        # Sin Streamlit no hay expiración: `lru_cache` basta para los tests.
+        def decorator(func):
+            return lru_cache(maxsize=None)(func)
+
+        return decorator
 
 
 # ---------------------------------------------------------------------------
@@ -80,14 +95,14 @@ def load_dataset(nrows: int | None = None) -> pd.DataFrame:
     """
     return pd.read_csv(
         config.RAW_DATASET_PATH,
-        na_values=["NULL", "NA", "NaN", ""],
+        na_values=config.NA_TOKENS,
         keep_default_na=True,
         nrows=nrows,
     )
 
 
 @_cache_data
-def load_dataset_sample(n: int = 200) -> pd.DataFrame:
+def load_dataset_sample(n: int) -> pd.DataFrame:
     """Devuelve una muestra reproducible del dataset (para vistas previas)."""
     df = load_dataset()
     n = min(n, len(df))
@@ -121,20 +136,16 @@ def get_categorical_options() -> dict[str, list[str]]:
         options[col] = sorted(df[col].dropna().unique().tolist())
 
     # Meses en orden natural (no alfabético) para que el desplegable tenga sentido.
-    month_order = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-    ]
     present = set(options.get("arrival_date_month", []))
-    options["arrival_date_month"] = [m for m in month_order if m in present]
+    options["arrival_date_month"] = [m for m in config.MONTH_ORDER if m in present]
 
     # País: las 30 más frecuentes (el resto agrupado por el modelo).
     options["country"] = df["country"].dropna().value_counts().head(30).index.tolist()
 
     # Agente: identificador categórico. En el CSV se lee como float (9.0); lo
     # pasamos a string entero ("9") para casar con el contrato de la API.
-    agent_counts = df["agent"].dropna()
-    agent_strings = agent_counts.map(lambda v: str(int(v))).value_counts()
+    agent_values = df["agent"].dropna()
+    agent_strings = agent_values.map(lambda v: str(int(v))).value_counts()
     options["agent"] = agent_strings.head(30).index.tolist()
 
     return options
@@ -185,23 +196,29 @@ def class_balance() -> pd.DataFrame:
 def numeric_summary() -> pd.DataFrame:
     """Resumen estadístico de algunas variables numéricas relevantes."""
     df = load_dataset()
-    cols = ["lead_time", "adr", "stays_in_week_nights", "total_of_special_requests"]
-    cols = [c for c in cols if c in df.columns]
+    cols = [c for c in config.EDA_NUMERIC_COLUMNS if c in df.columns]
     return df[cols].describe().T.round(2).reset_index().rename(columns={"index": "variable"})
 
 
 # ---------------------------------------------------------------------------
 # Cliente de la API de predicción
 # ---------------------------------------------------------------------------
+# Hosts que se consideran "locales": si la URL de la API contiene alguno, la API
+# NO es remota.
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0")
+
+
 def is_remote_api() -> bool:
     """¿La API configurada es remota (no localhost)?
 
     Útil para decidir si mostrar el aviso de *cold start* (servicios free
     como Render se duermen tras 15 min de inactividad y tardan ~30-50 s en
-    despertar) y para activar el *pre-warm* en `app.py`.
+    despertar) y para activar el *pre-warm* en `app.py`. Se evalúa sobre
+    ``config.API_BASE_URL`` en cada llamada (es una comprobación trivial) para
+    reflejar siempre la configuración vigente.
     """
     url = config.API_BASE_URL.lower()
-    return ("localhost" not in url) and ("127.0.0.1" not in url) and ("0.0.0.0" not in url)
+    return not any(host in url for host in _LOCAL_HOSTS)
 
 
 # Timeout largo para el pre-warm: en Render free el primer arranque tras
@@ -228,8 +245,14 @@ def warm_up_api() -> bool:
     return True
 
 
+@_cache_data_ttl(10)
 def check_api_health() -> tuple[bool, dict[str, Any] | str]:
     """Comprueba si la API está viva consultando `GET /health`.
+
+    Cacheada brevemente (TTL 10 s) para que un mismo render —que consulta el
+    estado en la barra lateral y en la página de predicción— no dispare varias
+    peticiones HTTP síncronas. El TTL corto mantiene el estado razonablemente
+    fresco entre interacciones.
 
     Returns
     -------
@@ -289,19 +312,14 @@ def predict_booking(booking: dict[str, Any]) -> tuple[bool, dict[str, Any] | str
 # ---------------------------------------------------------------------------
 # Utilidades de presentación de artefactos
 # ---------------------------------------------------------------------------
-def existing_pngs(filenames: list[str]) -> list[Path]:
-    """De una lista de nombres de PNG en `outputs/`, devuelve los que existen.
-
-    Útil para iterar sobre gráficos conocidos y mostrar solo los disponibles
-    (los SHAP, por ejemplo, pueden no estar generados todavía).
-    """
-    paths = [config.OUTPUTS_DIR / name for name in filenames]
-    return [p for p in paths if p.exists()]
-
-
+@_cache_data_ttl(30)
 def find_shap_pngs() -> list[Path]:
     """Localiza los gráficos SHAP (`shap_*.png`) si el módulo de interpretabilidad
-    ya se ejecutó. Devuelve lista vacía si aún no existen."""
+    ya se ejecutó. Devuelve lista vacía si aún no existen.
+
+    Cacheada con TTL corto (30 s) para no hacer un *glob* de filesystem en cada
+    render; el TTL permite que aparezcan los SHAP recién generados sin reiniciar.
+    """
     if not config.OUTPUTS_DIR.exists():
         return []
     return sorted(config.OUTPUTS_DIR.glob("shap_*.png"))

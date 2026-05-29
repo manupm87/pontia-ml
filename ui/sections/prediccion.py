@@ -1,8 +1,13 @@
-"""Sección 3 — Predicción (consume la API FastAPI).
+"""Sección 3 — Predicción.
 
 Presenta un formulario con las 27 variables de una reserva y, al enviarlo,
 llama a la API (`POST /predict`) para obtener la probabilidad de cancelación.
 Si la API no está disponible, se explica en español cómo arrancarla.
+
+Las explicaciones extra (waterfall SHAP y mapa 2D) se calculan **en proceso**
+reutilizando funciones PÚBLICAS de `src` (no la API), porque requieren el modelo
+y los artefactos PLS cargados localmente. Es una decisión consciente para esta
+app didáctica; en un sistema en producción se moverían detrás de la API.
 """
 
 from __future__ import annotations
@@ -10,7 +15,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from .. import booking, config, data
+from .. import booking, config, data, layout
 
 
 @st.cache_resource(show_spinner=False)
@@ -28,9 +33,9 @@ def _load_pls_artifacts():
     Pesa ~5 MB en memoria; cargarlo una sola vez evita parar la UI cada vez que
     el usuario predice una reserva.
     """
-    from src.visualization_2d import _load_artifacts
+    from src.visualization_2d import load_artifacts
 
-    return _load_artifacts()
+    return load_artifacts()
 
 
 def _render_shap_explanation(payload: dict) -> None:
@@ -92,59 +97,34 @@ def _render_position_on_2d(payload: dict, probability: float) -> None:
         st.error(f"No se pudo dibujar el mapa 2D: {exc}")
 
 
-def _render_api_status() -> bool:
-    """Muestra el estado de la API y devuelve True si está operativa."""
-    ok, info = data.check_api_health()
-    if ok:
-        modelo_ok = isinstance(info, dict) and info.get("model_loaded")
-        st.success(
-            f"API conectada en `{config.API_BASE_URL}` "
-            f"(modelo cargado: {'sí' if modelo_ok else 'no'}).",
-            icon="✅",
-        )
-        return True
+def _render_field(target, fld, defaults: dict, options: dict):
+    """Pinta un campo del formulario en `target` y devuelve su valor.
 
-    if data.is_remote_api():
-        # En Render free, "no disponible" suele significar "dormida".
-        # Mostramos un aviso amable en vez de un error técnico.
-        st.warning(
-            f"**La API parece estar dormida** en `{config.API_BASE_URL}`.\n\n"
-            "Los servicios del tier gratuito de Render se apagan tras 15 min "
-            "de inactividad y el primer arranque tarda **~30–50 s**. "
-            "Espera medio minuto y recarga la página: si el problema persiste, "
-            "es que la API no está desplegada.\n\n"
-            f"Detalle técnico: {info}",
-            icon="⏳",
+    Unifica las ramas numéricas (`int`/`float`): solo cambia el *cast* del tipo,
+    de modo que `st.number_input` reciba los límites y el valor por defecto en el
+    tipo correcto. Las categóricas usan un desplegable con sus opciones.
+    """
+    if fld.kind == "categorical":
+        opts = options.get(fld.options_key or fld.name, [])
+        default = defaults.get(fld.name)
+        # Garantizamos que el valor por defecto esté en la lista.
+        if default is not None and default not in opts:
+            opts = [default, *opts]
+        index = opts.index(default) if default in opts else 0
+        return target.selectbox(
+            fld.label, opts, index=index, help=fld.help, key=f"f_{fld.name}",
         )
-        return False
 
-    st.error(
-        f"**La API no está disponible** en `{config.API_BASE_URL}`.\n\n"
-        f"Motivo: {info}",
-        icon="🚫",
+    cast = int if fld.kind == "int" else float
+    return target.number_input(
+        fld.label,
+        min_value=cast(fld.min) if fld.min is not None else None,
+        max_value=cast(fld.max) if fld.max is not None else None,
+        value=cast(defaults.get(fld.name, cast(0))),
+        step=cast(fld.step) if fld.step is not None else cast(1),
+        help=fld.help,
+        key=f"f_{fld.name}",
     )
-    with st.expander("¿Cómo arranco la API?"):
-        st.markdown(
-            f"""
-            La predicción necesita la **API FastAPI** del proyecto en marcha.
-            Desde la raíz del repo, en otra terminal:
-
-            ```bash
-            uvicorn api.main:app --host 0.0.0.0 --port 8000
-            ```
-
-            Si la API corre en otra URL, indícala con la variable de entorno
-            antes de lanzar esta interfaz:
-
-            ```bash
-            export PONTIA_API_URL="http://mi-host:puerto"
-            streamlit run ui/app.py
-            ```
-
-            URL configurada actualmente: `{config.API_BASE_URL}`
-            """
-        )
-    return False
 
 
 def _render_form() -> dict | None:
@@ -163,39 +143,9 @@ def _render_form() -> dict | None:
             st.markdown(f"**{section_name}**")
             cols = st.columns(2)
             for i, fld in enumerate(fields):
-                target = cols[i % 2]
-                with target:
-                    if fld.kind == "categorical":
-                        opts = options.get(fld.options_key or fld.name, [])
-                        default = defaults.get(fld.name)
-                        # Garantizamos que el valor por defecto esté en la lista.
-                        if default is not None and default not in opts:
-                            opts = [default, *opts]
-                        index = opts.index(default) if default in opts else 0
-                        values[fld.name] = st.selectbox(
-                            fld.label, opts, index=index, help=fld.help,
-                            key=f"f_{fld.name}",
-                        )
-                    elif fld.kind == "int":
-                        values[fld.name] = st.number_input(
-                            fld.label,
-                            min_value=int(fld.min) if fld.min is not None else None,
-                            max_value=int(fld.max) if fld.max is not None else None,
-                            value=int(defaults.get(fld.name, 0)),
-                            step=int(fld.step or 1),
-                            help=fld.help,
-                            key=f"f_{fld.name}",
-                        )
-                    else:  # float
-                        values[fld.name] = st.number_input(
-                            fld.label,
-                            min_value=float(fld.min) if fld.min is not None else None,
-                            max_value=float(fld.max) if fld.max is not None else None,
-                            value=float(defaults.get(fld.name, 0.0)),
-                            step=float(fld.step or 1.0),
-                            help=fld.help,
-                            key=f"f_{fld.name}",
-                        )
+                values[fld.name] = _render_field(
+                    cols[i % 2], fld, defaults, options
+                )
             st.divider()
 
         submitted = st.form_submit_button("Predecir", type="primary", use_container_width=True)
@@ -222,8 +172,8 @@ def _render_result(result: dict) -> None:
         "Probabilidad de cancelación",
         f"{proba * 100:.1f} %",
         delta=f"{(proba - config.BASE_CANCELLATION_RATE) * 100:+.1f} pp vs. media",
-        help="Comparada con la tasa media de cancelación del dataset (~37 %). "
-        "'pp' = puntos porcentuales.",
+        help="Comparada con la tasa media de cancelación del dataset "
+        f"({config.BASE_CANCELLATION_RATE_TEXT}). 'pp' = puntos porcentuales.",
     )
 
     # Barra de progreso como "medidor" visual del riesgo.
@@ -252,7 +202,7 @@ def render() -> None:
         "FastAPI**) estimará la probabilidad de que se cancele."
     )
 
-    api_ok = _render_api_status()
+    api_ok = layout.render_api_status(st, verbose=True)
 
     payload = _render_form()
     if payload is None:

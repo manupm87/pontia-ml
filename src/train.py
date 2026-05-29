@@ -26,44 +26,68 @@ os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 import logging
 
 import joblib
+import pandas as pd
 
 from . import config, tracking
 from .data_loader import load_and_prepare
 from .evaluator import Evaluator
 from .model_trainer import ModelTrainer
+from .reporting import df_to_markdown
 
 logger = logging.getLogger(__name__)
 
 
 # Etiqueta de familia para cada modelo, útil para filtrar runs en la UI
-# de MLflow ("muéstrame solo los XGBoost", etc.).
-_MODEL_FAMILY: dict[str, str] = {
-    "Logistic Regression": "linear",
-    "Decision Tree": "tree",
-    "Random Forest": "forest",
-    "XGBoost": "boosting",
-    "Neural Network (Keras)": "neural_net",
-}
+# de MLflow. Fuente única de verdad en `config` (compartida con tuning/balancing).
+_MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
 
 
-def configure_logging(level: int = logging.INFO) -> None:
-    """Configura un formato de logging legible para todo el pipeline."""
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-        datefmt="%H:%M:%S",
+def _resolve_param_overrides(tune: bool, X_train, y_train) -> dict | None:
+    """Determina los hiperparámetros a usar: los óptimos buscados o los guardados.
+
+    Si ``tune`` es True, ejecuta la búsqueda (que persiste sus artefactos) y
+    devuelve los mejores encontrados. Si no, carga los óptimos previamente
+    guardados (o ``None`` si no existen).
+    """
+    from .tuning import HyperparameterTuner, load_best_params
+
+    if tune:
+        logger.info("=== Fase 1.5: optimización de hiperparámetros (--tune) ===")
+        tuner = HyperparameterTuner()
+        # `tune()` ya persiste resultados + mejores params (una sola escritura);
+        # quedan como predeterminados para próximas ejecuciones.
+        tuner.tune(X_train, y_train)
+        return tuner.best_params_
+
+    param_overrides = load_best_params() or None
+    if param_overrides:
+        logger.info(
+            "Usando hiperparámetros optimizados guardados en %s",
+            config.BEST_PARAMS_PATH,
+        )
+    return param_overrides
+
+
+def _write_metric_tables(tabla) -> None:
+    """Persiste la tabla comparativa de métricas en CSV y Markdown."""
+    tabla.to_csv(config.METRICS_TABLE_PATH)
+    md_path = config.OUTPUTS_DIR / "metricas_modelos.md"
+    md_path.write_text(df_to_markdown(tabla.round(4)) + "\n", encoding="utf-8")
+    logger.info("Tabla de métricas guardada: %s", config.METRICS_TABLE_PATH)
+
+
+def _generate_plots(evaluator: Evaluator, modelos: dict, mejor: str) -> None:
+    """Genera las visualizaciones exigidas por el enunciado."""
+    evaluator.plot_roc_curves(config.OUTPUTS_DIR / "roc_curves.png")
+    evaluator.plot_confusion_matrices(config.OUTPUTS_DIR / "confusion_matrices.png")
+    evaluator.plot_confusion_matrix(
+        mejor, config.OUTPUTS_DIR / "confusion_matrix_best.png"
     )
-
-
-def _df_to_markdown(df) -> str:
-    """Convierte un DataFrame a tabla Markdown sin dependencias externas."""
-    encabezado = "| Modelo | " + " | ".join(df.columns) + " |"
-    separador = "|" + "---|" * (len(df.columns) + 1)
-    filas = [
-        "| " + idx + " | " + " | ".join(f"{v:.4f}" for v in fila) + " |"
-        for idx, fila in zip(df.index, df.to_numpy())
-    ]
-    return "\n".join([encabezado, separador, *filas])
+    # Importancia de variables a partir del Random Forest (modelo interpretable).
+    if "Random Forest" in modelos:
+        evaluator.plot_feature_importance(
+            modelos["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png"
+        )
 
 
 def run_pipeline(tune: bool = False) -> tuple:
@@ -76,10 +100,7 @@ def run_pipeline(tune: bool = False) -> tuple:
         modelos clásicos por validación cruzada (``src.tuning``) y se usan los
         mejores encontrados. Por defecto False (hiperparámetros fijos y rápidos).
     """
-    from . import gpu
-
     config.ensure_directories()
-    gpu.log_status()  # informa de si se usará GPU (XGBoost) o CPU
     # MLflow: activamos el tracking si hay credenciales. Si no, todos los
     # `tracking.*` que vienen a continuación se comportan como no-op y el
     # pipeline funciona exactamente igual que antes.
@@ -91,23 +112,7 @@ def run_pipeline(tune: bool = False) -> tuple:
 
     # 1.5) Hiperparámetros: si se pide --tune, se buscan (y se persisten) ahora;
     # si no, se usan los óptimos previamente guardados (si existen).
-    from .tuning import HyperparameterTuner, load_best_params
-
-    param_overrides = None
-    if tune:
-        logger.info("=== Fase 1.5: optimización de hiperparámetros (--tune) ===")
-        tuner = HyperparameterTuner()
-        tuner.tune(X_train, y_train)
-        tuner.save_results()
-        tuner.save_best_params()  # quedan como predeterminados para próximas ejecuciones
-        param_overrides = tuner.best_params_
-    else:
-        param_overrides = load_best_params() or None
-        if param_overrides:
-            logger.info(
-                "Usando hiperparámetros optimizados guardados en %s",
-                config.BEST_PARAMS_PATH,
-            )
+    param_overrides = _resolve_param_overrides(tune, X_train, y_train)
 
     # 2 + 3) Construcción de pipelines (preprocesado + modelo) y entrenamiento.
     logger.info("=== Fase 2-3: entrenamiento de modelos ===")
@@ -121,24 +126,12 @@ def run_pipeline(tune: bool = False) -> tuple:
     evaluator.evaluate(modelos, X_test, y_test)
 
     tabla = evaluator.comparison_table(trainer.train_times_)
-    tabla.to_csv(config.METRICS_TABLE_PATH)
-    md_path = config.OUTPUTS_DIR / "metricas_modelos.md"
-    md_path.write_text(_df_to_markdown(tabla.round(4)) + "\n", encoding="utf-8")
-    logger.info("Tabla de métricas guardada: %s", config.METRICS_TABLE_PATH)
+    _write_metric_tables(tabla)
 
     mejor = evaluator.select_best()
 
     # Visualizaciones exigidas por el enunciado.
-    evaluator.plot_roc_curves(config.OUTPUTS_DIR / "roc_curves.png")
-    evaluator.plot_confusion_matrices(config.OUTPUTS_DIR / "confusion_matrices.png")
-    evaluator.plot_confusion_matrix(
-        mejor, config.OUTPUTS_DIR / "confusion_matrix_best.png"
-    )
-    # Importancia de variables a partir del Random Forest (modelo interpretable).
-    if "Random Forest" in modelos:
-        evaluator.plot_feature_importance(
-            modelos["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png"
-        )
+    _generate_plots(evaluator, modelos, mejor)
 
     # Persistir el mejor modelo para producción / inferencia.
     joblib.dump(modelos[mejor], config.BEST_MODEL_PATH)
@@ -235,9 +228,7 @@ def _print_summary(tabla, mejor: str) -> None:
     print("\n" + "=" * 70)
     print("RESUMEN DE LA COMPARATIVA DE MODELOS")
     print("=" * 70)
-    with __import__("pandas").option_context(
-        "display.float_format", lambda v: f"{v:.4f}"
-    ):
+    with pd.option_context("display.float_format", lambda v: f"{v:.4f}"):
         print(tabla.to_string())
     print("-" * 70)
     print(f"Métrica principal de selección : {config.PRIMARY_METRIC}")
@@ -257,7 +248,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    configure_logging()
+    config.configure_logging()
     run_pipeline(tune=args.tune)
 
 

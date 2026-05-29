@@ -26,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from ui import config, data  # noqa: E402
+from ui import config, data, layout  # noqa: E402
 from ui.sections import (  # noqa: E402
     eda,
     interpretabilidad,
@@ -70,23 +70,7 @@ def _render_sidebar() -> str:
 
     st.sidebar.divider()
     st.sidebar.subheader("Estado de la API")
-    ok, info = data.check_api_health()
-    if ok:
-        st.sidebar.success("Conectada", icon="✅")
-        if isinstance(info, dict) and info.get("model_loaded") is False:
-            st.sidebar.warning(
-                "La API responde pero el modelo no está cargado.", icon="⚠️"
-            )
-    elif data.is_remote_api():
-        # En hostings free (Render), el servicio se duerme tras 15 min
-        # de inactividad. Avisamos al usuario en vez de dar un escueto
-        # "no disponible" que parece un error de configuración.
-        st.sidebar.warning(
-            "Despertando la API… (~30–50 s la primera vez)",
-            icon="⏳",
-        )
-    else:
-        st.sidebar.error("No disponible", icon="🚫")
+    layout.render_api_status(st.sidebar, verbose=False)
     st.sidebar.caption(f"URL: `{config.API_BASE_URL}`")
     if data.is_remote_api():
         st.sidebar.caption(
@@ -107,15 +91,20 @@ def _render_sidebar() -> str:
     return choice
 
 
-@st.cache_resource(show_spinner=False)
-def _prewarm_api() -> bool:
+_PREWARM_FLAG = "_api_prewarmed"
+
+
+def _prewarm_api() -> None:
     """Despierta la API remota una sola vez por sesión.
 
-    Cacheado con `st.cache_resource`: la primera vez que se carga la
-    aplicación dispara la petición; los `rerun` siguientes la saltan.
-    En localhost es no-op (devuelve True inmediatamente).
+    Usa un *flag* en `st.session_state` como guard one-shot: la primera vez que
+    se carga la aplicación dispara la petición; los `rerun` siguientes la saltan.
+    En localhost es no-op (`warm_up_api` devuelve True inmediatamente).
     """
-    return data.warm_up_api()
+    if st.session_state.get(_PREWARM_FLAG):
+        return
+    data.warm_up_api()
+    st.session_state[_PREWARM_FLAG] = True
 
 
 def main() -> None:
@@ -129,19 +118,24 @@ def main() -> None:
     SECTIONS[choice]()
 
 
-if __name__ == "__main__":
-    main()
-else:
-    # Streamlit importa el script como módulo (`__name__` != "__main__") al
-    # ejecutarlo con `streamlit run`, así que disparamos el renderizado también
-    # en ese caso. Al importarlo desde un test, en cambio, NO se ejecuta porque
-    # Streamlit no está en modo de script (las llamadas a `st.*` no harían nada
-    # útil); para evitar efectos colaterales, comprobamos el contexto.
+def _running_under_streamlit() -> bool:
+    """¿Se está ejecutando dentro del runtime de Streamlit (`streamlit run`)?
+
+    Distingue el arranque real de la app de una importación normal (p. ej. un
+    test que hace `import ui.app`): solo en el primer caso existe un *script run
+    context* activo y tiene sentido renderizar. Capturamos `ImportError` por si
+    la API interna de Streamlit cambia de ubicación entre versiones; cualquier
+    otro fallo debe propagarse en lugar de enmascararse.
+    """
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except ImportError:
+        return False
+    return get_script_run_ctx() is not None
 
-        if get_script_run_ctx() is not None:
-            main()
-    except Exception:
-        # Sin runtime de Streamlit (importación normal): no renderizamos nada.
-        pass
+
+# `streamlit run ui/app.py` ejecuta el script con `__name__ == "__main__"`, pero
+# algunas versiones lo importan como módulo; cubrimos ambos casos detectando el
+# runtime. Al importarlo desde un test (sin runtime) no se renderiza nada.
+if __name__ == "__main__" or _running_under_streamlit():
+    main()

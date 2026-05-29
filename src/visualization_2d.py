@@ -40,21 +40,18 @@ import logging
 from pathlib import Path
 
 import joblib
-import matplotlib
 
-matplotlib.use("Agg")  # Backend sin GUI: imprescindible para escribir PNG en CI/headless.
+from . import config
+
+config.use_agg_backend()  # Backend sin GUI: imprescindible para escribir PNG en CI/headless.
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.colors import ListedColormap
+from matplotlib.figure import Figure
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
-from . import config
 from .data_loader import load_and_prepare
 from .preprocessing import build_preprocessor
 
@@ -84,13 +81,15 @@ def _build_2d_models() -> dict:
     sin dependencia de TensorFlow ni callbacks, ya que aquí solo aprende de 2
     variables y no necesita la maquinaria completa).
     """
+    from .model_factory import build_classic_estimators
+
+    # Los 4 clásicos salen de la fábrica única.
+    clasicos = build_classic_estimators()
     return {
-        "Regresión logística": LogisticRegression(
-            **config.LOGISTIC_REGRESSION_PARAMS
-        ),
-        "Árbol de decisión": DecisionTreeClassifier(**config.DECISION_TREE_PARAMS),
-        "Random Forest": RandomForestClassifier(**config.RANDOM_FOREST_PARAMS),
-        "XGBoost": XGBClassifier(**config.XGBOOST_PARAMS),
+        "Regresión logística": clasicos["Logistic Regression"],
+        "Árbol de decisión": clasicos["Decision Tree"],
+        "Random Forest": clasicos["Random Forest"],
+        "XGBoost": clasicos["XGBoost"],
         "Red neuronal (MLP)": MLPClassifier(
             hidden_layer_sizes=(64, 32),
             max_iter=400,
@@ -178,11 +177,34 @@ def _compute_artifacts() -> dict:
 # ---------------------------------------------------------------------------
 # Renderizado (parte ligera: se puede invocar en caliente desde la UI)
 # ---------------------------------------------------------------------------
+def _draw_sample_star(ax, sample_2d: tuple[float, float]) -> None:
+    """Dibuja la reserva del usuario como una estrella amarilla sobre ``ax``."""
+    ax.scatter(
+        [sample_2d[0]],
+        [sample_2d[1]],
+        marker="*",
+        s=380,
+        c="#ffd400",
+        edgecolor="black",
+        linewidth=1.6,
+        zorder=5,
+    )
+
+
+def _style_axis(ax, title: str, x_range: tuple[float, float], y_range: tuple[float, float]) -> None:
+    """Aplica título, límites y ocultado de ticks comunes a cada subgráfica."""
+    ax.set_title(title)
+    ax.set_xlim(*x_range)
+    ax.set_ylim(*y_range)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+
 def _render_figure(
     artifacts: dict,
     sample_2d: tuple[float, float] | None = None,
     sample_label: str | None = None,
-):
+) -> Figure:
     """Pinta la figura 2x3 con las regiones de decisión y, opcionalmente, una
     nueva reserva marcada como una estrella.
 
@@ -211,15 +233,16 @@ def _render_figure(
     x0, x1 = artifacts["x_range"]
     y0, y1 = artifacts["y_range"]
     model_names = artifacts["model_names"]
+    x_range, y_range = (x0, x1), (y0, y1)
 
     fig, axes = plt.subplots(2, 3, figsize=(16, 10), constrained_layout=True)
     axes = axes.ravel()
     cf = None
     levels = np.linspace(0, 1, 21)
     for ax, name in zip(axes, model_names):
-        Zp = proba_grids[name]
-        cf = ax.contourf(xx, yy, Zp, levels=levels, cmap="RdBu_r", vmin=0, vmax=1)
-        ax.contour(xx, yy, Zp, levels=[0.5], colors="k", linewidths=1.5)
+        proba_grid = proba_grids[name]
+        cf = ax.contourf(xx, yy, proba_grid, levels=levels, cmap="RdBu_r", vmin=0, vmax=1)
+        ax.contour(xx, yy, proba_grid, levels=[0.5], colors="k", linewidths=1.5)
         ax.scatter(
             scatter_points[:, 0],
             scatter_points[:, 1],
@@ -231,21 +254,8 @@ def _render_figure(
             alpha=0.75,
         )
         if sample_2d is not None:
-            ax.scatter(
-                [sample_2d[0]],
-                [sample_2d[1]],
-                marker="*",
-                s=380,
-                c="#ffd400",
-                edgecolor="black",
-                linewidth=1.6,
-                zorder=5,
-            )
-        ax.set_title(name)
-        ax.set_xlim(x0, x1)
-        ax.set_ylim(y0, y1)
-        ax.set_xticks([])
-        ax.set_yticks([])
+            _draw_sample_star(ax, sample_2d)
+        _style_axis(ax, name, x_range, y_range)
 
     # Sexta celda: clase real, como "referencia" visual.
     axes[5].scatter(
@@ -257,21 +267,8 @@ def _render_figure(
         alpha=0.85,
     )
     if sample_2d is not None:
-        axes[5].scatter(
-            [sample_2d[0]],
-            [sample_2d[1]],
-            marker="*",
-            s=380,
-            c="#ffd400",
-            edgecolor="black",
-            linewidth=1.6,
-            zorder=5,
-        )
-    axes[5].set_title("Referencia: clase REAL")
-    axes[5].set_xlim(x0, x1)
-    axes[5].set_ylim(y0, y1)
-    axes[5].set_xticks([])
-    axes[5].set_yticks([])
+        _draw_sample_star(axes[5], sample_2d)
+    _style_axis(axes[5], "Referencia: clase REAL", x_range, y_range)
 
     for k, ax in enumerate(axes):
         if k // 3 == 1:
@@ -310,17 +307,21 @@ def generate_decision_regions_plot(
 
     logger.info("Pintando figura base…")
     fig = _render_figure(artifacts)
-    fig.savefig(png_path, dpi=130, bbox_inches="tight")
+    # `constrained_layout=True` ya gestiona el espaciado; `save_figure` aplicaría
+    # `tight_layout` (incompatible), así que aquí guardamos directamente con el
+    # DPI estandarizado del proyecto.
+    fig.savefig(png_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
     logger.info("Figura guardada en %s", png_path)
     return png_path
 
 
-def _load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
+def load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
     """Carga el pickle con los artefactos del plano PLS.
 
-    Se separa para que la UI pueda envolverlo con su propia caché
-    (``streamlit.cache_resource``) sin acoplar este módulo a Streamlit.
+    Función PÚBLICA: la interfaz la consume para situar una reserva en el mapa 2D
+    sin tener que importar un símbolo privado. Se mantiene fuera de Streamlit para
+    que la UI pueda envolverla con su propia caché.
     """
     if not artifacts_path.exists():
         raise FileNotFoundError(
@@ -328,6 +329,10 @@ def _load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
             "'python -m src.visualization_2d' para generarlo."
         )
     return joblib.load(artifacts_path)
+
+
+# Alias retrocompatible: el código interno seguía llamando a `_load_artifacts`.
+_load_artifacts = load_artifacts
 
 
 def project_booking(
@@ -393,9 +398,7 @@ def plot_booking_on_2d(
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+    config.configure_logging()
     generate_decision_regions_plot()
 
 

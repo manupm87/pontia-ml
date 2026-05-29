@@ -8,7 +8,7 @@ principal, hiperparámetros, etc.) se hace desde un único punto.
 
 from __future__ import annotations
 
-import os
+import logging
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -35,16 +35,6 @@ METRICS_TABLE_PATH: Path = OUTPUTS_DIR / "metricas_modelos.csv"
 # ---------------------------------------------------------------------------
 RANDOM_STATE: int = 42
 TEST_SIZE: float = 0.2
-
-# ---------------------------------------------------------------------------
-# Aceleración por GPU (opt-in)
-# ---------------------------------------------------------------------------
-# Por defecto, todo se ejecuta en CPU: para este tamaño de datos la GPU no
-# acelera (el coste por modelo es pequeño) y la CPU garantiza resultados
-# reproducibles. El código es "GPU-aware": poniendo la variable de entorno
-# PONTIA_USE_GPU=1 se activa el uso de GPU en XGBoost (device='cuda') cuando
-# haya una disponible, con caída automática a CPU si no funciona.
-USE_GPU: bool = os.getenv("PONTIA_USE_GPU", "false").lower() in {"1", "true", "yes"}
 
 # ---------------------------------------------------------------------------
 # Definición del problema
@@ -79,6 +69,9 @@ CATEGORICAL_COLUMNS: list[str] = [
     "customer_type",
     "agent",
 ]
+
+# Lista ordenada de las 27 características de entrada (se rellena más abajo, una
+# vez definidas NUMERIC_COLUMNS y CATEGORICAL_COLUMNS).
 
 # Variables numéricas continuas o discretas.
 #
@@ -115,6 +108,10 @@ NUMERIC_COLUMNS: list[str] = [
     "total_of_special_requests",
 ]
 
+# Lista ordenada de las 27 características de entrada (numéricas + categóricas).
+# Fuente única para contar/enumerar features (la usan la API y los esquemas).
+FEATURE_COLUMNS: list[str] = [*NUMERIC_COLUMNS, *CATEGORICAL_COLUMNS]
+
 # Cardinalidad máxima admitida por variable categórica en el OneHotEncoder.
 # Variables como `country` (178 valores) o `agent` (334) explotarían el espacio
 # de características; agrupamos las categorías poco frecuentes en "infrequent".
@@ -131,8 +128,28 @@ PRIMARY_METRIC: str = "roc_auc"
 # Orden en el que se reportan las métricas en las tablas comparativas.
 METRIC_NAMES: list[str] = ["accuracy", "precision", "recall", "f1", "roc_auc"]
 
-# Etiquetas legibles para las clases de la variable objetivo.
-CLASS_LABELS: list[str] = ["No cancelada (0)", "Cancelada (1)"]
+# Etiquetas legibles (cortas) de las clases. FUENTE ÚNICA DE VERDAD que reutilizan
+# la API y la interfaz. El índice de la lista coincide con la clase predicha
+# (0 = no cancela, 1 = cancela).
+CLASS_LABELS_SHORT: list[str] = ["No cancelada", "Cancelada"]
+
+# Variante con el código de clase entre paréntesis, usada como etiqueta en los
+# gráficos (matriz de confusión). Se deriva de la lista corta para no duplicar.
+CLASS_LABELS: list[str] = [f"{label} ({i})" for i, label in enumerate(CLASS_LABELS_SHORT)]
+
+# Umbral de decisión que convierte la probabilidad estimada en una clase 0/1.
+# Centralizado para no repetir el "0.5" mágico en predict/model_trainer/balancing.
+DECISION_THRESHOLD: float = 0.5
+
+# Familia de cada modelo, útil para filtrar runs en MLflow ("solo XGBoost", etc.).
+# FUENTE ÚNICA DE VERDAD reutilizada por train/tuning/balancing.
+MODEL_FAMILY: dict[str, str] = {
+    "Logistic Regression": "linear",
+    "Decision Tree": "tree",
+    "Random Forest": "forest",
+    "XGBoost": "boosting",
+    "Neural Network (Keras)": "neural_net",
+}
 
 # ---------------------------------------------------------------------------
 # Hiperparámetros de los modelos clásicos (scikit-learn / XGBoost)
@@ -244,6 +261,56 @@ BALANCING_RESULTS_PATH: Path = OUTPUTS_DIR / "balanceo_clases.md"
 BALANCING_PLOT_PATH: Path = OUTPUTS_DIR / "balanceo_clases.png"
 
 
+# ---------------------------------------------------------------------------
+# Reserva de ejemplo (contrato de entrada)
+# ---------------------------------------------------------------------------
+# Una reserva válida con las 27 características, en los nombres EXACTOS que espera
+# el Pipeline. FUENTE ÚNICA DE VERDAD reutilizada por el esquema Pydantic de la
+# API (Swagger) y por el formulario de la interfaz Streamlit.
+BOOKING_EXAMPLE: dict = {
+    "hotel": "City Hotel",
+    "lead_time": 100,
+    "arrival_date_month": "August",
+    "arrival_date_week_number": 33,
+    "arrival_date_day_of_month": 15,
+    "stays_in_weekend_nights": 2,
+    "stays_in_week_nights": 5,
+    "adults": 2,
+    "children": 0,
+    "babies": 0,
+    "meal": "BB",
+    "country": "PRT",
+    "market_segment": "Online TA",
+    "distribution_channel": "TA/TO",
+    "is_repeated_guest": 0,
+    "previous_cancellations": 0,
+    "previous_bookings_not_canceled": 0,
+    "reserved_room_type": "A",
+    "assigned_room_type": "A",
+    "booking_changes": 0,
+    "deposit_type": "No Deposit",
+    "agent": "9",
+    "days_in_waiting_list": 0,
+    "customer_type": "Transient",
+    "adr": 100.0,
+    "required_car_parking_spaces": 0,
+    "total_of_special_requests": 1,
+}
+
+
+def best_metric_value(metric: str = PRIMARY_METRIC) -> float:
+    """Devuelve el mejor valor de ``metric`` en la tabla de métricas persistida.
+
+    Lee ``METRICS_TABLE_PATH`` (generada por el pipeline de entrenamiento) en vez
+    de mantener el número a mano, de forma que el valor reportado nunca se quede
+    obsoleto tras un reentrenamiento. Lanza si el artefacto no existe.
+    """
+    import pandas as pd
+
+    tabla = pd.read_csv(METRICS_TABLE_PATH, index_col=0)
+    return float(tabla[metric].max())
+
+
 def ensure_directories() -> None:
     """Crea las carpetas de salida si no existen.
 
@@ -252,3 +319,28 @@ def ensure_directories() -> None:
     """
     for directory in (PROCESSED_DATA_DIR, MODELS_DIR, OUTPUTS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
+
+
+def configure_logging(level: int = logging.INFO) -> None:
+    """Configura un formato de logging legible para todo el pipeline.
+
+    Ubicado aquí (módulo neutral) para que cualquier ``main()`` del paquete lo
+    use sin que un CLI tenga que importar a otro.
+    """
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+def use_agg_backend() -> None:
+    """Fija el backend no interactivo ``Agg`` de matplotlib en un único sitio.
+
+    Permite guardar PNG sin necesidad de pantalla (CI/headless). Centralizar la
+    llamada evita repetir ``matplotlib.use("Agg")`` como efecto de import en
+    evaluator/interpretability/visualization_2d.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")

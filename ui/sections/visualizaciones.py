@@ -12,58 +12,16 @@ import streamlit as st
 from .. import config
 from ..layout import image_card
 
-# Catálogo de gráficos conocidos: (fichero, título, explicación didáctica).
-KNOWN_PLOTS: list[tuple[str, str, str]] = [
-    (
-        "roc_curves.png",
-        "Curvas ROC de los 5 modelos",
-        "Comparan la capacidad de cada modelo para separar reservas canceladas "
-        "de no canceladas. El área bajo cada curva (**ROC-AUC**) resume su "
-        "calidad: cuanto mayor, mejor.",
-    ),
-    (
-        "confusion_matrices.png",
-        "Matrices de confusión (todos los modelos)",
-        "Para cada modelo, recuento de aciertos y errores por clase. La diagonal "
-        "son los aciertos; fuera de ella, las confusiones. Ayuda a ver el "
-        "compromiso entre **detectar cancelaciones** y **evitar falsas alarmas**.",
-    ),
-    (
-        "confusion_matrix_best.png",
-        "Matriz de confusión del mejor modelo (XGBoost)",
-        "Detalle del modelo ganador. Arriba-izquierda y abajo-derecha son los "
-        "aciertos; las otras dos celdas, los errores (**falsos positivos** y "
-        "**falsos negativos**).",
-    ),
-    (
-        "decision_regions_pls.png",
-        "Regiones de decisión en 2D (proyección PLS)",
-        "Para *ver* en 2D modelos que se entrenan con ~200 variables, los "
-        "proyectamos al plano con **PLS** (un PCA supervisado: elige las 2 "
-        "direcciones más correlacionadas con la cancelación). Sobre ese plano "
-        "reentrenamos los 5 modelos y pintamos su predicción en cada punto: "
-        "**rojo** = predice cancelación, **azul** = no, y la línea negra es la "
-        "frontera 0.5.\n\n"
-        "**Se ve la *personalidad* de cada modelo**: la regresión logística "
-        "traza una frontera recta; el árbol corta en bloques; Random Forest "
-        "suaviza esos bloques; XGBoost queda más fragmentado; el MLP es liso. "
-        "El panel **Referencia** muestra las clases reales para comparar.",
-    ),
-    (
-        "feature_importance.png",
-        "Importancia de variables",
-        "Ranking de las características que más influyen en la predicción del "
-        "modelo. Útil para entender el negocio: qué factores disparan el riesgo "
-        "de cancelación.",
-    ),
-    (
-        "balanceo_clases.png",
-        "Efecto del balanceo de clases",
-        "Compara estrategias para tratar el desbalance (~37 % de cancelaciones): "
-        "sin balanceo, reponderación (`class_weight`) y sobremuestreo (SMOTE). "
-        "El balanceo sube el *recall* (detecta más cancelaciones) a costa de "
-        "algo de precisión, mientras la ROC-AUC apenas cambia.",
-    ),
+# Galería completa: todas las claves del catálogo único de plots (`config.PLOTS`),
+# en el orden en que se quieren mostrar. Los textos viven en el catálogo para no
+# duplicarse con la sección de resumen.
+KNOWN_PLOTS: list[str] = [
+    "roc_curves.png",
+    "confusion_matrices.png",
+    "confusion_matrix_best.png",
+    "decision_regions_pls.png",
+    "feature_importance.png",
+    "balanceo_clases.png",
 ]
 
 
@@ -75,7 +33,8 @@ def render() -> None:
     )
 
     shown = 0
-    for filename, title, explanation in KNOWN_PLOTS:
+    for filename in KNOWN_PLOTS:
+        title, explanation = config.PLOTS[filename]
         rendered = image_card(
             config.OUTPUTS_DIR / filename,
             title=title,

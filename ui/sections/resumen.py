@@ -16,14 +16,23 @@ from ..layout import image_card
 def render() -> None:
     st.title("Resumen y resultados")
 
+    # Nº de modelos comparados, derivado de la tabla de métricas (cae a None si
+    # el artefacto no existe todavía).
+    try:
+        metrics = data.load_metrics_table()
+        n_models = len(metrics)
+    except FileNotFoundError:
+        metrics = None
+        n_models = None
+
     st.markdown(
-        """
+        f"""
         Este proyecto resuelve una **clasificación binaria**: predecir si una
         reserva de hotel se **cancelará** (`1`) o **no** (`0`). Se compararon
-        cinco modelos y se eligió el mejor según la **ROC-AUC**, una métrica que
+        varios modelos y se eligió el mejor según la **ROC-AUC**, una métrica que
         mide la capacidad de *ordenar* las reservas por riesgo de cancelación,
         independiente del umbral de decisión y robusta ante el desbalance de
-        clases (~37 % de cancelaciones).
+        clases ({config.BASE_CANCELLATION_RATE_TEXT} de cancelaciones).
         """
     )
 
@@ -41,7 +50,7 @@ def render() -> None:
     )
     col3.metric(
         label="Modelos comparados",
-        value="5",
+        value=str(n_models) if n_models is not None else "—",
         help="Regresión logística, árbol, random forest, XGBoost y red neuronal.",
     )
 
@@ -53,21 +62,21 @@ def render() -> None:
     )
 
     # --- Tabla comparativa ----------------------------------------------------
-    st.subheader("Comparativa de los 5 modelos")
+    modelos_txt = f"de los {n_models} modelos" if n_models is not None else "de modelos"
+    st.subheader(f"Comparativa {modelos_txt}")
     st.caption(
         "Ordenados por ROC-AUC (de mejor a peor). `train_time_s` es el tiempo de "
         "entrenamiento en segundos."
     )
-    try:
-        metrics = data.load_metrics_table()
+    if metrics is not None:
         # Resaltamos la fila del mejor modelo y formateamos los decimales.
         numeric_cols = [c for c in metrics.columns if c != "Modelo"]
         styled = (
             metrics.style.format({c: "{:.4f}" for c in numeric_cols})
-            .highlight_max(subset=["roc_auc"], color="#d4edda")
+            .highlight_max(subset=["roc_auc"], color=config.BEST_ROW_HIGHLIGHT)
         )
         st.dataframe(styled, use_container_width=True, hide_index=True)
-    except FileNotFoundError:
+    else:
         st.warning(
             "No se encontró `outputs/metricas_modelos.csv`. Ejecuta el pipeline "
             "de entrenamiento para generarlo."
@@ -76,32 +85,12 @@ def render() -> None:
     # --- Visualizaciones clave ------------------------------------------------
     st.subheader("Visualizaciones clave")
 
-    key_plots: list[tuple[str, str, str]] = [
-        (
-            "roc_curves.png",
-            "Curvas ROC",
-            "Cada curva enfrenta la tasa de **verdaderos positivos** "
-            "(cancelaciones detectadas) frente a la de **falsos positivos**. "
-            "Cuanto más se acerca al ángulo superior izquierdo, mejor; el área "
-            "bajo la curva es la **ROC-AUC**.",
-        ),
-        (
-            "confusion_matrices.png",
-            "Matrices de confusión",
-            "Muestran aciertos y errores por clase: verdaderos/falsos positivos y "
-            "negativos. Permiten ver si el modelo confunde más cancelaciones con "
-            "no-cancelaciones o al revés.",
-        ),
-        (
-            "feature_importance.png",
-            "Importancia de variables",
-            "Qué características pesan más en la decisión del modelo ganador "
-            "(p. ej. `lead_time`, `deposit_type` o el país suelen ser muy "
-            "informativos).",
-        ),
-    ]
+    # Seleccionamos del catálogo único de plots (`config.PLOTS`) los gráficos
+    # de cabecera; los textos viven allí para no duplicarse entre secciones.
+    key_plots = ["roc_curves.png", "confusion_matrices.png", "feature_importance.png"]
 
-    for filename, title, description in key_plots:
+    for filename in key_plots:
+        title, description = config.PLOTS[filename]
         image_card(
             config.OUTPUTS_DIR / filename,
             title=title,

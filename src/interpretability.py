@@ -33,9 +33,9 @@ import argparse
 import logging
 from pathlib import Path
 
-import matplotlib
+from . import config
 
-matplotlib.use("Agg")  # backend no interactivo: guarda PNG sin necesidad de pantalla.
+config.use_agg_backend()  # backend no interactivo: guarda PNG sin necesidad de pantalla.
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +43,7 @@ import pandas as pd
 from sklearn.inspection import permutation_importance
 from sklearn.pipeline import Pipeline
 
-from . import config
+from .reporting import save_figure
 
 logger = logging.getLogger(__name__)
 
@@ -202,24 +202,18 @@ def explain_global(
 
     # 1) Beeswarm
     beeswarm_path = output_dir / "shap_summary_beeswarm.png"
-    plt.figure()
+    fig = plt.figure()
     shap.plots.beeswarm(explanation, max_display=20, show=False)
     plt.title("SHAP — Importancia global y dirección (beeswarm)")
-    plt.tight_layout()
-    plt.savefig(beeswarm_path, dpi=120, bbox_inches="tight")
-    plt.close()
-    logger.info("Gráfico guardado: %s", beeswarm_path)
+    save_figure(fig, beeswarm_path, bbox_inches="tight")
     paths["beeswarm"] = beeswarm_path
 
     # 2) Bar (importancia media)
     bar_path = output_dir / "shap_summary_bar.png"
-    plt.figure()
+    fig = plt.figure()
     shap.plots.bar(explanation, max_display=20, show=False)
     plt.title("SHAP — Importancia media global (|valor SHAP| medio)")
-    plt.tight_layout()
-    plt.savefig(bar_path, dpi=120, bbox_inches="tight")
-    plt.close()
-    logger.info("Gráfico guardado: %s", bar_path)
+    save_figure(fig, bar_path, bbox_inches="tight")
     paths["bar"] = bar_path
 
     return paths
@@ -273,15 +267,12 @@ def explain_local(
     explanation, _, _ = _build_tree_explainer(pipeline, X_one)
 
     path = output_dir / filename
-    plt.figure()
+    fig = plt.figure()
     # explanation[0] selecciona la única fila calculada.
     shap.plots.waterfall(explanation[0], max_display=15, show=False)
     if title:
         plt.title(title)
-    plt.tight_layout()
-    plt.savefig(path, dpi=120, bbox_inches="tight")
-    plt.close()
-    logger.info("Gráfico guardado: %s", path)
+    save_figure(fig, path, bbox_inches="tight")
     return path
 
 
@@ -422,15 +413,12 @@ def permutation_importance_report(
 
     top = tabla.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
     path = output_dir / "permutation_importance.png"
-    plt.figure(figsize=(9, 0.42 * len(top) + 1.5))
+    fig = plt.figure(figsize=(9, 0.42 * len(top) + 1.5))
     plt.barh(top["variable"], top["importancia_media"], xerr=top["importancia_std"], color="#2c7fb8")
     plt.xlabel(f"Caída media en {scoring} al barajar la variable")
     plt.ylabel("Variable")
     plt.title(f"Importancia por permutación (top {len(top)})")
-    plt.tight_layout()
-    plt.savefig(path, dpi=120)
-    plt.close()
-    logger.info("Gráfico guardado: %s", path)
+    save_figure(fig, path)
 
     return tabla, path
 
@@ -444,7 +432,7 @@ def main() -> None:
     Pensado para ejecutarse como ``python -m src.interpretability`` desde la
     raíz del repo.
     """
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+    config.configure_logging()
     parser = argparse.ArgumentParser(
         description="Interpretabilidad del mejor modelo (SHAP + permutación)."
     )
@@ -482,23 +470,23 @@ def main() -> None:
     explain_global(pipeline, X_test, sample_size=args.sample)
 
     # 2) Explicaciones locales: una reserva que el modelo da por cancelada y otra
-    #    que da por no cancelada.
+    #    que da por no cancelada. Recorremos ambos extremos en vez de duplicar la
+    #    llamada.
     ejemplos = find_examples(pipeline, X_test)
     proba = pipeline.predict_proba(X_test)[:, 1]
-    explain_local(
-        pipeline,
-        X_test,
-        ejemplos["alta_prob"],
-        filename="shap_waterfall_ejemplo1.png",
-        title=f"Reserva con alta probabilidad de cancelación (p={proba[ejemplos['alta_prob']]:.3f})",
-    )
-    explain_local(
-        pipeline,
-        X_test,
-        ejemplos["baja_prob"],
-        filename="shap_waterfall_ejemplo2.png",
-        title=f"Reserva con baja probabilidad de cancelación (p={proba[ejemplos['baja_prob']]:.3f})",
-    )
+    casos = [
+        ("alta_prob", "shap_waterfall_ejemplo1.png", "alta"),
+        ("baja_prob", "shap_waterfall_ejemplo2.png", "baja"),
+    ]
+    for clave, filename, etiqueta in casos:
+        idx = ejemplos[clave]
+        explain_local(
+            pipeline,
+            X_test,
+            idx,
+            filename=filename,
+            title=f"Reserva con {etiqueta} probabilidad de cancelación (p={proba[idx]:.3f})",
+        )
 
     # 3) Importancia por permutación (complemento agnóstico al modelo).
     if not args.no_permutation:

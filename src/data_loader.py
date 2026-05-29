@@ -107,7 +107,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_feature_target(df: pd.DataFrame):
+def get_feature_target(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """Separa la matriz de características ``X`` de la variable objetivo ``y``.
 
     Returns
@@ -120,7 +120,9 @@ def get_feature_target(df: pd.DataFrame):
     return X, y
 
 
-def split_data(X: pd.DataFrame, y: pd.Series):
+def split_data(
+    X: pd.DataFrame, y: pd.Series
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """Realiza una partición *estratificada* train/test.
 
     La estratificación mantiene la misma proporción de cancelaciones (~37 %) en
@@ -149,7 +151,7 @@ def split_data(X: pd.DataFrame, y: pd.Series):
     return X_train, X_test, y_train, y_test
 
 
-def load_and_prepare():
+def load_and_prepare() -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """Atajo que ejecuta todo el flujo de datos de principio a fin.
 
     Returns

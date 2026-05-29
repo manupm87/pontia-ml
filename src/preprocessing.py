@@ -74,6 +74,21 @@ def build_preprocessor() -> ColumnTransformer:
     return preprocessor
 
 
+def make_pipeline(estimator) -> Pipeline:
+    """Envuelve un estimador con un preprocesador nuevo en un ``Pipeline``.
+
+    Fuente única del patrón ``Pipeline([("preprocessor", build_preprocessor()),
+    ("model", estimator)])`` que antes se reimplementaba en model_trainer/tuning/
+    balancing.
+    """
+    return Pipeline(
+        steps=[
+            ("preprocessor", build_preprocessor()),
+            ("model", estimator),
+        ]
+    )
+
+
 def get_feature_names(fitted_preprocessor: ColumnTransformer) -> list[str]:
     """Devuelve los nombres de las características tras el preprocesado.
 

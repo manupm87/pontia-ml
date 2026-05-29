@@ -58,12 +58,11 @@ def render() -> None:
         )
 
     # Siempre mostramos la importancia de variables como base interpretativa.
+    # Título y descripción salen del catálogo único de plots (`config.PLOTS`).
+    fi_title, fi_description = config.PLOTS["feature_importance.png"]
     image_card(
         config.OUTPUTS_DIR / "feature_importance.png",
-        title="Importancia de variables (modelo ganador)",
-        description=(
-            "Ranking de las variables más influyentes en XGBoost. Da una visión "
-            "global; SHAP complementa esto explicando reservas individuales."
-        ),
+        title=fi_title,
+        description=fi_description,
         not_found_message="No se encontró `outputs/feature_importance.png`.",
     )

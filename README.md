@@ -145,12 +145,13 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   ├── config.py          # Configuración: rutas, ajustes y constantes
 │   ├── data_loader.py     # Cargar, limpiar y dividir los datos
 │   ├── preprocessing.py   # Preparar los datos para el modelo
+│   ├── model_factory.py   # Fábrica única de los estimadores clásicos
 │   ├── model_trainer.py   # Definir y entrenar los modelos
 │   ├── evaluator.py       # Calcular métricas y crear gráficos
+│   ├── reporting.py       # Helpers compartidos (tablas Markdown, guardar figuras)
 │   ├── tuning.py          # Optimización de hiperparámetros (Grid/RandomizedSearchCV)
 │   ├── balancing.py       # Comparación de balanceo de clases (class_weight / SMOTE)
 │   ├── interpretability.py # Interpretabilidad con SHAP + importancia por permutación (bonus)
-│   ├── gpu.py             # Detección/uso opcional de GPU (CUDA) para XGBoost
 │   ├── train.py           # 🚀 Programa principal (--tune opcional)
 │   └── predict.py         # Hacer predicciones con el mejor modelo
 ├── api/                # 🔌 API REST (FastAPI) que sirve el modelo (bonus)
@@ -164,6 +165,9 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   ├── config.py / data.py / booking.py  # Configuración, datos y formulario
 │   ├── sections/          # Una pantalla por sección (resumen, predicción, EDA…)
 │   └── README.md          # Cómo arrancar la interfaz
+├── tests/              # 🧪 Suite de tests (src + contract tests de fuente única)
+├── conftest.py         # Fixtures compartidas (datos sintéticos, modelo, API)
+├── pytest.ini          # Configuración de pytest (testpaths, marcadores)
 ├── requirements.txt    # Lista de librerías necesarias (con sus versiones)
 ├── render.yaml         # Configuración del despliegue en Render (API)
 ├── requirements-train.txt   # Dependencias EXTRA para entrenar / abrir notebooks
@@ -280,19 +284,6 @@ Contrasta **sin balanceo**, **class_weight** (reponderar la clase minoritaria) y
 mientras el **ROC-AUC apenas cambia** (es independiente del umbral). Por eso el
 pipeline principal no balancea: optimizamos ROC-AUC y el compromiso
 recall/precisión se ajustaría moviendo el umbral según el coste de negocio.
-
-#### Aceleración por GPU (opcional)
-
-El proyecto corre en **CPU por defecto** (para este tamaño de datos la GPU no
-acelera y la CPU es 100 % reproducible). El código es *GPU-aware*: si tienes una
-GPU NVIDIA y quieres que **XGBoost** la use, define la variable de entorno:
-
-```bash
-PONTIA_USE_GPU=1 python -m src.train     # XGBoost con device='cuda' (si hay GPU)
-```
-
-Si la GPU no es utilizable, cae automáticamente a CPU. *(La red neuronal usaría
-GPU solo con un TensorFlow compilado con CUDA; aquí se usa `tensorflow-cpu`.)*
 
 ### 2. Predecir con el mejor modelo
 
@@ -421,6 +412,30 @@ curl -s http://127.0.0.1:8000/model-info | python -m json.tool
 Si la descarga falla por cualquier motivo (red, token), la API cae automáticamente
 al pickle local y refleja el fallo en `fallback_reason`. La arquitectura
 completa del sistema, con diagramas, está en [`docs/arquitectura.md`](docs/arquitectura.md).
+
+### 8. Ejecutar los tests (pytest)
+
+El proyecto incluye una suite de tests que cubre la lógica de `src/`, el contrato
+de la API y la lógica de la interfaz, además de unos *contract tests* que
+garantizan que las constantes compartidas (etiquetas de clase, umbral de decisión,
+reserva de ejemplo, familias de modelo...) tengan una **única fuente de verdad** en
+`src/config.py`.
+
+```bash
+# Suite completa
+.venv/bin/python -m pytest
+
+# Solo los tests rápidos (omite los que cargan el modelo entrenado)
+.venv/bin/python -m pytest -m "not slow"
+
+# Un módulo concreto
+.venv/bin/python -m pytest tests/test_contracts.py -q
+```
+
+Los tests que cargan el `Pipeline` completo desde disco están marcados con
+`@pytest.mark.slow`. La configuración vive en `pytest.ini` y las *fixtures*
+compartidas (DataFrame sintético de reservas, modelo bundled, cliente de la API)
+en `conftest.py`.
 
 ---
 

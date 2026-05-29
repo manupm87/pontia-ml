@@ -39,7 +39,7 @@ def _bar_cancellation_rate(column: str, label: str) -> None:
     fig.add_hline(
         y=config.BASE_CANCELLATION_RATE * 100,
         line_dash="dash",
-        annotation_text="Media global (~37 %)",
+        annotation_text=f"Media global ({config.BASE_CANCELLATION_RATE_TEXT})",
         annotation_position="top right",
     )
     fig.update_layout(coloraxis_showscale=False, yaxis_title="% cancelaciones")
@@ -60,17 +60,18 @@ def render() -> None:
     st.subheader("Balance de clases")
     st.caption(
         "Reparto entre reservas canceladas y no canceladas. El desbalance "
-        "(~37 % cancelan) justifica usar ROC-AUC y explorar técnicas de balanceo."
+        f"({config.BASE_CANCELLATION_RATE_TEXT} cancelan) justifica usar ROC-AUC "
+        "y explorar técnicas de balanceo."
     )
     balance = data.class_balance()
-    col_chart, col_table = st.columns([2, 1])
+    col_chart, col_table = st.columns(config.CHART_TABLE_RATIO)
     with col_chart:
         fig = px.pie(
             balance,
             names="clase",
             values="reservas",
             color="clase",
-            color_discrete_map={"No cancelada": "#2c7fb8", "Cancelada": "#de2d26"},
+            color_discrete_map=config.CLASS_COLORS,
             hole=0.4,
         )
         st.plotly_chart(fig, use_container_width=True)

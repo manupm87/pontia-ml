@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import logging
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -37,10 +36,10 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.pipeline import Pipeline
 
 from . import config, tracking
-from .preprocessing import build_preprocessor
+from .preprocessing import build_preprocessor, make_pipeline
+from .reporting import df_to_markdown, save_figure
 
 logger = logging.getLogger(__name__)
 
@@ -49,27 +48,13 @@ ESTRATEGIAS = ["baseline", "class_weight", "SMOTE"]
 
 def _make_estimators(strategy: str, pos_weight: float) -> dict:
     """Crea los 4 modelos clásicos con la estrategia de balanceo indicada."""
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.tree import DecisionTreeClassifier
-    from xgboost import XGBClassifier
+    from .model_factory import build_classic_estimators
 
     # class_weight='balanced' para sklearn; scale_pos_weight para XGBoost.
     cw = "balanced" if strategy == "class_weight" else None
     spw = pos_weight if strategy == "class_weight" else 1.0
 
-    return {
-        "Logistic Regression": LogisticRegression(
-            **config.LOGISTIC_REGRESSION_PARAMS, class_weight=cw
-        ),
-        "Decision Tree": DecisionTreeClassifier(
-            **config.DECISION_TREE_PARAMS, class_weight=cw
-        ),
-        "Random Forest": RandomForestClassifier(
-            **config.RANDOM_FOREST_PARAMS, class_weight=cw
-        ),
-        "XGBoost": XGBClassifier(**config.XGBOOST_PARAMS, scale_pos_weight=spw),
-    }
+    return build_classic_estimators(class_weight=cw, scale_pos_weight=spw)
 
 
 def _build_pipeline(strategy: str, estimator):
@@ -90,9 +75,7 @@ def _build_pipeline(strategy: str, estimator):
                 ("model", estimator),
             ]
         )
-    return Pipeline(
-        steps=[("preprocessor", build_preprocessor()), ("model", estimator)]
-    )
+    return make_pipeline(estimator)
 
 
 def compare(X_train, X_test, y_train, y_test) -> pd.DataFrame:
@@ -106,7 +89,7 @@ def compare(X_train, X_test, y_train, y_test) -> pd.DataFrame:
             pipe = _build_pipeline(strategy, estimator)
             pipe.fit(X_train, y_train)
             proba = pipe.predict_proba(X_test)[:, 1]
-            pred = (proba >= 0.5).astype(int)
+            pred = (proba >= config.DECISION_THRESHOLD).astype(int)
             filas.append(
                 {
                     "modelo": nombre,
@@ -129,24 +112,13 @@ def compare(X_train, X_test, y_train, y_test) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
-def _to_markdown(df: pd.DataFrame) -> str:
-    cols = list(df.columns)
-    enc = "| " + " | ".join(cols) + " |"
-    sep = "|" + "---|" * len(cols)
-    filas = [
-        "| " + " | ".join(f"{v:.3f}" if isinstance(v, float) else str(v) for v in fila) + " |"
-        for fila in df.to_numpy()
-    ]
-    return "\n".join([enc, sep, *filas])
-
-
 def save_results(df: pd.DataFrame) -> None:
     """Guarda la tabla comparativa (Markdown) y un gráfico del efecto en XGBoost."""
     texto = [
         "# Balanceo de clases — comparación de estrategias\n",
         "Desbalance del problema: ~37 % de cancelaciones. Métricas sobre el conjunto "
         "de test, con hiperparámetros base (para aislar el efecto del balanceo).\n",
-        _to_markdown(df.round(3)),
+        df_to_markdown(df.round(3), index_label=None, float_fmt="{:.3f}"),
         "\n**Lectura.** El balanceo (class_weight o SMOTE) **sube el recall** "
         "—se detectan más cancelaciones— a costa de **bajar la precisión**, mientras "
         "que el **ROC-AUC apenas cambia** (es independiente del umbral). Es decir, no "
@@ -171,18 +143,11 @@ def save_results(df: pd.DataFrame) -> None:
     ax.set_ylim(0, 1); ax.set_ylabel("valor (test)")
     ax.set_title("Efecto del balanceo en XGBoost\n(sube recall, baja precisión; ROC-AUC casi igual)")
     ax.legend(title="estrategia"); ax.grid(axis="y", alpha=0.3)
-    plt.tight_layout()
-    fig.savefig(config.BALANCING_PLOT_PATH, dpi=110, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Gráfico de balanceo guardado en: %s", config.BALANCING_PLOT_PATH)
+    save_figure(fig, config.BALANCING_PLOT_PATH, bbox_inches="tight")
 
 
-_MODEL_FAMILY: dict[str, str] = {
-    "Logistic Regression": "linear",
-    "Decision Tree": "tree",
-    "Random Forest": "forest",
-    "XGBoost": "boosting",
-}
+# Fuente única de verdad en `config` (compartida con train/tuning).
+_MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
 
 _METRIC_COLS: tuple[str, ...] = ("accuracy", "precision", "recall", "f1", "roc_auc")
 
@@ -227,10 +192,9 @@ def _log_to_mlflow(df: pd.DataFrame) -> None:
 
 def main() -> None:
     from .data_loader import load_and_prepare
-    from .train import configure_logging
 
-    matplotlib.use("Agg")  # CLI: backend no interactivo para guardar el PNG sin pantalla
-    configure_logging()
+    config.use_agg_backend()  # CLI: backend no interactivo para guardar el PNG sin pantalla
+    config.configure_logging()
     config.ensure_directories()
     tracking.init_tracking("pontia-cancellations-balancing")
     logger.info("=== Balanceo de clases: baseline vs class_weight vs SMOTE ===")

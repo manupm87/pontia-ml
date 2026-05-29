@@ -63,7 +63,7 @@ def predict_dataframe(df: pd.DataFrame, model=None) -> pd.DataFrame:
         model = load_best_model()
     X = prepare_for_inference(df)
     proba = model.predict_proba(X)[:, 1]
-    pred = (proba >= 0.5).astype(int)
+    pred = (proba >= config.DECISION_THRESHOLD).astype(int)
     return pd.DataFrame(
         {"prediction": pred, "probability_canceled": proba.round(4)},
         index=df.index,
@@ -71,7 +71,7 @@ def predict_dataframe(df: pd.DataFrame, model=None) -> pd.DataFrame:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+    config.configure_logging()
     parser = argparse.ArgumentParser(description="Inferencia de cancelaciones de reservas.")
     parser.add_argument("--input", type=str, help="CSV de entrada con reservas.")
     parser.add_argument("--output", type=str, help="CSV de salida con predicciones.")
@@ -84,7 +84,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.input:
-        df = pd.read_csv(args.input, na_values=config.NA_TOKENS, keep_default_na=True)
+        df = load_raw_data(args.input)
     else:
         n = args.sample or 10
         df = load_raw_data().sample(n=n, random_state=config.RANDOM_STATE)
@@ -94,7 +94,9 @@ def main() -> None:
     resultado = predict_dataframe(df, model=model)
 
     if args.output:
-        resultado.to_csv(args.output, index=False)
+        # Conservamos el índice (que `predict_dataframe` hereda de la entrada)
+        # para poder casar cada fila de salida con su reserva de origen.
+        resultado.to_csv(args.output, index=True)
         logger.info("Predicciones guardadas en %s", args.output)
     else:
         print(resultado.to_string())

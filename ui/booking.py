@@ -10,38 +10,13 @@ abrir la página el formulario ya trae una reserva válida lista para enviar.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+from src import config
 
 # Reserva de ejemplo (contrato de la API). Nombres de campo EXACTOS.
-EXAMPLE_BOOKING: dict = {
-    "hotel": "City Hotel",
-    "lead_time": 100,
-    "arrival_date_month": "August",
-    "arrival_date_week_number": 33,
-    "arrival_date_day_of_month": 15,
-    "stays_in_weekend_nights": 2,
-    "stays_in_week_nights": 5,
-    "adults": 2,
-    "children": 0,
-    "babies": 0,
-    "meal": "BB",
-    "country": "PRT",
-    "market_segment": "Online TA",
-    "distribution_channel": "TA/TO",
-    "is_repeated_guest": 0,
-    "previous_cancellations": 0,
-    "previous_bookings_not_canceled": 0,
-    "reserved_room_type": "A",
-    "assigned_room_type": "A",
-    "booking_changes": 0,
-    "deposit_type": "No Deposit",
-    "agent": "9",
-    "days_in_waiting_list": 0,
-    "customer_type": "Transient",
-    "adr": 100.0,
-    "required_car_parking_spaces": 0,
-    "total_of_special_requests": 1,
-}
+# Fuente única de verdad en `src.config`, compartida con el esquema de la API.
+EXAMPLE_BOOKING: dict = config.BOOKING_EXAMPLE
 
 
 @dataclass(frozen=True)
