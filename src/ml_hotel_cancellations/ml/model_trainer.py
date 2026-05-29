@@ -29,7 +29,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.pipeline import Pipeline
 
-from . import config
+from ml_hotel_cancellations import config
 from .preprocessing import make_pipeline
 
 logger = logging.getLogger(__name__)

@@ -14,8 +14,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
 # ---------------------------------------------------------------------------
-# `PROJECT_ROOT` apunta a la raíz del repo (un nivel por encima de `src/`).
-PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
+# `PROJECT_ROOT` apunta a la raíz del repo. Este módulo vive en
+# `src/ml_hotel_cancellations/config.py`, así que la raíz está 2 niveles arriba.
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 DATA_DIR: Path = PROJECT_ROOT / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"

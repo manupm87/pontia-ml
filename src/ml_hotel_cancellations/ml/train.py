@@ -28,11 +28,12 @@ import logging
 import joblib
 import pandas as pd
 
-from . import config, tracking
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.utils import tracking
 from .data_loader import load_and_prepare
 from .evaluator import Evaluator
 from .model_trainer import ModelTrainer
-from .reporting import df_to_markdown
+from ml_hotel_cancellations.utils.reporting import df_to_markdown
 
 logger = logging.getLogger(__name__)
 

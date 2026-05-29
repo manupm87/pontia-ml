@@ -36,9 +36,10 @@ from sklearn.model_selection import (
 )
 from sklearn.pipeline import Pipeline
 
-from . import config, tracking
+from ml_hotel_cancellations import config
+from ml_hotel_cancellations.utils import tracking
 from .preprocessing import make_pipeline
-from .reporting import df_to_markdown
+from ml_hotel_cancellations.utils.reporting import df_to_markdown
 
 logger = logging.getLogger(__name__)
 

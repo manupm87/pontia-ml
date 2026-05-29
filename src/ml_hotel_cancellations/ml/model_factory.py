@@ -9,7 +9,7 @@ en cuatro sitios.
 
 from __future__ import annotations
 
-from . import config
+from ml_hotel_cancellations import config
 
 # Nombres canónicos de los cuatro modelos clásicos (la red neuronal se construye
 # aparte porque su naturaleza y dependencias difieren).

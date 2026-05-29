@@ -22,7 +22,7 @@ import logging
 import joblib
 import pandas as pd
 
-from . import config
+from ml_hotel_cancellations import config
 from .data_loader import load_raw_data, normalize_categoricals
 
 logger = logging.getLogger(__name__)

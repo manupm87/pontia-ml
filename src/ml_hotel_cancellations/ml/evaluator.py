@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from . import config
+from ml_hotel_cancellations import config
 
 config.use_agg_backend()  # backend no interactivo: permite guardar PNG sin pantalla.
 
@@ -29,7 +29,7 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-from .reporting import save_figure
+from ml_hotel_cancellations.utils.reporting import save_figure
 
 logger = logging.getLogger(__name__)
 

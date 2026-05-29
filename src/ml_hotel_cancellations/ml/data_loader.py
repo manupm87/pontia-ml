@@ -13,7 +13,7 @@ import logging
 
 import pandas as pd
 
-from . import config
+from ml_hotel_cancellations import config
 
 logger = logging.getLogger(__name__)
 

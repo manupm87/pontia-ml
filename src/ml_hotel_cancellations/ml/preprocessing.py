@@ -14,7 +14,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from . import config
+from ml_hotel_cancellations import config
 
 
 def build_preprocessor() -> ColumnTransformer:
