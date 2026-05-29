@@ -12,7 +12,7 @@ métricas y gráficos (curva ROC, matrices de confusión e importancia de variab
 
 Uso::
 
-    python -m src.train
+    python -m ml_hotel_cancellations.ml.train
 """
 
 from __future__ import annotations

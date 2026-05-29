@@ -296,15 +296,15 @@ Buscamos automáticamente la mejor configuración de cada modelo clásico median
   XGBoost.
 
 Los mejores hiperparámetros se **persisten** en `outputs/best_hiperparametros.json`
-y el pipeline los **usa por defecto** (`python -m src.train`); rehacer la búsqueda
-es tan simple como `python -m src.train --tune` o `python -m src.tuning`. Partiendo
+y el pipeline los **usa por defecto** (`python -m ml_hotel_cancellations.ml.train`); rehacer la búsqueda
+es tan simple como `python -m ml_hotel_cancellations.ml.train --tune` o `python -m ml_hotel_cancellations.ml.tuning`. Partiendo
 de unos valores base ya buenos hallados explorando a mano
 (`max_depth=14, n_estimators=500, learning_rate=0.1`; **0.9573** de ROC-AUC en
 validación cruzada), el finetuning encontró
 `max_depth=16, n_estimators=600, learning_rate=0.03`, subiendo el ROC-AUC de CV a
 **0.9586** y alcanzando **0.9614 en test** (el mejor resultado del proyecto). El
 detalle (CV base vs. optimizada) queda en `outputs/tuning_hiperparametros.md`.
-Implementado en `src/tuning.py`.
+Implementado en `src/ml_hotel_cancellations/ml/tuning.py`.
 
 > *Nota de hardware:* el código es **GPU-aware** — XGBoost puede entrenar en una
 > GPU NVIDIA con `PONTIA_USE_GPU=1` —, pero por defecto se ejecuta en **CPU**,
@@ -314,7 +314,7 @@ Implementado en `src/tuning.py`.
 ### 6.2. Balanceo de clases
 
 El problema está moderadamente desbalanceado (~37 % de cancelaciones). Comparamos
-tres estrategias (`src/balancing.py`, resultados en `outputs/balanceo_clases.md`
+tres estrategias (`src/ml_hotel_cancellations/ml/balancing.py`, resultados en `outputs/balanceo_clases.md`
 y `.png`): **sin balanceo**, **class_weight** (reponderar la clase minoritaria;
 `scale_pos_weight` en XGBoost) y **SMOTE** (sobremuestreo sintético con
 *imbalanced-learn*, aplicado solo al entrenamiento).
@@ -346,7 +346,7 @@ Confirma los hallazgos del EDA: las variables que más empujan hacia la cancelac
 son `deposit_type='Non Refund'`, `country` (Portugal) y `lead_time`; las peticiones
 especiales y el parking **reducen** el riesgo. Como complemento *model-agnóstico*
 (válido para cualquier modelo) incluimos la **importancia por permutación**.
-Implementado en `src/interpretability.py` (`python -m src.interpretability`) y en el
+Implementado en `src/ml_hotel_cancellations/utils/interpretability.py` (`python -m ml_hotel_cancellations.utils.interpretability`) y en el
 notebook [`10_interpretabilidad_shap.ipynb`](../notebooks/10_interpretabilidad_shap.ipynb);
 gráficos en `outputs/shap_*.png` y `outputs/permutation_importance.png`. Explicación
 detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
@@ -366,7 +366,7 @@ inferencia es idéntica al entrenamiento. Endpoints:
 
 Incluye **documentación interactiva automática** (Swagger UI en `/docs`) y **tests**
 (`pytest`, 6 casos que pasan). Arrancar desde la raíz del repo:
-`uvicorn api.main:app --reload`. Guía completa en
+`uvicorn ml_hotel_cancellations.api.main:app --reload`. Guía completa en
 [`api/README.md`](../api/README.md).
 
 ### 6.5. Interfaz visual con Streamlit
@@ -389,7 +389,7 @@ pantalla). Incluye:
 4. **Interpretabilidad:** los gráficos SHAP globales y locales.
 5. **Exploración (EDA):** tasa de cancelación por categoría y balance de clases.
 
-Arrancar desde la raíz del repo: `streamlit run ui/app.py` (con la API levantada para que
+Arrancar desde la raíz del repo: `streamlit run src/ml_hotel_cancellations/ui/app.py` (con la API levantada para que
 funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
 [`ui/README.md`](../ui/README.md).
 
@@ -403,16 +403,16 @@ central. El proyecto usa el servidor MLflow alojado gratuitamente por
 **DagsHub** como *backend* de tracking, expuesto en una URL pública asociada
 al repositorio.
 
-La instrumentación, encapsulada en `src/tracking.py`, integra los tres
+La instrumentación, encapsulada en `src/ml_hotel_cancellations/utils/tracking.py`, integra los tres
 scripts de entrenamiento en una topología de *runs* coherente:
 
 | Script | *Run* padre | *Child runs* | Datos registrados |
 |---|---|---|---|
-| `python -m src.train` | `train_all_models` | 5 (uno por modelo) | `params`, métricas, `train_time_s`; el ganador se persiste como artefacto sklearn |
-| `python -m src.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, mejora, combinaciones probadas |
-| `python -m src.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas de test por combinación, *tags* `strategy` y `model_family` |
+| `python -m ml_hotel_cancellations.ml.train` | `train_all_models` | 5 (uno por modelo) | `params`, métricas, `train_time_s`; el ganador se persiste como artefacto sklearn |
+| `python -m ml_hotel_cancellations.ml.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, mejora, combinaciones probadas |
+| `python -m ml_hotel_cancellations.ml.balancing` | `balancing_strategies` | 12 (estrategia × modelo) | métricas de test por combinación, *tags* `strategy` y `model_family` |
 
-Cuando `src.tuning` se invoca desde `python -m src.train --tune`, su *run*
+Cuando `src.tuning` se invoca desde `python -m ml_hotel_cancellations.ml.train --tune`, su *run*
 queda **anidado** bajo el padre de entrenamiento, presentando todo el
 experimento como un único árbol navegable.
 
@@ -424,7 +424,7 @@ reduce a exportar dichas variables.
 
 **Model Registry.** Tras el entrenamiento, el modelo ganador se registra como
 `pontia-cancellations` y se promociona al *stage* `Production` ejecutando
-`python -m src.register_model`. Este CLI invoca el API REST del *Model
+`python -m ml_hotel_cancellations.utils.register_model`. Este CLI invoca el API REST del *Model
 Registry* directamente, ya que el frontend de DagsHub no expone los
 controles correspondientes (limitación documentada de su fork del cliente
 MLflow).
@@ -533,5 +533,5 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 ---
 
 > **Reproducibilidad.** Todos los resultados de este informe se generan ejecutando
-> `python -m src.train` desde la raíz del repo, con las librerías de
+> `python -m ml_hotel_cancellations.ml.train` desde la raíz del repo, con las librerías de
 > `requirements.txt` (Python 3.12). Las tablas y figuras provienen de `outputs/`.

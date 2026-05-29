@@ -71,9 +71,6 @@ CATEGORICAL_COLUMNS: list[str] = [
     "agent",
 ]
 
-# Lista ordenada de las 27 características de entrada (se rellena más abajo, una
-# vez definidas NUMERIC_COLUMNS y CATEGORICAL_COLUMNS).
-
 # Variables numéricas continuas o discretas.
 #
 # `arrival_date_year` se EXCLUYE a propósito (no se usa como característica):
@@ -248,7 +245,7 @@ XGBOOST_GRID: dict = {
 TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 
 # Mejores hiperparámetros encontrados, persistidos en JSON. Si este fichero
-# existe, el pipeline por defecto (`python -m src.train`) los usa automáticamente;
+# existe, el pipeline por defecto (`python -m ml_hotel_cancellations.ml.train`) los usa automáticamente;
 # si no, recurre a los valores base definidos arriba. Así "se buscan una vez y se
 # usan por defecto a partir de entonces".
 BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"

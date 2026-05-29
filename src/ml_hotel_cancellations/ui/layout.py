@@ -145,7 +145,7 @@ def render_api_status(container, *, verbose: bool) -> bool:
                 Desde la raíz del repo, en otra terminal:
 
                 ```bash
-                uvicorn api.main:app --host 0.0.0.0 --port 8000
+                uvicorn ml_hotel_cancellations.api.main:app --host 0.0.0.0 --port 8000
                 ```
 
                 Si la API corre en otra URL, indícala con la variable de entorno
@@ -153,7 +153,7 @@ def render_api_status(container, *, verbose: bool) -> bool:
 
                 ```bash
                 export PONTIA_API_URL="http://mi-host:puerto"
-                streamlit run ui/app.py
+                streamlit run src/ml_hotel_cancellations/ui/app.py
                 ```
 
                 URL configurada actualmente: `{config.API_BASE_URL}`

@@ -19,7 +19,7 @@ estrategia de balanceo.
 
 Uso::
 
-    python -m src.balancing
+    python -m ml_hotel_cancellations.ml.balancing
 """
 
 from __future__ import annotations

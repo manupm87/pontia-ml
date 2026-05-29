@@ -19,7 +19,7 @@ la **API FastAPI** para predecir en vivo.
 Desde la raíz del repo (importante: para que `import ui` resuelva bien):
 
 ```bash
-streamlit run ui/app.py
+streamlit run src/ml_hotel_cancellations/ui/app.py
 ```
 
 Se abrirá en el navegador (por defecto `http://localhost:8501`). La navegación
@@ -34,7 +34,7 @@ lo detecta y explica cómo hacerlo (no se rompe).
 Arranca la API en otra terminal, desde la raíz del repo:
 
 ```bash
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+uvicorn ml_hotel_cancellations.api.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### Variable de entorno `PONTIA_API_URL`
@@ -45,7 +45,7 @@ Streamlit:
 
 ```bash
 export PONTIA_API_URL="http://mi-host:puerto"
-streamlit run ui/app.py
+streamlit run src/ml_hotel_cancellations/ui/app.py
 ```
 
 ## Secciones
@@ -85,7 +85,7 @@ ui/
 ## Prueba rápida (arranque sin navegador)
 
 ```bash
-timeout 20 streamlit run ui/app.py --server.headless true --server.port 8599
+timeout 20 streamlit run src/ml_hotel_cancellations/ui/app.py --server.headless true --server.port 8599
 ```
 
 Debería mostrar "You can now view your Streamlit app..." sin errores.

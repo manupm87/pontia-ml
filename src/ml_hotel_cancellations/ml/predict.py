@@ -8,10 +8,10 @@ preprocesado que en entrenamiento.
 Uso::
 
     # Predecir sobre un CSV propio
-    python -m src.predict --input mis_reservas.csv --output predicciones.csv
+    python -m ml_hotel_cancellations.ml.predict --input mis_reservas.csv --output predicciones.csv
 
     # Demostración: toma una muestra del dataset original
-    python -m src.predict --sample 10
+    python -m ml_hotel_cancellations.ml.predict --sample 10
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def load_best_model(path=config.BEST_MODEL_PATH):
     """Carga el mejor modelo persistido por el pipeline de entrenamiento."""
     if not path.exists():
         raise FileNotFoundError(
-            f"No se encontró {path}. Ejecuta primero 'python -m src.train'."
+            f"No se encontró {path}. Ejecuta primero 'python -m ml_hotel_cancellations.ml.train'."
         )
     logger.info("Cargando mejor modelo desde %s", path)
     return joblib.load(path)

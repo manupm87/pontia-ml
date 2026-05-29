@@ -61,7 +61,7 @@ def _render_shap_explanation(payload: dict) -> None:
     except FileNotFoundError as exc:
         st.warning(
             "No se encontró el modelo entrenado para explicar la predicción "
-            f"localmente ({exc}). Ejecuta `python -m src.train`."
+            f"localmente ({exc}). Ejecuta `python -m ml_hotel_cancellations.ml.train`."
         )
     except Exception as exc:  # noqa: BLE001 - mostramos el error sin romper la UI
         st.error(f"No se pudo calcular la explicación SHAP: {exc}")
@@ -91,7 +91,7 @@ def _render_position_on_2d(payload: dict, probability: float) -> None:
     except FileNotFoundError as exc:
         st.warning(
             "No se encontraron los artefactos de la visualización 2D "
-            f"({exc}). Ejecuta `python -m src.visualization_2d`."
+            f"({exc}). Ejecuta `python -m ml_hotel_cancellations.utils.visualization_2d`."
         )
     except Exception as exc:  # noqa: BLE001
         st.error(f"No se pudo dibujar el mapa 2D: {exc}")

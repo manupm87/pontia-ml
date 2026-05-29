@@ -19,7 +19,7 @@ una búsqueda con CV sería desproporcionadamente costosa.
 
 Uso::
 
-    python -m src.tuning
+    python -m ml_hotel_cancellations.ml.tuning
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
     """Carga los mejores hiperparámetros persistidos (``{}`` si no existen).
 
     Lo usa el pipeline por defecto para entrenar con los hiperparámetros
-    optimizados una vez que se han buscado (``--tune`` o ``python -m src.tuning``).
+    optimizados una vez que se han buscado (``--tune`` o ``python -m ml_hotel_cancellations.ml.tuning``).
     """
     if not path.exists():
         return {}
@@ -156,9 +156,9 @@ class HyperparameterTuner:
         dict[str, dict]
             ``nombre -> {best_params, cv_tuned, cv_default, search, n_combos, segundos}``
         """
-        # MLflow: si nos invocan desde `python -m src.tuning` (raíz), abrimos
+        # MLflow: si nos invocan desde `python -m ml_hotel_cancellations.ml.tuning` (raíz), abrimos
         # un parent run "tuning_hyperparameters". Si nos llaman desde
-        # `python -m src.train --tune`, ``start_run`` detecta el run activo
+        # `python -m ml_hotel_cancellations.ml.train --tune`, ``start_run`` detecta el run activo
         # y este se convierte en child del run de entrenamiento. En cualquiera
         # de los dos casos, los runs por modelo cuelgan de aquí.
         with tracking.start_run(run_name="tuning_hyperparameters"):

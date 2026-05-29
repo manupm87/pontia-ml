@@ -71,7 +71,7 @@ def _render_sidebar() -> str:
     else:
         st.sidebar.caption(
             "La predicción requiere la API en marcha "
-            "(`uvicorn api.main:app`). Cambia la URL con `PONTIA_API_URL`."
+            "(`uvicorn ml_hotel_cancellations.api.main:app`). Cambia la URL con `PONTIA_API_URL`."
         )
 
     st.sidebar.divider()
@@ -125,7 +125,7 @@ def _running_under_streamlit() -> bool:
     return get_script_run_ctx() is not None
 
 
-# `streamlit run ui/app.py` ejecuta el script con `__name__ == "__main__"`, pero
+# `streamlit run src/ml_hotel_cancellations/ui/app.py` ejecuta el script con `__name__ == "__main__"`, pero
 # algunas versiones lo importan como módulo; cubrimos ambos casos detectando el
 # runtime. Al importarlo desde un test (sin runtime) no se renderiza nada.
 if __name__ == "__main__" or _running_under_streamlit():

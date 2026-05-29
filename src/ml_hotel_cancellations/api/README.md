@@ -26,7 +26,7 @@ exactamente igual que el entrenamiento (misma normalización de categóricas,
 ## Requisitos previos
 
 - El modelo entrenado debe existir en `models/best_model.pkl`
-  (genéralo con `python -m src.train` si no está).
+  (genéralo con `python -m ml_hotel_cancellations.ml.train` si no está).
 - Dependencias instaladas (ver `requirements.txt`): `fastapi`, `uvicorn[standard]`.
 
 ## Cómo arrancar el servidor
@@ -34,7 +34,7 @@ exactamente igual que el entrenamiento (misma normalización de categóricas,
 Desde la raíz del repo:
 
 ```bash
-uvicorn api.main:app --reload
+uvicorn ml_hotel_cancellations.api.main:app --reload
 ```
 
 Por defecto sirve en http://127.0.0.1:8000. La documentación interactiva

@@ -23,8 +23,8 @@ codificadas en *one-hot*), separamos ambos pasos: transformamos ``X`` con el
 
 Uso por línea de comandos (regenera todos los gráficos en ``outputs/``)::
 
-    python -m src.interpretability
-    python -m src.interpretability --sample 2000 --no-permutation
+    python -m ml_hotel_cancellations.utils.interpretability
+    python -m ml_hotel_cancellations.utils.interpretability --sample 2000 --no-permutation
 """
 
 from __future__ import annotations
@@ -429,7 +429,7 @@ def permutation_importance_report(
 def main() -> None:
     """Carga el mejor modelo y los datos, y regenera todos los gráficos.
 
-    Pensado para ejecutarse como ``python -m src.interpretability`` desde la
+    Pensado para ejecutarse como ``python -m ml_hotel_cancellations.utils.interpretability`` desde la
     raíz del repo.
     """
     config.configure_logging()
@@ -458,7 +458,7 @@ def main() -> None:
 
     if not config.BEST_MODEL_PATH.exists():
         raise FileNotFoundError(
-            f"No se encontró {config.BEST_MODEL_PATH}. Entrena con 'python -m src.train' "
+            f"No se encontró {config.BEST_MODEL_PATH}. Entrena con 'python -m ml_hotel_cancellations.ml.train' "
             "o copia el modelo desde el checkout principal."
         )
     logger.info("Cargando mejor modelo desde %s", config.BEST_MODEL_PATH)

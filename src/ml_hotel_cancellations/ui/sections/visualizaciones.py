@@ -47,7 +47,7 @@ def render() -> None:
     if shown == 0:
         st.warning(
             "No se encontraron visualizaciones en `outputs/`. Ejecuta el "
-            "pipeline de entrenamiento (`python -m src.train`) para generarlas."
+            "pipeline de entrenamiento (`python -m ml_hotel_cancellations.ml.train`) para generarlas."
         )
     else:
         st.success(f"Se muestran {shown} visualizaciones disponibles.", icon="🖼️")

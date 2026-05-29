@@ -16,7 +16,7 @@ interpretar el modelo para:
 - **Explicar** las decisiones al negocio ("esta reserva es de riesgo porque...").
 
 Para ello usamos dos técnicas complementarias, implementadas en el módulo
-reutilizable [`src/interpretability.py`](../src/interpretability.py) y mostradas
+reutilizable [`src/ml_hotel_cancellations/utils/interpretability.py`](../src/ml_hotel_cancellations/utils/interpretability.py) y mostradas
 de forma didáctica en el notebook
 [`notebooks/10_interpretabilidad_shap.ipynb`](../notebooks/10_interpretabilidad_shap.ipynb).
 
@@ -110,10 +110,10 @@ Desde la raíz del repo y con el entorno virtual activado:
 
 ```bash
 # Regenera todos los gráficos en outputs/ (beeswarm, bar, waterfalls, permutación)
-python -m src.interpretability
+python -m ml_hotel_cancellations.utils.interpretability
 
 # Opciones: tamaño de muestra para SHAP y omitir la permutación (más lenta)
-python -m src.interpretability --sample 2000 --no-permutation
+python -m ml_hotel_cancellations.utils.interpretability --sample 2000 --no-permutation
 ```
 
 El notebook didáctico se ejecuta de principio a fin con sus salidas renderizadas.

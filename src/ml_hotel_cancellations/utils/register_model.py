@@ -7,7 +7,7 @@ y promociona el modelo desde Python en su lugar.
 
 Flujo típico
 ------------
-1. Has ejecutado ``python -m src.train`` con las variables MLflow
+1. Has ejecutado ``python -m ml_hotel_cancellations.ml.train`` con las variables MLflow
    exportadas. En DagsHub aparece un run padre llamado
    ``train_all_models`` que contiene el artefacto ``model/`` (el
    ``Pipeline`` ganador).
@@ -19,16 +19,16 @@ Flujo típico
 Ejemplos::
 
     # Lo más habitual: registra el último run y lo promociona a Production.
-    python -m src.register_model
+    python -m ml_hotel_cancellations.utils.register_model
 
     # Registrar un run concreto.
-    python -m src.register_model --run-id abc123def456
+    python -m ml_hotel_cancellations.utils.register_model --run-id abc123def456
 
     # Solo registrar (no transicionar de stage).
-    python -m src.register_model --stage none
+    python -m ml_hotel_cancellations.utils.register_model --stage none
 
     # Cambiar de nombre.
-    python -m src.register_model --name pontia-cancellations-experimental
+    python -m ml_hotel_cancellations.utils.register_model --name pontia-cancellations-experimental
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def _find_latest_run_id(experiment_name: str, run_name: str) -> str:
         raise RuntimeError(
             f"❌ No existe el experimento '{experiment_name}' en "
             f"{mlflow.get_tracking_uri()}. ¿Ejecutaste primero "
-            "`python -m src.train`?"
+            "`python -m ml_hotel_cancellations.ml.train`?"
         )
     runs = client.search_runs(
         [experiment.experiment_id],
@@ -76,7 +76,7 @@ def _find_latest_run_id(experiment_name: str, run_name: str) -> str:
     if not runs:
         raise RuntimeError(
             f"❌ No se encontraron runs llamados '{run_name}' en el "
-            f"experimento '{experiment_name}'. Lanza `python -m src.train` "
+            f"experimento '{experiment_name}'. Lanza `python -m ml_hotel_cancellations.ml.train` "
             "para generar uno."
         )
     run = runs[0]

@@ -6,7 +6,7 @@ en ``/redoc``) a partir de los modelos Pydantic de ``schemas``.
 
 Cómo arrancar el servidor (desde la raíz del repo)::
 
-    uvicorn api.main:app --reload
+    uvicorn ml_hotel_cancellations.api.main:app --reload
 
 Luego abre http://127.0.0.1:8000/docs para probar los endpoints.
 """

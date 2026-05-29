@@ -31,7 +31,7 @@ en el mismo mapa en milisegundos.
 
 Uso::
 
-    python -m src.visualization_2d
+    python -m ml_hotel_cancellations.utils.visualization_2d
 """
 
 from __future__ import annotations
@@ -326,7 +326,7 @@ def load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
     if not artifacts_path.exists():
         raise FileNotFoundError(
             f"No se encontró {artifacts_path}. Ejecuta primero "
-            "'python -m src.visualization_2d' para generarlo."
+            "'python -m ml_hotel_cancellations.utils.visualization_2d' para generarlo."
         )
     return joblib.load(artifacts_path)
 
