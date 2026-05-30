@@ -10,9 +10,9 @@ from ml_hotel_cancellations import config
 
 
 def test_feature_counts() -> None:
-    """16 numéricas + 11 categóricas = 27 características de entrada."""
-    assert len(config.NUMERIC_COLUMNS) == 16
-    assert len(config.CATEGORICAL_COLUMNS) == 11
+    """15 numéricas + 12 categóricas = 27 características de entrada."""
+    assert len(config.NUMERIC_COLUMNS) == 15
+    assert len(config.CATEGORICAL_COLUMNS) == 12
     assert len(config.NUMERIC_COLUMNS) + len(config.CATEGORICAL_COLUMNS) == 27
 
 
@@ -22,9 +22,31 @@ def test_no_overlap_numeric_categorical() -> None:
 
 
 def test_arrival_year_excluded() -> None:
-    """`arrival_date_year` se excluye a propósito de las features."""
+    """`arrival_date_year` se excluye a propósito de las features (EDA §6)."""
     assert "arrival_date_year" not in config.NUMERIC_COLUMNS
     assert "arrival_date_year" not in config.CATEGORICAL_COLUMNS
+    assert "arrival_date_year" in config.DROP_COLUMNS
+
+
+def test_parking_is_leakage_and_dropped() -> None:
+    """`required_car_parking_spaces` es fuga (EDA §11): fuera de features y se descarta."""
+    assert "required_car_parking_spaces" not in config.FEATURE_COLUMNS
+    assert "required_car_parking_spaces" in config.DROP_COLUMNS
+
+
+def test_company_is_a_feature() -> None:
+    """`company` se conserva como categórica (no se descarta)."""
+    assert "company" in config.CATEGORICAL_COLUMNS
+    assert "company" not in config.DROP_COLUMNS
+
+
+def test_derived_numeric_features() -> None:
+    """Las features derivadas (EDA §5) se suman a las numéricas que ve el modelo."""
+    assert config.DERIVED_NUMERIC_COLUMNS == ["has_company", "has_agent", "noches"]
+    assert config.NUMERIC_FEATURES == [*config.NUMERIC_COLUMNS, *config.DERIVED_NUMERIC_COLUMNS]
+    # Las derivadas NO son de entrada (las calcula el preprocesado).
+    for col in config.DERIVED_NUMERIC_COLUMNS:
+        assert col not in config.FEATURE_COLUMNS
 
 
 def test_target_not_in_features() -> None:

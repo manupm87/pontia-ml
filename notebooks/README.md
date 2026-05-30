@@ -23,8 +23,8 @@ API y la interfaz: mismos datos, mismo preprocesado, mismo modelo. No hay *drift
 | Notebook | Usa de `src` | Qué muestra |
 |---|---|---|
 | [`01_eda.ipynb`](01_eda.ipynb) | `config`, `data_loader.load_raw_data` | EDA que **justifica** las decisiones del pipeline (fugas, desbalance ~37 %, exclusión de `arrival_date_year`) |
-| [`02_entrenamiento_y_comparativa.ipynb`](02_entrenamiento_y_comparativa.ipynb) | `train.run_pipeline`, `evaluator`, `visualization_2d` | Entrena y selecciona los 5 modelos; tabla comparativa, curvas ROC y regiones de decisión 2D (PLS). Gana **XGBoost** (ROC-AUC ≈ 0.9614) |
-| [`03_balanceo_clases.ipynb`](03_balanceo_clases.ipynb) | `balancing.compare` | Comparativa *baseline* / `class_weight` / SMOTE y por qué producción **no** balancea |
+| [`02_entrenamiento_y_comparativa.ipynb`](02_entrenamiento_y_comparativa.ipynb) | `train.run_pipeline`, `evaluate`, `visualization_2d` | Entrena y selecciona los 5 modelos; tabla comparativa, curvas ROC y regiones de decisión 2D (PLS). Gana **XGBoost** (ROC-AUC ≈ 0.9564) |
+| [`03_balanceo_clases.ipynb`](03_balanceo_clases.ipynb) | (exploratorio) | Comparativa *baseline* / `class_weight` / SMOTE y por qué producción **no** balancea. El balanceo se exploró en el *playground* (`playground/06_balanceo_clases.ipynb`); **no** es un módulo de `src/` |
 | [`04_interpretabilidad_shap.ipynb`](04_interpretabilidad_shap.ipynb) | `utils.interpretability`, `predict.load_best_model` | SHAP (global, *beeswarm*, *waterfall*) e importancia por permutación del modelo ganador |
 | [`05_inferencia.ipynb`](05_inferencia.ipynb) | `predict.load_best_model`, `predict.predict_dataframe` | Inferencia con `models/best_model.pkl`, igual que la API y la UI |
 

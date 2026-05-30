@@ -13,7 +13,7 @@ responsabilidades, herramientas y artefactos bien delimitados:
 
 | Plano | Responsabilidad | Herramientas | Ubicación |
 |---|---|---|---|
-| 1. **Experimentación** | Entrenar, evaluar y seleccionar modelos | scripts `train`, `tune`, `balance` (Python 3.12) | Entorno local |
+| 1. **Experimentación** | Entrenar, evaluar y seleccionar modelos | scripts `train`, `tune` (bonus) (Python 3.12) | Entorno local |
 | 2. **Trazabilidad** | Registrar experimentos y versionar modelos | MLflow Tracking + Model Registry | DagsHub (servicio gestionado) |
 | 3. **Repositorio** | Persistir código y modelo de producción | Git, GitHub | `manupm87/pontia-ml` |
 | 4. **Servicio** | Exponer el modelo y la interfaz al usuario | FastAPI (backend), Streamlit (frontend) | Render + Streamlit Community Cloud |
@@ -35,13 +35,12 @@ flowchart LR
     classDef cloud fill:#fff1f0,stroke:#cf1322,color:#5c0011,stroke-width:2px
     classDef user fill:#f6ffed,stroke:#52c41a,color:#135200,stroke-width:2px
 
-    DATA[("hotel bookings<br/>~119 k filas")]:::data
+    DATA[("hotel bookings<br/>119 390 filas × 32 cols")]:::data
 
     subgraph PLANE1["Plano 1 · Experimentación (local)"]
         direction TB
         T1["train<br/>5 modelos · ROC-AUC"]:::train
-        T2["tune<br/>GridSearchCV<br/>RandomizedSearchCV"]:::train
-        T3["balance<br/>baseline · class_weight<br/>SMOTE"]:::train
+        T2["tune (bonus)<br/>GridSearchCV<br/>RandomizedSearchCV"]:::train
     end
     DATA --> PLANE1
 
@@ -53,11 +52,11 @@ flowchart LR
     end
     PLANE1 -- "log_param · log_metric<br/>log_model · log_artifact" --> EXP
 
-    PKL[("best_model.pkl<br/>XGBoost · 28 MB")]:::artifact
+    PKL[("best_model.pkl<br/>XGBoost · ROC-AUC 0.9564")]:::artifact
     PLANE1 -- "joblib.dump" --> PKL
 
     subgraph PLANE3["Plano 3 · Repositorio (GitHub)"]
-        REPO[/"manupm87/pontia-ml<br/>src/ml_hotel_cancellations<br/>(ml · api · ui · utils)<br/>models · outputs"/]:::artifact
+        REPO[/"manupm87/pontia-ml<br/>src/ml_hotel_cancellations<br/>(ml · api · ui · utils)<br/>models · outputs · notebooks"/]:::artifact
     end
     PKL --> REPO
 
@@ -78,7 +77,7 @@ flowchart LR
 ### Lectura del diagrama
 
 - **Flujo descendente** del dato (naranja) hacia el servicio público (rojo):
-  el dataset alimenta los tres scripts de experimentación, que emiten dos
+  el dataset alimenta los scripts de experimentación, que emiten dos
   artefactos: registros en MLflow (lila) y un *pickle* del modelo ganador
   (cian).
 - **Doble destino del pickle**: por un lado se persiste en el repositorio
@@ -141,31 +140,53 @@ en el límite de RAM del *tier* gratuito.
 
 ### 4.1 Plano 1 — Experimentación
 
-Tres puntos de entrada en el paquete `ml_hotel_cancellations.ml`
-(expuestos como console scripts `train` / `tune` / `balance`):
+El paquete `ml_hotel_cancellations.ml` agrupa el *pipeline* de modelado en
+módulos de responsabilidad única: `data_loader.py` (carga y limpieza),
+`preprocessing.py` (transformadores + *Pipeline* de preprocesado),
+`models.py` (catálogo de estimadores y entrenamiento), `evaluate.py`
+(métricas, comparativa y selección), `train.py` y `predict.py`
+(orquestación), más `tuning.py` (bonus). Los puntos de entrada como
+console scripts son `train` y `tune` (bonus):
 
-- `train` (`ml_hotel_cancellations.ml.train`) carga el dataset, construye
-  un *Pipeline* de scikit-learn por modelo (preprocesamiento +
-  estimador), entrena los cinco modelos exigidos por el enunciado, los
-  evalúa sobre el conjunto de test y selecciona el ganador por
-  **ROC-AUC** (ver justificación en
-  [`informe_final.md`](informe_final.md) §4.1).
+- `train` (`ml_hotel_cancellations.ml.train`) orquesta el ciclo completo:
+  carga y limpia el dataset (`data_loader`), construye el catálogo de
+  modelos (`models.build_models`, cada uno un *Pipeline* plano de
+  scikit-learn con el preprocesado de `preprocessing` + el estimador), los
+  entrena (`models.train_models`), los evalúa sobre el conjunto de test
+  (`evaluate.evaluate_models`) y selecciona el ganador por **ROC-AUC**
+  (`evaluate.select_best`; ver justificación en
+  [`informe_final.md`](informe_final.md) §4.1). Después genera las figuras
+  comparativas (`evaluate.plot_*`), persiste el mejor modelo en
+  `models/best_model.pkl` y, si hay credenciales, registra la ejecución en
+  MLflow. Admite el flag opcional `--tune`.
 - `tune` (`ml_hotel_cancellations.ml.tuning`) optimiza los
   hiperparámetros de los modelos clásicos mediante validación cruzada
   (`GridSearchCV` para los espacios pequeños, `RandomizedSearchCV` para
   los grandes) y persiste los mejores en
   `outputs/best_hiperparametros.json`, de modo que las siguientes
   ejecuciones de `train` los reutilicen por defecto.
-- `balance` (`ml_hotel_cancellations.ml.balancing`) compara estrategias
-  de balanceo de clases (`baseline`, `class_weight`, SMOTE) para
-  cuantificar su efecto sobre *recall*, *precisión* y ROC-AUC.
 
-Los tres scripts comparten una característica importante: si las
+Ambos scripts comparten una característica importante: si las
 variables de entorno de MLflow no están definidas, su comportamiento es
 idéntico al de un proyecto sin instrumentación de *tracking*. El helper
 `ml_hotel_cancellations.utils.tracking` actúa como adaptador silencioso
 (*no-op*) hasta que detecta credenciales, momento en el cual cada
 ejecución pasa a publicar un árbol de *runs* en DagsHub.
+
+#### Origen de las decisiones de datos: los notebooks de dos niveles
+
+El diseño del preprocesado no es arbitrario: codifica las conclusiones de
+un trabajo previo de EDA. El proyecto mantiene una historia de notebooks
+**en dos niveles**. Los notebooks de `notebooks/playground/` son
+autónomos (no importan `src`, replican el estilo de los recursos del
+curso) y son donde se **descubrieron** las decisiones de datos a través
+del análisis exploratorio (notebooks `01_eda_exploracion` y
+`02_preparacion_datos`). Esos hallazgos se **generalizaron** después al
+paquete `src/ml_hotel_cancellations/`: los transformadores
+`FeatureBuilder` y `RareCategoryGrouper` de `preprocessing.py` encapsulan
+exactamente lo que el notebook 02 prototipó a mano. Los notebooks de la
+raíz `notebooks/` son el segundo nivel: usan ya el paquete instalado y
+narran el entregable.
 
 ### 4.2 Plano 2 — Trazabilidad con MLflow
 
@@ -175,8 +196,7 @@ gratuita y pública. La instrumentación produce:
 | Script | *Parent run* | *Child runs* | Datos registrados |
 |---|---|---|---|
 | `train` | `train_all_models` | 5 (uno por modelo) | `params`, `metrics`, `train_time_s`, modelo ganador como artefacto sklearn |
-| `tune` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, `improvement`, `n_combos_tried` |
-| `balance` | `balancing_strategies` | 12 (estrategia × modelo) | métricas test + *tags* `strategy` y `model_family` |
+| `tune` (bonus) | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, `improvement`, `n_combos_tried` |
 
 La promoción a producción se realiza con `register-model`
 (`ml_hotel_cancellations.utils.register_model`), un CLI
@@ -188,8 +208,9 @@ la interfaz web de DagsHub no expone los controles correspondientes
 
 ### 4.3 Plano 3 — Repositorio y artefacto
 
-El modelo ganador se persiste en `models/best_model.pkl` (28 MB) y se
-versiona en GitHub. Esta decisión tiene dos motivos prácticos:
+El modelo ganador (**XGBoost**, ROC-AUC 0.9564) se persiste en
+`models/best_model.pkl` y se versiona en GitHub. Esta decisión tiene dos
+motivos prácticos:
 
 1. **Resiliencia del servicio público**: la API utiliza el *pickle* del
    repositorio como mecanismo de carga por defecto y como red de
@@ -285,11 +306,11 @@ niveles mediante *extras*:
 - **Base** (`pip install -e .`) — *runtime*: lo estrictamente necesario
   para servir la API y la UI (≈ 350 MB instalados).
 - **Extra `[train]`** (`pip install -e ".[train]"`): TensorFlow/Keras,
-  *imbalanced-learn*, Jupyter, MLflow (cliente completo). Solo se
-  necesitan para reentrenar o publicar nuevos *runs* en DagsHub. El extra
-  `[dev]` añade además las herramientas de test (`pytest`, `httpx`).
-  El fichero `requirements.txt` es solo `-e .` (para plataformas que solo
-  leen ese fichero, como Render o Streamlit Cloud).
+  Jupyter, MLflow (cliente completo). Solo se necesitan para reentrenar o
+  publicar nuevos *runs* en DagsHub. El extra `[dev]` añade además las
+  herramientas de test (`pytest`). El fichero `requirements.txt` es solo
+  `-e .` (para plataformas que solo leen ese fichero, como Render o
+  Streamlit Cloud).
 
 Esta división mantiene el contenedor de Render por debajo del límite
 de RAM del *tier* gratuito y reduce el tiempo de build de cada
@@ -334,6 +355,72 @@ El resultado se serializa con `joblib` en
 `outputs/decision_regions_pls.pkl` (5 MB). En tiempo de ejecución, la
 UI solo proyecta una reserva al plano y superpone el marcador
 correspondiente, operación que toma milisegundos.
+
+### 5.5 Preprocesado como `Pipeline` único (sin fuga, persistido con el modelo)
+
+`ml_hotel_cancellations.ml.preprocessing` define el preprocesado como un
+`Pipeline` **plano** de scikit-learn con tres pasos, que se ajusta solo
+con *train* (sin fuga) y se serializa junto al estimador dentro de
+`best_model.pkl`. Así, servir el modelo en la API/UI no requiere
+reproducir ninguna transformación a mano: basta con pasar las variables
+crudas de la reserva.
+
+1. **`FeatureBuilder`** (transformador *custom*, *row-wise*, no aprende
+   nada): deriva `has_company` y `has_agent` (la *ausencia informativa* de
+   `company`/`agent` es señal, EDA §5), `noches` (estancia total) e imputa
+   `children`→0; además normaliza las claves de los IDs de alta
+   cardinalidad. Funciona igual en entrenamiento e inferencia.
+2. **`RareCategoryGrouper`** (transformador *custom*, **supervisado**,
+   *fit-on-train*): reduce la cardinalidad de `agent`, `country` y
+   `company` (EDA §13). En `fit` (solo con `y` de *train*) conserva, por
+   columna, las categorías con soporte (`n ≥ 100`) y tasa de cancelación
+   extrema; el resto pasa a `"Otros"`. Los nulos de `company` se etiquetan
+   como `"no_company"`. Sin `y` (p. ej. al reutilizar el preprocesador para
+   visualizar) conserva todas las categorías vistas.
+3. **`ColumnTransformer`** (`build_preprocessor`): rama numérica
+   (imputación por mediana + `StandardScaler`) y rama categórica
+   (imputación constante `"Unknown"` + `OneHotEncoder` con
+   `handle_unknown="ignore"`, tolerante a categorías nuevas).
+
+Las funciones públicas del módulo son `FeatureBuilder`,
+`RareCategoryGrouper`, `build_preprocessor()` (el `ColumnTransformer`),
+`build_transform_pipeline()` (los tres pasos sin modelo, útil para la
+visualización 2D), `make_pipeline(estimator)` (los tres pasos + modelo,
+en un `Pipeline` plano que reutilizan `models` y `tuning`) y
+`get_feature_names()`. Que el `Pipeline` sea plano es deliberado:
+`named_steps["preprocessor"]` expone el `ColumnTransformer` (para sacar
+nombres de features e importancias) y `named_steps["model"]` el estimador.
+
+Como se anticipó en §4.1, este preprocesado es la **generalización** de
+lo que el notebook `playground/02_preparacion_datos` prototipó a mano: la
+lógica de ausencia informativa y de reducción supervisada de cardinalidad
+nació allí como exploración y aquí se consolidó como transformadores
+reutilizables y a prueba de fuga.
+
+### 5.6 Contrato de datos y limpieza del crudo
+
+El crudo `data/raw/dataset_practica_final.csv` tiene **119 390 filas × 32
+columnas**. La limpieza (`data_loader.clean_data`) descarta columnas de
+fuga y filas inválidas:
+
+- **Fuga directa**: `reservation_status` y `reservation_status_date`
+  (codifican el desenlace).
+- **Fuga sutil**: `required_car_parking_spaces` (solo se conoce en el
+  *check-in*, EDA §11).
+- **No generaliza**: `arrival_date_year` (EDA §6).
+- **Filas inválidas**: reservas sin huéspedes, con 0 noches o con `adr`
+  extremo.
+
+A diferencia de versiones anteriores, **`company` se conserva** (antes se
+descartaba): su nulo es señal, codificada por `has_company`. Tras la
+limpieza quedan **118 563 filas**, divididas de forma estratificada en
+**94 850 de entrenamiento** y **23 713 de test**, con una tasa de
+cancelación del **~37 %**.
+
+El **contrato de entrada** del modelo son **27 variables crudas** = 15
+numéricas + 12 categóricas. Las variables derivadas
+(`has_company`/`has_agent`/`noches`) **no** son entrada: las calcula el
+propio `Pipeline`. Tras el *one-hot*, el estimador ve **155 features**.
 
 ## 6. Cómo acceder al sistema en producción
 

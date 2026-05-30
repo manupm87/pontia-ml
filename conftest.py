@@ -45,19 +45,24 @@ def raw_like_df() -> pd.DataFrame:
         {**base, "is_canceled": 1},
         # Fila normal (no cancela), otro hotel.
         {**_make_booking(hotel="Resort Hotel", lead_time=10, adr=80.0), "is_canceled": 0},
-        # Fila con agent y country ausentes -> deben pasar a "Unknown".
-        {**_make_booking(agent=None, country=None), "is_canceled": 0},
+        # Fila con agent, country y company ausentes (el preprocesado los etiqueta).
+        {**_make_booking(agent=None, country=None, company=None), "is_canceled": 0},
         # Fila SIN huéspedes -> clean_data debe eliminarla.
         {**_make_booking(adults=0, children=0, babies=0), "is_canceled": 0},
+        # Fila sin noches -> clean_data debe eliminarla.
+        {**_make_booking(stays_in_week_nights=0, stays_in_weekend_nights=0), "is_canceled": 1},
+        # Fila con adr extremo -> clean_data debe eliminarla.
+        {**_make_booking(adr=6000.0), "is_canceled": 1},
         # Más filas para que la partición estratificada tenga material de sobra.
         *[{**_make_booking(lead_time=i * 5), "is_canceled": i % 2} for i in range(16)],
     ]
 
     df = pd.DataFrame(filas)
 
-    # Columnas crudas que NO son features y que el pipeline de datos elimina.
+    # Columnas crudas que NO son features y que el pipeline de datos elimina
+    # (leakage directo + año que no generaliza). `company` ya NO se tira: es una
+    # feature, así que viene en el booking de ejemplo.
     df["arrival_date_year"] = 2016
-    df["company"] = None
     df["reservation_status"] = ["Canceled" if c else "Check-Out" for c in df["is_canceled"]]
     df["reservation_status_date"] = "2016-08-15"
     return df

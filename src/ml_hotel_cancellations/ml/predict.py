@@ -1,7 +1,8 @@
 """Inferencia con el mejor modelo (``models/best_model.pkl``).
 
 El modelo es un ``Pipeline``, así que recibe el DataFrame en crudo y aplica
-internamente el mismo preprocesado que en entrenamiento.
+internamente el mismo preprocesado que en entrenamiento (features derivadas,
+reducción de cardinalidad, one-hot…). Aquí solo se descarta el target si viniera.
 
 Uso::
 
@@ -21,7 +22,7 @@ import joblib
 import pandas as pd
 
 from ml_hotel_cancellations import config
-from .data_loader import load_raw_data, normalize_categoricals
+from .data_loader import load_raw_data
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,10 @@ def load_best_model(path=config.BEST_MODEL_PATH):
 def prepare_for_inference(df: pd.DataFrame) -> pd.DataFrame:
     """Prepara el DataFrame para predecir sin descartar filas.
 
-    A diferencia del entrenamiento, NO elimina registros (una predicción por fila):
-    solo normaliza categóricas y descarta el target si viniera incluido.
+    A diferencia del entrenamiento, NO elimina registros (una predicción por fila);
+    solo descarta el target si viniera incluido. El preprocesado (features derivadas,
+    normalización de IDs, reducción de cardinalidad) lo hace el ``Pipeline``.
     """
-    df = normalize_categoricals(df)
     if config.TARGET_COLUMN in df.columns:
         df = df.drop(columns=[config.TARGET_COLUMN])
     return df

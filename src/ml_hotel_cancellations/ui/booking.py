@@ -61,8 +61,6 @@ FORM_SECTIONS: dict[str, list[Field]] = {
         Field("meal", "Régimen de comidas", "categorical",
               "BB=desayuno, HB=media pensión, FB=pensión completa, SC=sin comidas.",
               options_key="meal"),
-        Field("required_car_parking_spaces", "Plazas de parking", "int",
-              "Plazas de aparcamiento solicitadas.", min=0, max=8, step=1),
         Field("total_of_special_requests", "Peticiones especiales", "int",
               "Nº de peticiones especiales (cuna, vistas...). Suele indicar "
               "compromiso del cliente y menos cancelaciones.", min=0, max=10, step=1),
@@ -82,6 +80,9 @@ FORM_SECTIONS: dict[str, list[Field]] = {
         Field("agent", "Agencia (ID)", "categorical",
               "Identificador de la agencia de viajes. Se ofrecen los más comunes.",
               options_key="agent"),
+        Field("company", "Empresa (ID)", "categorical",
+              "Identificador de la empresa; 'no_company' si es una reserva particular.",
+              options_key="company"),
         Field("is_repeated_guest", "¿Cliente repetidor?", "int",
               "1 si ya se había alojado antes, 0 en caso contrario.",
               min=0, max=1, step=1),

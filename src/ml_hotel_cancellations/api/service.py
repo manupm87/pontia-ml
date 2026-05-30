@@ -33,7 +33,7 @@ try:
     MODEL_ROC_AUC: float = round(config.best_metric_value("roc_auc"), 4)
 except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún despliegue
     logger.warning("No se pudo leer el ROC-AUC del artefacto de métricas; uso respaldo.")
-    MODEL_ROC_AUC = 0.9614
+    MODEL_ROC_AUC = 0.9564
 
 # Metadatos del último modelo cargado; los lee /model-info.
 _LOAD_INFO: LoadInfo | None = None

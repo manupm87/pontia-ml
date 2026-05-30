@@ -88,12 +88,11 @@ def test_model_family_map_in_config() -> None:
 
 
 def test_modules_reuse_config_model_family() -> None:
-    """train/tuning/balancing no redefinen su propio mapa de familias."""
-    from ml_hotel_cancellations.ml import balancing, train, tuning
+    """train/tuning no redefinen su propio mapa de familias."""
+    from ml_hotel_cancellations.ml import train, tuning
 
     assert train._MODEL_FAMILY is config.MODEL_FAMILY
     assert tuning._MODEL_FAMILY is config.MODEL_FAMILY
-    assert balancing._MODEL_FAMILY is config.MODEL_FAMILY
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ ARGS    ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help venv setup setup-dev api ui run test clean \
-        train tune balance predict register-model explain viz2d
+        train tune predict register-model explain viz2d
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -59,9 +59,6 @@ train: ## Entrena los 5 modelos y guarda el mejor (ARGS="--tune"). Requiere setu
 
 tune: ## Búsqueda de hiperparámetros (bonus). Requiere setup-dev
 	$(VENV)/bin/tune $(ARGS)
-
-balance: ## Comparativa de balanceo de clases (bonus). Requiere setup-dev
-	$(VENV)/bin/balance $(ARGS)
 
 register-model: ## Registra el modelo en MLflow (bonus). Requiere setup-dev
 	$(VENV)/bin/register-model $(ARGS)

@@ -127,7 +127,12 @@ def get_categorical_options() -> dict[str, list[str]]:
     # para casar con el contrato de la API.
     agent_values = df["agent"].dropna()
     agent_strings = agent_values.map(lambda v: str(int(v))).value_counts()
-    options["agent"] = agent_strings.head(30).index.tolist()
+    options["agent"] = agent_strings.head(30).index.tolist() + ["Desconocido"]
+
+    # Empresa: igual que agente, pero el nulo es un estado real ("no_company").
+    company_values = df["company"].dropna()
+    company_strings = company_values.map(lambda v: str(int(v))).value_counts()
+    options["company"] = ["no_company"] + company_strings.head(20).index.tolist()
 
     return options
 

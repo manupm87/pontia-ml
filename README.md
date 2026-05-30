@@ -85,24 +85,51 @@ reservas tienen alto riesgo de cancelarse**, puede reaccionar (aceptar algo de
 Es, por tanto, un problema **real y con valor de negocio**.
 
 **Los datos.** Un fichero **CSV** (una tabla de texto separada por comas) con
-**~119 000 reservas** de un *City Hotel* y un *Resort Hotel* en Portugal
-(2015–2017). Cada fila es una reserva; cada columna, una característica. La columna
-`is_canceled` es la respuesta a predecir.
+**119 390 reservas × 32 columnas** de un *City Hotel* y un *Resort Hotel* en
+Portugal (2015–2017). Cada fila es una reserva; cada columna, una característica.
+La columna `is_canceled` es la respuesta a predecir. Tras la limpieza quedan
+**118 563 reservas**, que se reparten de forma estratificada en **94 850 de
+entrenamiento** y **23 713 de prueba** (*test*).
+
+El **contrato de entrada** del modelo son **27 características = 15 numéricas + 12
+categóricas** (incluida `company`). A partir de ellas el pipeline **deriva** otras
+(`has_company`, `has_agent` y `noches`, que no se piden como entrada) y, tras el
+*one-hot encoding*, el modelo acaba viendo **155 columnas**.
 
 Un dato importante: **las clases están desbalanceadas** — alrededor del **37 % de
 las reservas se cancelan** y el 63 % no. Esto influye en cómo evaluamos (ver más
 abajo).
 
-### Dos decisiones clave que tomamos al mirar los datos
+### Decisiones clave que tomamos al mirar los datos
 
 1. **Eliminar columnas que "hacen trampa" (*fuga de información* o *data
    leakage*).** Las columnas `reservation_status` y `reservation_status_date`
    describen lo que **ya pasó** con la reserva (su estado final). Incluirlas sería
    como dejar ver la respuesta al modelo: acertaría casi el 100 %, pero de forma
-   inútil. **Se eliminan siempre.**
-2. **Tratar los huecos y las columnas poco útiles.** `company` está vacía en el
-   ~94 % de las filas → se descarta. Los valores que faltan en otras columnas se
-   **rellenan** (*imputación*) y las variables de texto se convierten en números.
+   inútil. **Se eliminan siempre.** Por la misma razón se descarta
+   `required_car_parking_spaces`: el EDA reveló que **ninguna** reserva con plaza de
+   aparcamiento llega a cancelarse (0 % de cancelación), porque ese dato se confirma
+   en el *check-in* — es decir, después de saber si la reserva sigue en pie. También
+   se descarta `arrival_date_year`: identifica el año concreto (2015–2017) y no
+   generaliza a años futuros.
+2. **Aprovechar la ausencia como señal.** Que una reserva **no tenga** compañía
+   (`company`) o agencia (`agent`) asociada es informativo, así que el pipeline
+   **deriva** dos variables binarias, `has_company` y `has_agent`, que marcan esa
+   ausencia. `company` **se conserva** como variable categórica (su hueco pasa a
+   `no_company`); no se elimina.
+3. **Domar las categorías con muchísimos valores.** `agent`, `country` y `company`
+   tienen cientos de categorías distintas. Se les aplica una **reducción
+   supervisada de cardinalidad** (agrupar las categorías raras) para que el modelo
+   no se disperse. El resto de huecos se **rellenan** (*imputación*) y las variables
+   de texto se convierten en números (*one-hot*).
+
+Estas decisiones se **descubrieron** explorando los datos en los notebooks de
+*playground* (`playground/01_eda_exploracion` y `02_preparacion_datos`) y luego se
+**generalizaron** al código de producción en
+[`src/ml_hotel_cancellations/ml/preprocessing.py`](src/ml_hotel_cancellations/ml/preprocessing.py)
+(las clases `FeatureBuilder` y `RareCategoryGrouper`). Es el arco que vertebra todo
+el proyecto: **playground (aprender) → `src` (generalizar) → notebooks finales
+(mostrar)**.
 
 El estudio completo de los datos está en
 [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) (*EDA = análisis exploratorio de
@@ -121,35 +148,39 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   ├── raw/            # Datos originales (dataset_practica_final.csv)
 │   └── processed/      # Datos intermedios (se regeneran solos)
 ├── docs/
+│   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
 │   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
 │   ├── informe_final.md      # Informe (roles, EDA, diseño, resultados, mejoras)
-│   └── interpretabilidad.md  # Interpretabilidad del modelo con SHAP (bonus)
+│   ├── interpretabilidad.md  # Interpretabilidad del modelo con SHAP (bonus)
+│   └── visualizacion_2d.md   # Visualización 2D de regiones de decisión (PLS)
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
-├── notebooks/
-│   ├── README.md                         # Convención de los notebooks + cómo añadir un modelo
-│   ├── 01_eda.ipynb                      # EDA compartido por todos los modelos
-│   ├── 02_modelo_regresion_logistica.ipynb  # Un notebook por modelo: teoría +
-│   ├── 03_modelo_arbol_decision.ipynb        #   hiperparámetros + entrenamiento +
-│   ├── 04_modelo_random_forest.ipynb         #   visualización + optimización
-│   ├── 05_modelo_xgboost.ipynb
-│   ├── 06_modelo_red_neuronal.ipynb
-│   ├── 07_comparativa_modelos.ipynb      # Comparación de los 5 modelos + viz 2D
-│   ├── 08_balanceo_clases.ipynb          # Desbalance: class_weight vs SMOTE
-│   ├── 09_no_supervisado.ipynb           # Clustering: segmentos de reserva
-│   ├── 10_interpretabilidad_shap.ipynb   # Interpretabilidad con SHAP (bonus)
-│   ├── playground/                       # Notebook autónomo estilo `recursos/` (XGBoost end-to-end)
-│   └── _PLANTILLA_modelo.ipynb           # Plantilla para crear un notebook de modelo
+├── notebooks/          # Dos niveles: playground (aprender) → finales (mostrar)
+│   ├── README.md                            # Explica los dos niveles
+│   ├── 01_eda.ipynb                         # (finales) EDA usando el paquete `src`
+│   ├── 02_entrenamiento_y_comparativa.ipynb #   entrena los 5 modelos y los compara
+│   ├── 03_balanceo_clases.ipynb            #   desbalance: class_weight vs SMOTE
+│   ├── 04_interpretabilidad_shap.ipynb     #   interpretabilidad con SHAP (bonus)
+│   ├── 05_inferencia.ipynb                 #   inferencia con el mejor modelo
+│   └── playground/                         # Autónomos (sin `src`), estilo `recursos/`
+│       ├── README.md                       #   donde se DESCUBRIERON las decisiones
+│       ├── 01_eda_exploracion.ipynb
+│       ├── 02_preparacion_datos.ipynb
+│       ├── 03_modelos_supervisados.ipynb
+│       ├── 04_red_neuronal.ipynb
+│       ├── 05_comparativa_y_visualizacion.ipynb
+│       ├── 06_balanceo_clases.ipynb
+│       └── 07_interpretabilidad.ipynb
 ├── outputs/            # Gráficos y tablas que genera el sistema
 ├── src/                                    # Código fuente (src-layout PyPA)
 │   └── ml_hotel_cancellations/             # 📦 El paquete instalable del proyecto
 │       ├── config.py        # Fuente única: rutas, columnas, constantes, ejemplo
 │       ├── ml/              # 🤖 Pipeline ML (entrenamiento + inferencia + experimentos)
-│       │   ├── data_loader.py · preprocessing.py · model_factory.py
-│       │   ├── model_trainer.py · evaluator.py
+│       │   ├── data_loader.py · preprocessing.py · models.py
+│       │   ├── evaluate.py
 │       │   ├── train.py      # 🚀 Programa principal (--tune opcional)
 │       │   ├── predict.py    # Inferencia con el mejor modelo
-│       │   └── tuning.py · balancing.py        # bonus (búsqueda CV / balanceo)
+│       │   └── tuning.py     # bonus (búsqueda de hiperparámetros por CV)
 │       ├── api/            # 🔌 API REST (FastAPI)
 │       │   ├── main.py · schemas.py · service.py
 │       │   └── registry.py  # Cliente REST del Model Registry de MLflow
@@ -231,7 +262,7 @@ activado.
 > 🧰 **Atajos con `make` (Linux / macOS / WSL).** Hay un `Makefile` que envuelve
 > todos los comandos de abajo: `make setup` (o `make setup-dev`) prepara el
 > entorno, `make run` levanta API + UI a la vez, y `make train` / `tune` /
-> `balance` / `predict` / `explain` / `viz2d` / `register-model` / `test` lanzan
+> `predict` / `explain` / `viz2d` / `register-model` / `test` lanzan
 > cada tarea (pásale argumentos con `ARGS`, p. ej. `make train ARGS="--tune"` o
 > `make predict ARGS="--sample 10"`). `make help` los lista todos.
 >
@@ -273,21 +304,17 @@ python -m ml_hotel_cancellations.ml.tuning              # solo la búsqueda (esc
 ```
 
 Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
-(Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. La
-búsqueda parte de unos valores base ya buenos (`max_depth=14, n_estimators=500,
-learning_rate=0.1`) y los mejora hasta `max_depth=16, n_estimators=600,
-learning_rate=0.03`, alcanzando **0.9614** de ROC-AUC en test; el detalle queda en
+(Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. Los
+mejores hiperparámetros de XGBoost son `n_estimators=600, max_depth=16,
+learning_rate=0.03, subsample=0.9, colsample_bytree=1.0`, con los que alcanza
+**0.9564** de ROC-AUC en test; el detalle queda en
 `outputs/tuning_hiperparametros.md`.
 
 #### Balanceo de clases (bonus)
 
-Comparamos cómo afecta tratar el desbalance (~37 % de cancelaciones):
-
-```bash
-python -m ml_hotel_cancellations.ml.balancing   # escribe outputs/balanceo_clases.md y .png
-```
-
-Contrasta **sin balanceo**, **class_weight** (reponderar la clase minoritaria) y
+El efecto de tratar el desbalance (~37 % de cancelaciones) se **exploró en el
+notebook de playground** [`notebooks/playground/06_balanceo_clases.ipynb`](notebooks/playground/06_balanceo_clases.ipynb),
+contrastando **sin balanceo**, **class_weight** (reponderar la clase minoritaria) y
 **SMOTE** (sobremuestreo sintético, vía *imbalanced-learn*). Conclusión: ambas
 **suben el recall** (se detectan más cancelaciones) a costa de **precisión**,
 mientras el **ROC-AUC apenas cambia** (es independiente del umbral). Por eso el
@@ -318,21 +345,32 @@ jupyter lab    # o: jupyter notebook
 > Un **notebook** es un documento interactivo que combina texto, código y
 > resultados. El **kernel** es el "motor" de Python que ejecuta su código.
 
-- `notebooks/01_eda.ipynb` — EDA **compartido**: exploramos los datos y explicamos
-  cada decisión de preprocesado.
-- `notebooks/02`–`06_modelo_*.ipynb` — **un notebook por modelo** (regresión
-  logística, árbol, Random Forest, XGBoost, red neuronal), todos con la misma
-  estructura: cómo funciona, qué controla cada hiperparámetro, entrenamiento,
-  visualización del modelo, optimización y evaluación. Para añadir uno, se copia
-  `notebooks/_PLANTILLA_modelo.ipynb` (convención en `notebooks/README.md`).
-- `notebooks/07_comparativa_modelos.ipynb` — compara los 5 modelos y muestra los
-  gráficos (incluida la visualización 2D: proyección PLS y t-SNE).
-- `notebooks/08_balanceo_clases.ipynb` — desbalance de clases: `class_weight` vs
+Los notebooks están organizados en **dos niveles** (detalle en
+[`notebooks/README.md`](notebooks/README.md) y
+[`notebooks/playground/README.md`](notebooks/playground/README.md)):
+
+**Nivel `playground/`** — notebooks **autónomos** (no importan `src`), estilo
+`recursos/`, donde se **descubrieron** las decisiones del proyecto:
+`01_eda_exploracion`, `02_preparacion_datos`, `03_modelos_supervisados`,
+`04_red_neuronal`, `05_comparativa_y_visualizacion`, `06_balanceo_clases` y
+`07_interpretabilidad`.
+
+**Nivel final** (`notebooks/`) — usan el **paquete `src`**, para *mostrar* el
+sistema ya consolidado:
+
+- `notebooks/01_eda.ipynb` — EDA usando el paquete: exploramos los datos y
+  explicamos cada decisión de preprocesado.
+- `notebooks/02_entrenamiento_y_comparativa.ipynb` — entrena los 5 modelos y los
+  compara (incluida la visualización 2D: proyección PLS y t-SNE).
+- `notebooks/03_balanceo_clases.ipynb` — desbalance de clases: `class_weight` vs
   SMOTE y para qué sirven.
-- `notebooks/09_no_supervisado.ipynb` — clustering (K-Means) para descubrir
-  segmentos de reserva y su tasa de cancelación.
-- `notebooks/10_interpretabilidad_shap.ipynb` — **interpretabilidad (bonus)**:
+- `notebooks/04_interpretabilidad_shap.ipynb` — **interpretabilidad (bonus)**:
   explica con **SHAP** por qué el modelo predice cada cancelación.
+- `notebooks/05_inferencia.ipynb` — inferencia con el mejor modelo sobre reservas
+  nuevas.
+
+El arco completo es **playground (aprender) → `src` (generalizar) → notebooks
+finales (mostrar)**.
 
 ### 4. Interpretabilidad del modelo con SHAP (bonus)
 
@@ -344,7 +382,7 @@ python -m ml_hotel_cancellations.utils.interpretability
 ```
 
 Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el notebook
-`10_interpretabilidad_shap.ipynb`.
+`04_interpretabilidad_shap.ipynb`.
 
 ### 5. API REST con FastAPI (bonus)
 
@@ -359,7 +397,7 @@ Abre la documentación interactiva en <http://127.0.0.1:8000/docs>. Endpoints:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" \
-  -d '{"hotel":"City Hotel","lead_time":100,"arrival_date_month":"August","arrival_date_week_number":33,"arrival_date_day_of_month":15,"stays_in_weekend_nights":2,"stays_in_week_nights":5,"adults":2,"children":0,"babies":0,"meal":"BB","country":"PRT","market_segment":"Online TA","distribution_channel":"TA/TO","is_repeated_guest":0,"previous_cancellations":0,"previous_bookings_not_canceled":0,"reserved_room_type":"A","assigned_room_type":"A","booking_changes":0,"deposit_type":"No Deposit","agent":"9","days_in_waiting_list":0,"customer_type":"Transient","adr":100.0,"required_car_parking_spaces":0,"total_of_special_requests":1}'
+  -d '{"hotel":"City Hotel","lead_time":100,"arrival_date_month":"August","arrival_date_week_number":33,"arrival_date_day_of_month":15,"stays_in_weekend_nights":2,"stays_in_week_nights":5,"adults":2,"children":0,"babies":0,"meal":"BB","country":"PRT","market_segment":"Online TA","distribution_channel":"TA/TO","is_repeated_guest":0,"previous_cancellations":0,"previous_bookings_not_canceled":0,"reserved_room_type":"A","assigned_room_type":"A","booking_changes":0,"deposit_type":"No Deposit","agent":"9","company":"no_company","days_in_waiting_list":0,"customer_type":"Transient","adr":100.0,"total_of_special_requests":1}'
 ```
 
 Guía completa y contrato en
@@ -399,12 +437,11 @@ $EDITOR .env
 set -a; source .env; set +a
 ```
 
-A partir de entonces, los tres scripts loguean a DagsHub:
+A partir de entonces, los scripts de entrenamiento loguean a DagsHub:
 
 ```bash
 python -m ml_hotel_cancellations.ml.train          # parent run "train_all_models" + 5 child runs
 python -m ml_hotel_cancellations.ml.tuning         # parent run "tuning_hyperparameters" + 4 child runs
-python -m ml_hotel_cancellations.ml.balancing      # parent run "balancing_strategies" + 12 child runs
 python -m ml_hotel_cancellations.utils.register_model # registra el ganador como pontia-cancellations:vN @ Production
 ```
 
@@ -426,11 +463,11 @@ completa del sistema, con diagramas, está en [`docs/arquitectura.md`](docs/arqu
 
 ### 8. Ejecutar los tests (pytest)
 
-El proyecto incluye una suite de tests que cubre la lógica del pipeline (`ml/`), el
-contrato de la API y la lógica de la interfaz, además de unos *contract tests* que
-garantizan que las constantes compartidas (etiquetas de clase, umbral de decisión,
-reserva de ejemplo, familias de modelo...) tengan una **única fuente de verdad** en
-`ml_hotel_cancellations/config.py`.
+El proyecto incluye una suite de **65 tests** que cubre la lógica del pipeline
+(`ml/`), el contrato de la API y la lógica de la interfaz, además de unos *contract
+tests* que garantizan que las constantes compartidas (etiquetas de clase, umbral de
+decisión, reserva de ejemplo, familias de modelo...) tengan una **única fuente de
+verdad** en `ml_hotel_cancellations/config.py`.
 
 ```bash
 # Suite completa
@@ -459,13 +496,13 @@ justo debajo).
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8934 | 0.8701 | 0.8374 | 0.8535 | **0.9614** |
-| Red neuronal (Keras) | 0.8718 | 0.8427 | 0.8045 | 0.8231 | 0.9460 |
-| Random Forest | 0.8644 | 0.8828 | 0.7313 | 0.8000 | 0.9455 |
-| Árbol de decisión | 0.8551 | 0.8191 | 0.7819 | 0.8000 | 0.9329 |
-| Regresión logística | 0.8190 | 0.7312 | 0.8093 | 0.7683 | 0.9064 |
+| **XGBoost** ⭐ | 0.8886 | 0.8699 | 0.8243 | 0.8465 | **0.9564** |
+| Red neuronal (Keras) | 0.8636 | 0.8510 | 0.7685 | 0.8077 | 0.9378 |
+| Random Forest | 0.8593 | 0.8803 | 0.7202 | 0.7923 | 0.9363 |
+| Árbol de decisión | 0.8486 | 0.8222 | 0.7576 | 0.7886 | 0.9253 |
+| Regresión logística | 0.8096 | 0.7288 | 0.7785 | 0.7528 | 0.8931 |
 
-⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.961). Se guarda como
+⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.9564). Se guarda como
 `models/best_model.pkl`. *(Estas cifras son con los hiperparámetros optimizados,
 que el pipeline usa por defecto — ver más abajo.)*
 

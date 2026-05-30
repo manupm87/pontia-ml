@@ -52,7 +52,7 @@ streamlit run src/ml_hotel_cancellations/ui/app.py
 ## Secciones
 
 1. **Resumen y resultados** — tabla comparativa de los 5 modelos, métricas
-   destacadas del ganador (XGBoost, ROC-AUC 0.9614) y gráficos clave.
+   destacadas del ganador (XGBoost, ROC-AUC 0.9564) y gráficos clave.
 2. **Visualización de los modelos** — galería con todas las visualizaciones
    disponibles en `outputs/` (curvas ROC, matrices de confusión, importancia de
    variables, balanceo) con explicaciones.

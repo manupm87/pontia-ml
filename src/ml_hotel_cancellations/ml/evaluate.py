@@ -1,0 +1,173 @@
+"""Evaluación de modelos y visualizaciones.
+
+Métricas (accuracy, precision, recall, F1, ROC-AUC), tabla comparativa, selección
+del mejor modelo según la métrica principal y los gráficos del enunciado: matriz
+de confusión, curva ROC comparativa e importancia de variables.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from ml_hotel_cancellations import config
+
+config.use_agg_backend()  # backend no interactivo: permite guardar PNG sin pantalla.
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
+
+from ml_hotel_cancellations.utils.reporting import save_figure
+
+logger = logging.getLogger(__name__)
+
+sns.set_theme(style="whitegrid")
+
+
+def compute_metrics(y_true, y_pred, y_proba) -> dict[str, float]:
+    """Calcula accuracy, precision, recall, f1 y roc_auc (ver docs/glosario.md).
+
+    ``y_pred`` aplica el umbral 0.5; ``y_proba`` es la probabilidad de cancelación.
+    """
+    return {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1": f1_score(y_true, y_pred, zero_division=0),
+        "roc_auc": roc_auc_score(y_true, y_proba),
+    }
+
+
+def evaluate_models(models: dict, X_test, y_test) -> dict[str, dict]:
+    """Predice y calcula métricas de cada modelo sobre el test.
+
+    Devuelve ``{nombre: {"y_pred", "y_proba", "metrics"}}``.
+    """
+    y_test = np.asarray(y_test)
+    results: dict[str, dict] = {}
+    for name, model in models.items():
+        y_pred = np.asarray(model.predict(X_test)).ravel()
+        y_proba = np.asarray(model.predict_proba(X_test))[:, 1]
+        metrics = compute_metrics(y_test, y_pred, y_proba)
+        results[name] = {"y_pred": y_pred, "y_proba": y_proba, "metrics": metrics}
+        logger.info(
+            "%-24s | acc=%.4f f1=%.4f roc_auc=%.4f",
+            name,
+            metrics["accuracy"],
+            metrics["f1"],
+            metrics["roc_auc"],
+        )
+    return results
+
+
+def comparison_table(
+    results: dict,
+    train_times: dict[str, float] | None = None,
+    metric_names: list[str] | None = None,
+) -> pd.DataFrame:
+    """Tabla comparativa de métricas por modelo (ordenada por la principal)."""
+    metric_names = metric_names or config.METRIC_NAMES
+    rows = {}
+    for name, res in results.items():
+        row = {m: res["metrics"][m] for m in metric_names}
+        if train_times and name in train_times:
+            row["train_time_s"] = train_times[name]
+        rows[name] = row
+    table = pd.DataFrame(rows).T
+    return table.sort_values(by=config.PRIMARY_METRIC, ascending=False)
+
+
+def select_best(results: dict, primary_metric: str = config.PRIMARY_METRIC) -> str:
+    """Devuelve el nombre del mejor modelo según la métrica principal."""
+    best = max(results.items(), key=lambda kv: kv[1]["metrics"][primary_metric])[0]
+    logger.info(
+        "Mejor modelo según %s: %s (%.4f)",
+        primary_metric,
+        best,
+        results[best]["metrics"][primary_metric],
+    )
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Visualizaciones
+# ---------------------------------------------------------------------------
+def plot_roc_curves(results: dict, y_test, path) -> None:
+    """Dibuja la curva ROC de todos los modelos en una misma figura."""
+    y_test = np.asarray(y_test)
+    fig = plt.figure(figsize=(8, 7))
+    for name, res in results.items():
+        fpr, tpr, _ = roc_curve(y_test, res["y_proba"])
+        auc = res["metrics"]["roc_auc"]
+        plt.plot(fpr, tpr, label=f"{name} (AUC = {auc:.3f})", linewidth=2)
+    plt.plot([0, 1], [0, 1], linestyle="--", color="grey", label="Azar (AUC = 0.5)")
+    plt.xlabel("Tasa de Falsos Positivos (FPR)")
+    plt.ylabel("Tasa de Verdaderos Positivos (TPR)")
+    plt.title("Curva ROC comparativa")
+    plt.legend(loc="lower right")
+    save_figure(fig, path)
+
+
+def _plot_cm(ax, res: dict, y_test, *, colorbar: bool) -> None:
+    """Pinta la matriz de confusión de un modelo sobre el eje ``ax``."""
+    cm = confusion_matrix(y_test, res["y_pred"])
+    disp = ConfusionMatrixDisplay(cm, display_labels=config.CLASS_LABELS)
+    disp.plot(ax=ax, cmap="Blues", colorbar=colorbar, values_format="d")
+    ax.set_xlabel("Predicción")
+    ax.set_ylabel("Real")
+
+
+def plot_confusion_matrices(results: dict, y_test, path) -> None:
+    """Dibuja la matriz de confusión de cada modelo en una cuadrícula."""
+    y_test = np.asarray(y_test)
+    n = len(results)
+    ncols = min(3, n)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4.2 * nrows))
+    axes = np.atleast_1d(axes).ravel()
+    for ax, (name, res) in zip(axes, results.items()):
+        _plot_cm(ax, res, y_test, colorbar=False)
+        ax.set_title(name)
+    for ax in axes[n:]:  # ocultar ejes sobrantes de la cuadrícula
+        ax.axis("off")
+    fig.suptitle("Matrices de confusión por modelo", fontsize=14)
+    save_figure(fig, path)
+
+
+def plot_confusion_matrix(results: dict, name: str, y_test, path) -> None:
+    """Dibuja la matriz de confusión de un único modelo (el mejor)."""
+    y_test = np.asarray(y_test)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    _plot_cm(ax, results[name], y_test, colorbar=True)
+    ax.set_title(f"Matriz de confusión — {name}")
+    save_figure(fig, path)
+
+
+def plot_feature_importance(model_pipeline, path, top_n: int = 20) -> None:
+    """Dibuja las ``top_n`` variables más importantes de un modelo de árboles."""
+    estimator = model_pipeline.named_steps["model"]
+    if not hasattr(estimator, "feature_importances_"):
+        logger.warning("El modelo no expone feature_importances_; se omite el gráfico.")
+        return
+    names = model_pipeline.named_steps["preprocessor"].get_feature_names_out()
+    importances = estimator.feature_importances_
+    series = pd.Series(importances, index=names).sort_values(ascending=False)
+    top = series.head(top_n).iloc[::-1]  # invertir para barh de mayor a menor
+
+    fig = plt.figure(figsize=(9, 0.42 * len(top) + 1.5))
+    sns.barplot(x=top.values, y=top.index, color="#2c7fb8")
+    plt.xlabel("Importancia")
+    plt.ylabel("Variable")
+    plt.title(f"Top {len(top)} variables más importantes")
+    save_figure(fig, path)

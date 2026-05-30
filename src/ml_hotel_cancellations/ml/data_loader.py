@@ -19,42 +19,34 @@ def load_raw_data(path=config.RAW_DATASET_PATH) -> pd.DataFrame:
     return df
 
 
-def normalize_categoricals(df: pd.DataFrame) -> pd.DataFrame:
-    """Normaliza las categóricas igual en train e inferencia.
-
-    ``agent`` (ID numérico) pasa a texto; los ausentes se marcan como ``"Unknown"``.
-    Función única para evitar divergencias entre entrenamiento y predicción.
-    """
-    df = df.copy()
-    if "agent" in df.columns:
-        agent = df["agent"].astype("Int64").astype("object")
-        df["agent"] = agent.where(agent.notna(), "Unknown").astype(str)
-    for col in config.CATEGORICAL_COLUMNS:
-        if col == "agent" or col not in df.columns:
-            continue
-        df[col] = df[col].astype("object").where(df[col].notna(), "Unknown")
-    return df
-
-
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Limpia el DataFrame: descarta leakage/baja utilidad, reservas sin huéspedes
-    y normaliza las categóricas. Devuelve datos listos para separar en X / y.
+    """Limpieza segura fila a fila (no aprende parámetros, EDA §2).
+
+    Descarta columnas con fuga / que no generalizan (leakage, parking, año) y filas
+    sin sentido (sin huéspedes, sin noches, ``adr`` extremo, EDA §8). Mantiene
+    ``company`` y ``agent`` en crudo: las features derivadas y la reducción de
+    cardinalidad las construye el ``Pipeline`` de preprocesado. Devuelve datos
+    listos para separar en X / y.
     """
     df = df.copy()
 
     cols_to_drop = [c for c in config.DROP_COLUMNS if c in df.columns]
     df = df.drop(columns=cols_to_drop)
-    logger.info("Columnas eliminadas (leakage / baja utilidad): %s", cols_to_drop)
+    logger.info("Columnas eliminadas (leakage / no generalizan): %s", cols_to_drop)
 
-    # Reservas sin ningún huésped: registros inconsistentes.
+    # Saneo de filas (EDA §8): fuera reservas imposibles.
+    n_before = len(df)
+    keep = pd.Series(True, index=df.index)
     guest_cols = ["adults", "children", "babies"]
     if all(c in df.columns for c in guest_cols):
-        n_before = len(df)
-        no_guests = df[guest_cols].fillna(0).sum(axis=1) == 0
-        df = df.loc[~no_guests].reset_index(drop=True)
-        logger.info("Filas sin huéspedes eliminadas: %d", n_before - len(df))
-
-    df = normalize_categoricals(df)
+        keep &= df[guest_cols].fillna(0).sum(axis=1) > 0  # sin huéspedes
+    if {"stays_in_week_nights", "stays_in_weekend_nights"} <= set(df.columns):
+        nights = df["stays_in_week_nights"].fillna(0) + df["stays_in_weekend_nights"].fillna(0)
+        keep &= nights > 0  # sin noches de estancia
+    if "adr" in df.columns:
+        keep &= ~((df["adr"] < 0) | (df["adr"] >= 5400))  # adr negativo o desorbitado
+    df = df.loc[keep].reset_index(drop=True)
+    logger.info("Filas eliminadas (sin huéspedes / sin noches / adr extremo): %d", n_before - len(df))
 
     return df
 

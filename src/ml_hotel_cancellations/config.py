@@ -45,10 +45,19 @@ NA_TOKENS: list[str] = ["NULL", "NA", "NaN", ""]
 # Ver docs/informe_final.md §EDA.
 LEAKAGE_COLUMNS: list[str] = ["reservation_status", "reservation_status_date"]
 
-# `company` se descarta por baja utilidad (~94 % ausente).
-DROP_COLUMNS: list[str] = ["company", *LEAKAGE_COLUMNS]
+# Columnas que se descartan en el entrenamiento (hallazgos del EDA):
+# - leakage directo (reservation_status*),
+# - `required_car_parking_spaces`: fuga sutil, se asigna en el check-in (EDA §11),
+# - `arrival_date_year`: años parciales, no generaliza (EDA §6).
+# `company` ya NO se descarta: se conserva como categórica de cardinalidad reducida.
+DROP_COLUMNS: list[str] = [
+    *LEAKAGE_COLUMNS,
+    "required_car_parking_spaces",
+    "arrival_date_year",
+]
 
-# Variables categóricas. `agent` es un ID numérico tratado como categoría.
+# Variables categóricas de entrada. `agent` y `company` son IDs tratados como
+# categorías de alta cardinalidad (ver HIGH_CARDINALITY_COLUMNS).
 CATEGORICAL_COLUMNS: list[str] = [
     "hotel",
     "arrival_date_month",
@@ -61,10 +70,11 @@ CATEGORICAL_COLUMNS: list[str] = [
     "deposit_type",
     "customer_type",
     "agent",
+    "company",
 ]
 
-# Variables numéricas. `arrival_date_year` se excluye a propósito (no generaliza
-# a años futuros y está confundida con la estación); ver docs/informe_final.md §EDA.
+# Variables numéricas de entrada. `arrival_date_year` y `required_car_parking_spaces`
+# se excluyen a propósito (el año no generaliza, EDA §6; el parking es fuga, EDA §11).
 NUMERIC_COLUMNS: list[str] = [
     "lead_time",
     "arrival_date_week_number",
@@ -80,16 +90,34 @@ NUMERIC_COLUMNS: list[str] = [
     "booking_changes",
     "days_in_waiting_list",
     "adr",
-    "required_car_parking_spaces",
     "total_of_special_requests",
 ]
 
-# Las 27 features de entrada; fuente única que usan la API y los esquemas.
+# Las 27 features de entrada (15 numéricas + 12 categóricas); fuente única que usan
+# la API y los esquemas. Las features derivadas (abajo) NO son de entrada: el
+# preprocesado las calcula a partir de estas.
 FEATURE_COLUMNS: list[str] = [*NUMERIC_COLUMNS, *CATEGORICAL_COLUMNS]
 
-# Cardinalidad máxima por categórica en el OneHotEncoder: limita variables de
-# alta cardinalidad (`country`, `agent`) agrupando las raras en "infrequent".
-MAX_OHE_CATEGORIES: int = 25
+# Features derivadas en el preprocesado (EDA §5, "ausencia informativa"):
+# - has_company / has_agent: el nulo de company/agent es señal, no ruido.
+# - noches: estancia total = noches de semana + de fin de semana.
+DERIVED_NUMERIC_COLUMNS: list[str] = ["has_company", "has_agent", "noches"]
+
+# Columnas numéricas que ve el modelo: entrada + derivadas (las escala el preprocesador).
+NUMERIC_FEATURES: list[str] = [*NUMERIC_COLUMNS, *DERIVED_NUMERIC_COLUMNS]
+
+# Categóricas de alta cardinalidad: reducción supervisada fit-on-train (EDA §13).
+# Se conservan las categorías con soporte (n >= RARE_MIN_N) y señal extrema de
+# cancelación (tasa > RARE_HI_FRAC*max o < RARE_LO_FRAC*max); el resto -> "Otros".
+HIGH_CARDINALITY_COLUMNS: list[str] = ["agent", "country", "company"]
+RARE_NULL_LABELS: dict[str, str] = {
+    "agent": "Desconocido",
+    "country": "Desconocido",
+    "company": "no_company",  # el nulo de company es un estado real (sin empresa)
+}
+RARE_MIN_N: int = 100
+RARE_HI_FRAC: float = 0.60
+RARE_LO_FRAC: float = 0.30
 
 # ---------------------------------------------------------------------------
 # Métrica principal y secundarias
@@ -210,14 +238,6 @@ TUNING_RESULTS_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 # si no, recurre a los valores base de arriba.
 BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 
-# ---------------------------------------------------------------------------
-# Balanceo de clases (bonus)
-# ---------------------------------------------------------------------------
-# Artefactos de la comparación de estrategias de balanceo (sin balanceo,
-# reponderación por class_weight, y sobremuestreo SMOTE).
-BALANCING_RESULTS_PATH: Path = OUTPUTS_DIR / "balanceo_clases.md"
-BALANCING_PLOT_PATH: Path = OUTPUTS_DIR / "balanceo_clases.png"
-
 
 # ---------------------------------------------------------------------------
 # Reserva de ejemplo (contrato de entrada)
@@ -247,10 +267,10 @@ BOOKING_EXAMPLE: dict = {
     "booking_changes": 0,
     "deposit_type": "No Deposit",
     "agent": "9",
+    "company": "no_company",
     "days_in_waiting_list": 0,
     "customer_type": "Transient",
     "adr": 100.0,
-    "required_car_parking_spaces": 0,
     "total_of_special_requests": 1,
 }
 

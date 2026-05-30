@@ -102,9 +102,10 @@ convierte en dos columnas `hotel_City` y `hotel_Resort`. Necesario porque los
 modelos solo entienden números.
 
 **Cardinalidad.** Número de valores distintos de una variable categórica. `country`
-tiene **alta cardinalidad** (178 países). Si hiciéramos one-hot de todos, saldrían
-cientos de columnas, así que limitamos el número de categorías
-(`max_categories`) y agrupamos las raras en una categoría "poco frecuente".
+tiene **alta cardinalidad** (~178 países), igual que `agent` y `company`. Si
+hiciéramos one-hot de todas, saldrían cientos de columnas, así que aplicamos
+**reducción de cardinalidad supervisada** (ver entrada propia): conservamos las
+categorías con soporte y señal fuerte y agrupamos el resto en `"Otros"`.
 
 **Desbalance de clases.** Cuando una clase es mucho más frecuente que la otra. Aquí
 hay más reservas no canceladas (63 %) que canceladas (37 %): un desbalance moderado.
@@ -121,6 +122,29 @@ de entrenamiento**, evitando fugas, y se guarda junto al modelo.
 **ColumnTransformer ("transformador por columnas").** Herramienta de scikit-learn
 que aplica **transformaciones distintas a distintas columnas** (escalar las
 numéricas y codificar las categóricas) dentro del mismo Pipeline.
+
+**Fit-on-train ("ajustar solo con entrenamiento").** Aprender los parámetros de
+cualquier transformación (medianas, escalas, categorías frecuentes...) usando **solo
+el conjunto de entrenamiento**, y aplicarla luego al test. Es la forma de evitar la
+fuga de información (data leakage).
+
+**Ausencia informativa.** Cuando el hecho de que un valor **falte ES información**, no
+ruido. Aquí, que una reserva no tenga `company` o `agent` asociados se relaciona con un
+riesgo de cancelación distinto, así que en lugar de tirar el dato lo convertimos en una
+feature binaria (`has_company`, `has_agent`).
+
+**Feature derivada.** Variable **nueva** calculada a partir de las originales (aquí
+`has_company`, `has_agent` y `noches`, sumando estancias entre semana y fin de semana).
+
+**Reducción de cardinalidad (supervisada).** Agrupar las categorías **raras** de una
+variable de alta cardinalidad (`agent`, `country`, `company`, con cientos de valores)
+en una categoría "Otros", conservando solo las que tienen suficiente soporte y una
+señal fuerte respecto al target. Se ajusta **solo con train** (*fit-on-train*) para no
+filtrar información del test.
+
+**SMOTE.** Técnica que genera ejemplos sintéticos de la clase minoritaria para
+equilibrar el conjunto de entrenamiento. En este proyecto **no forma parte del paquete
+de producción**: se exploró en el notebook playground 06.
 
 ---
 
@@ -320,7 +344,7 @@ Registry** versiona los modelos resultantes y les asocia *stages* (`Staging`,
 
 **Run / Experiment (MLflow).** Un *run* es una ejecución concreta de entrenamiento;
 un *experiment* agrupa runs relacionados. El proyecto crea un *run* padre por cada
-ejecución de los scripts `train`, `tune` y `balance`, con uno o
+ejecución de los scripts `train` y `tune`, con uno o
 varios *child runs* anidados (uno por modelo o por combinación).
 
 **Stage / Promoción de un modelo.** Cada versión registrada en el *Model Registry*

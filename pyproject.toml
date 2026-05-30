@@ -45,7 +45,6 @@ dev = ["pytest>=8.0", "httpx>=0.27"]
 train = "ml_hotel_cancellations.ml.train:main"
 predict = "ml_hotel_cancellations.ml.predict:main"
 tune = "ml_hotel_cancellations.ml.tuning:main"
-balance = "ml_hotel_cancellations.ml.balancing:main"
 register-model = "ml_hotel_cancellations.utils.register_model:main"
 explain = "ml_hotel_cancellations.utils.interpretability:main"
 viz2d = "ml_hotel_cancellations.utils.visualization_2d:main"

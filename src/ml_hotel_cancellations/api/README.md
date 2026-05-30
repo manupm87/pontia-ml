@@ -19,11 +19,11 @@ ml_hotel_cancellations/api/
 
 Los tests viven en `tests/test_api.py` (raíz del repo), no dentro del paquete.
 
-El preprocesado de la entrada se hace **reutilizando**
-`ml_hotel_cancellations.ml.predict` y
-`ml_hotel_cancellations.ml.data_loader.normalize_categoricals`, de modo que la
-API "ve" los datos exactamente igual que el entrenamiento (misma normalización
-de categóricas, `agent` como texto, etc.).
+El preprocesado de la entrada lo hace el propio `Pipeline` (features derivadas,
+reducción de cardinalidad, one-hot…), reutilizado vía
+`ml_hotel_cancellations.ml.predict`, de modo que la API "ve" los datos
+exactamente igual que el entrenamiento (las 27 features crudas, `agent`/`company`
+como texto, etc.).
 
 ## Requisitos previos
 
@@ -77,10 +77,10 @@ curl -X POST http://127.0.0.1:8000/predict \
     "booking_changes": 0,
     "deposit_type": "No Deposit",
     "agent": "9",
+    "company": "no_company",
     "days_in_waiting_list": 0,
     "customer_type": "Transient",
     "adr": 100.0,
-    "required_car_parking_spaces": 0,
     "total_of_special_requests": 1
   }'
 ```
@@ -113,7 +113,7 @@ Respuesta:
 {
   "model_type": "XGBoost",
   "primary_metric": "roc_auc",
-  "roc_auc": 0.9614,
+  "roc_auc": 0.9564,
   "n_features": 27,
   "features": {"numeric": ["lead_time", "..."], "categorical": ["hotel", "..."]}
 }

@@ -42,7 +42,7 @@ BEST_MODEL_NAME: str = "XGBoost"
 try:
     BEST_MODEL_ROC_AUC: float = round(_src_config.best_metric_value("roc_auc"), 4)
 except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún entorno
-    BEST_MODEL_ROC_AUC = 0.9614
+    BEST_MODEL_ROC_AUC = 0.9564
 
 # Etiquetas legibles de las clases (derivadas de la fuente única en src.config).
 CLASS_LABELS: dict[int, str] = dict(enumerate(_src_config.CLASS_LABELS_SHORT))

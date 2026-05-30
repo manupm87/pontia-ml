@@ -1,8 +1,9 @@
-"""Optimización de hiperparámetros por validación cruzada (bonus técnico).
+"""Optimización de hiperparámetros por validación cruzada (bonus, opcional).
 
-Usa GridSearchCV (espacios pequeños) y RandomizedSearchCV (grandes); optimiza
-ROC-AUC y compara CV por defecto vs. tuneada. La red Keras queda fuera (se ajusta
-con early stopping). Mapeo de herramientas en docs/informe_final.md §4.5.
+Para cada modelo clásico busca los mejores hiperparámetros con GridSearchCV
+(espacios pequeños) o RandomizedSearchCV (grandes), optimizando ROC-AUC. La red
+Keras queda fuera (se ajusta con early stopping). Guarda un informe Markdown y un
+JSON con los mejores params, que `train` usa por defecto si existe.
 
 Uso::
 
@@ -16,33 +17,17 @@ import logging
 import time
 
 import pandas as pd
-from sklearn.model_selection import (
-    GridSearchCV,
-    RandomizedSearchCV,
-    cross_val_score,
-)
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
 from ml_hotel_cancellations import config
 from ml_hotel_cancellations.utils import tracking
-from .preprocessing import make_pipeline
 from ml_hotel_cancellations.utils.reporting import df_to_markdown
+from .preprocessing import make_pipeline
 
 logger = logging.getLogger(__name__)
 
-
-# Fuente única en `config` (compartida con train/balancing).
+# Fuente única en `config` (compartida con train).
 _MODEL_FAMILY: dict[str, str] = config.MODEL_FAMILY
-
-
-def _pipeline(estimator) -> Pipeline:
-    """Envuelve un estimador con el preprocesador del proyecto en un Pipeline."""
-    return make_pipeline(estimator)
-
-
-def _strip_prefix(params: dict) -> dict:
-    """Quita el prefijo ``model__`` de las claves (para reusarlas al reentrenar)."""
-    return {k.replace("model__", "", 1): v for k, v in params.items()}
 
 
 def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
@@ -56,222 +41,92 @@ def load_best_params(path=config.BEST_PARAMS_PATH) -> dict[str, dict]:
         return {}
 
 
-class HyperparameterTuner:
-    """Optimiza los hiperparámetros de los modelos clásicos por CV."""
+def _search_space() -> dict[str, tuple]:
+    """Por modelo: ``(grid, tipo_de_busqueda)``. Random Forest y XGBoost con
+    ``n_jobs=1`` para no competir con el paralelismo de la propia búsqueda.
+    """
+    from .models import build_classic_estimators
 
-    def __init__(
-        self,
-        cv: int = config.TUNING_CV_FOLDS,
-        scoring: str = config.TUNING_SCORING,
-        n_iter: int = config.TUNING_N_ITER,
-        random_state: int = config.RANDOM_STATE,
-    ):
-        self.cv = cv
-        self.scoring = scoring
-        self.n_iter = n_iter
-        self.random_state = random_state
-        self.results_: dict[str, dict] = {}
-        self.best_params_: dict[str, dict] = {}
+    estimators = build_classic_estimators(n_jobs={"Random Forest": 1, "XGBoost": 1})
+    return {
+        "Logistic Regression": (estimators["Logistic Regression"], config.LOGISTIC_REGRESSION_GRID, "grid"),
+        "Decision Tree": (estimators["Decision Tree"], config.DECISION_TREE_GRID, "grid"),
+        "Random Forest": (estimators["Random Forest"], config.RANDOM_FOREST_GRID, "random"),
+        "XGBoost": (estimators["XGBoost"], config.XGBOOST_GRID, "random"),
+    }
 
-    def _catalog(self) -> dict[str, tuple]:
-        """Por modelo: (estimador base, grid, tipo de búsqueda, params por defecto).
 
-        Random Forest y XGBoost van con ``n_jobs=1`` para no competir con el
-        paralelismo de la propia búsqueda.
-        """
-        from .model_factory import build_classic_estimators
-
-        estimators = build_classic_estimators(
-            overrides={"Logistic Regression": {"random_state": self.random_state},
-                       "Decision Tree": {"random_state": self.random_state},
-                       "Random Forest": {"random_state": self.random_state},
-                       "XGBoost": {"random_state": self.random_state}},
-            n_jobs={"Random Forest": 1, "XGBoost": 1},
-        )
-        return {
-            "Logistic Regression": (
-                estimators["Logistic Regression"],
-                config.LOGISTIC_REGRESSION_GRID,
-                "grid",
-                config.LOGISTIC_REGRESSION_PARAMS,
-            ),
-            "Decision Tree": (
-                estimators["Decision Tree"],
-                config.DECISION_TREE_GRID,
-                "grid",
-                config.DECISION_TREE_PARAMS,
-            ),
-            "Random Forest": (
-                estimators["Random Forest"],
-                config.RANDOM_FOREST_GRID,
-                "random",
-                config.RANDOM_FOREST_PARAMS,
-            ),
-            "XGBoost": (
-                estimators["XGBoost"],
-                config.XGBOOST_GRID,
-                "random",
-                config.XGBOOST_PARAMS,
-            ),
-        }
-
-    def tune(self, X_train, y_train) -> dict[str, dict]:
-        """Ejecuta la búsqueda para cada modelo y guarda los resultados."""
-        # MLflow: parent run propio si se invoca directo; child del run de train
-        # si se llama desde `train --tune`. Los runs por modelo cuelgan de aquí.
-        with tracking.start_run(run_name="tuning_hyperparameters"):
-            tracking.set_tags(
-                {
-                    "phase": "tuning",
-                    "cv_folds": self.cv,
-                    "scoring": self.scoring,
-                    "n_iter": self.n_iter,
-                }
-            )
-            return self._tune_inner(X_train, y_train)
-
-    def _tune_inner(self, X_train, y_train) -> dict[str, dict]:
-        """Bucle de búsqueda (separado del setup de MLflow)."""
-        self.results_ = {}
-        self.best_params_ = {}
-        for name, (estimator, grid, kind, default_params) in self._catalog().items():
-            self._tune_one(name, estimator, grid, kind, default_params, X_train, y_train)
-
-        # Persistir antes de subir como artefactos (única escritura por ejecución).
-        self.save_results()
-        self.save_best_params()
-        tracking.log_artifact(config.TUNING_RESULTS_PATH)
-        tracking.log_artifact(config.BEST_PARAMS_PATH)
-        return self.results_
-
-    def _build_search(self, pipe, grid, kind: str, njobs: int):
-        """Crea el buscador (Grid/Randomized) y devuelve ``(search, tipo)``."""
-        if kind == "grid":
-            search = GridSearchCV(  # búsqueda exhaustiva
-                pipe, grid, scoring=self.scoring, cv=self.cv, n_jobs=njobs
-            )
-            return search, "GridSearchCV"
-        # RandomizedSearchCV: muestreo aleatorio para espacios grandes (ver §4.5).
+def _build_search(estimator, grid: dict, kind: str):
+    """Crea el buscador (Grid o Randomized) sobre el Pipeline preprocesado."""
+    pipe = make_pipeline(estimator)
+    if kind == "grid":
+        search = GridSearchCV(pipe, grid, scoring=config.TUNING_SCORING, cv=config.TUNING_CV_FOLDS, n_jobs=-1)
+    else:
         search = RandomizedSearchCV(
-            pipe,
-            grid,
-            n_iter=self.n_iter,
-            scoring=self.scoring,
-            cv=self.cv,
-            n_jobs=njobs,
-            random_state=self.random_state,
+            pipe, grid, n_iter=config.TUNING_N_ITER, scoring=config.TUNING_SCORING,
+            cv=config.TUNING_CV_FOLDS, n_jobs=-1, random_state=config.RANDOM_STATE,
         )
-        return search, "RandomizedSearchCV"
+    return search
 
-    def _baseline_cv(self, estimator, default_params: dict, njobs: int, X_train, y_train) -> float:
-        """CV con los hiperparámetros por defecto del proyecto (baseline)."""
-        extra = {"n_jobs": 1} if "n_jobs" in default_params else {}
-        base = estimator.__class__(**{**default_params, **extra})
-        return cross_val_score(
-            _pipeline(base), X_train, y_train, scoring=self.scoring, cv=self.cv, n_jobs=njobs
-        ).mean()
 
-    def _log_model_run(self, name: str, search_type: str, best: dict, cv_default: float,
-                       search, elapsed: float) -> None:
-        """MLflow: un child run por modelo con sus params + métricas de CV."""
-        with tracking.start_run(run_name=name, nested=True):
-            tracking.set_tags(
-                {
-                    "model_family": _MODEL_FAMILY.get(name, "other"),
-                    "search": search_type,
-                    "phase": "tuning",
-                }
-            )
-            tracking.log_params(best)
-            tracking.log_metrics(
-                {
-                    f"cv_{self.scoring}_default": float(cv_default),
-                    f"cv_{self.scoring}_tuned": float(search.best_score_),
-                    f"cv_{self.scoring}_improvement": float(
-                        search.best_score_ - cv_default
-                    ),
-                    "n_combos_tried": int(len(search.cv_results_["params"])),
-                    "elapsed_s": float(elapsed),
-                }
-            )
+def tune(X_train, y_train) -> tuple[dict, pd.DataFrame]:
+    """Optimiza cada modelo clásico y devuelve ``(mejores_params, tabla_resultados)``.
 
-    def _tune_one(self, name: str, estimator, grid, kind: str, default_params: dict,
-                  X_train, y_train) -> None:
-        """Optimiza un modelo: búsqueda + baseline + registro de resultados/MLflow."""
-        pipe = _pipeline(estimator)
-        njobs = -1  # la búsqueda CV paraleliza sobre todos los núcleos (CPU)
-        search, search_type = self._build_search(pipe, grid, kind, njobs)
+    Persiste el informe Markdown y el JSON de mejores params (los usa `train`).
+    """
+    best_params: dict[str, dict] = {}
+    rows = {}
+    with tracking.start_run(run_name="tuning_hyperparameters"):
+        for name, (estimator, grid, kind) in _search_space().items():
+            logger.info("Optimizando %s (%s)...", name, kind)
+            start = time.perf_counter()
+            search = _build_search(estimator, grid, kind)
+            search.fit(X_train, y_train)
+            elapsed = time.perf_counter() - start
 
-        logger.info("Optimizando %s con %s...", name, search_type)
-        start = time.perf_counter()
-        search.fit(X_train, y_train)
-
-        cv_default = self._baseline_cv(estimator, default_params, njobs, X_train, y_train)
-        elapsed = time.perf_counter() - start
-
-        best = _strip_prefix(search.best_params_)
-        self.best_params_[name] = best
-        self.results_[name] = {
-            "search": search_type,
-            "n_combos": len(search.cv_results_["params"]),
-            "cv_default": cv_default,
-            "cv_tuned": search.best_score_,
-            "mejora": search.best_score_ - cv_default,
-            "best_params": best,
-            "segundos": elapsed,
-        }
-        logger.info(
-            "  -> %s: CV %s  %.4f (default) -> %.4f (tuned)  [%.0fs]",
-            name,
-            self.scoring,
-            cv_default,
-            search.best_score_,
-            elapsed,
-        )
-
-        self._log_model_run(name, search_type, best, cv_default, search, elapsed)
-
-    def results_table(self) -> pd.DataFrame:
-        """Devuelve los resultados como tabla ordenada por CV ``tuned``."""
-        rows = {
-            name: {
-                "busqueda": r["search"],
-                "combinaciones": r["n_combos"],
-                f"cv_{self.scoring}_default": round(r["cv_default"], 4),
-                f"cv_{self.scoring}_tuned": round(r["cv_tuned"], 4),
-                "mejora": round(r["mejora"], 4),
-                "segundos": round(r["segundos"], 1),
+            # Quitamos el prefijo "model__" para poder reusar los params al reentrenar.
+            best = {k.replace("model__", "", 1): v for k, v in search.best_params_.items()}
+            best_params[name] = best
+            rows[name] = {
+                "busqueda": "Grid" if kind == "grid" else "Randomized",
+                "combinaciones": len(search.cv_results_["params"]),
+                f"cv_{config.TUNING_SCORING}": round(search.best_score_, 4),
+                "segundos": round(elapsed, 1),
             }
-            for name, r in self.results_.items()
-        }
-        return pd.DataFrame(rows).T.sort_values(
-            f"cv_{self.scoring}_tuned", ascending=False
-        )
+            logger.info("  -> %s: CV %s=%.4f [%.0fs]", name, config.TUNING_SCORING, search.best_score_, elapsed)
+            _log_model_run(name, best, search.best_score_)
 
-    def save_results(self, path=config.TUNING_RESULTS_PATH) -> None:
-        """Escribe un informe Markdown con la tabla y los mejores hiperparámetros."""
-        table = self.results_table()
-        # Los valores de la tabla ya vienen redondeados (str(v) los respeta).
-        lines = [
-            "# Optimización de hiperparámetros\n",
-            f"Métrica optimizada: **{self.scoring}** · CV de **{self.cv}** particiones.\n",
-            df_to_markdown(table, index_label="Modelo", float_fmt="{}"),
-            "\n## Mejores hiperparámetros por modelo\n",
-        ]
-        for name, params in self.best_params_.items():
-            lines.append(f"- **{name}**: `{params}`")
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        logger.info("Resultados de la búsqueda guardados en: %s", path)
+    table = pd.DataFrame(rows).T.sort_values(f"cv_{config.TUNING_SCORING}", ascending=False)
+    _save_results(table, best_params)
+    return best_params, table
 
-    def save_best_params(self, path=config.BEST_PARAMS_PATH) -> None:
-        """Persiste los mejores hiperparámetros en JSON (se usan por defecto)."""
-        path.write_text(json.dumps(self.best_params_, indent=2, ensure_ascii=False) + "\n",
-                        encoding="utf-8")
-        logger.info("Mejores hiperparámetros guardados en: %s", path)
+
+def _log_model_run(name: str, best: dict, cv_score: float) -> None:
+    """MLflow: un child run por modelo con sus params + score de CV (no-op si off)."""
+    with tracking.start_run(run_name=name, nested=True):
+        tracking.set_tags({"model_family": _MODEL_FAMILY.get(name, "other"), "phase": "tuning"})
+        tracking.log_params(best)
+        tracking.log_metrics({f"cv_{config.TUNING_SCORING}": float(cv_score)})
+
+
+def _save_results(table: pd.DataFrame, best_params: dict) -> None:
+    """Escribe el informe Markdown y el JSON con los mejores hiperparámetros."""
+    lines = [
+        "# Optimización de hiperparámetros\n",
+        f"Métrica optimizada: **{config.TUNING_SCORING}** · CV de **{config.TUNING_CV_FOLDS}** particiones.\n",
+        df_to_markdown(table, index_label="Modelo", float_fmt="{}"),
+        "\n## Mejores hiperparámetros por modelo\n",
+        *[f"- **{name}**: `{params}`" for name, params in best_params.items()],
+    ]
+    config.TUNING_RESULTS_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    config.BEST_PARAMS_PATH.write_text(json.dumps(best_params, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tracking.log_artifact(config.TUNING_RESULTS_PATH)
+    tracking.log_artifact(config.BEST_PARAMS_PATH)
+    logger.info("Resultados de la búsqueda guardados en: %s", config.TUNING_RESULTS_PATH)
 
 
 def main() -> None:
-    """Punto de entrada CLI: tuneable de forma independiente al pipeline."""
+    """Punto de entrada CLI: optimiza de forma independiente al pipeline."""
     from .data_loader import load_and_prepare
 
     config.configure_logging()
@@ -279,13 +134,11 @@ def main() -> None:
     logger.info("=== Optimización de hiperparámetros (CV=%d, métrica=%s) ===",
                 config.TUNING_CV_FOLDS, config.TUNING_SCORING)
     X_train, _, y_train, _ = load_and_prepare()
-    tuner = HyperparameterTuner()
-    # `tune()` ya persiste los artefactos; no los reescribimos aquí.
-    tuner.tune(X_train, y_train)
+    _, table = tune(X_train, y_train)
     print("\n" + "=" * 70)
     print("RESULTADO DE LA OPTIMIZACIÓN DE HIPERPARÁMETROS")
     print("=" * 70)
-    print(tuner.results_table().to_string())
+    print(table.to_string())
     print("=" * 70 + "\n")
 
 

@@ -1,7 +1,7 @@
 """Contratos de datos (modelos Pydantic) de la API: validan la entrada y generan el OpenAPI.
 
-Las 27 características de ``Booking`` = ``NUMERIC_COLUMNS`` (16) +
-``CATEGORICAL_COLUMNS`` (11) de ``config``, las mismas columnas crudas que el modelo usa.
+Las 27 características de ``Booking`` = ``NUMERIC_COLUMNS`` (15) +
+``CATEGORICAL_COLUMNS`` (12) de ``config``, las mismas columnas crudas que el modelo usa.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class Booking(BaseModel):
     ``agent`` es string (ID de agencia como categoría) y ``children`` es float a propósito.
     """
 
-    # --- Categóricas (11) ---
+    # --- Categóricas (12) ---
     hotel: str = Field(..., description="Tipo de hotel: 'City Hotel' o 'Resort Hotel'.")
     arrival_date_month: str = Field(..., description="Mes de llegada (p. ej. 'August').")
     meal: str = Field(..., description="Régimen de comidas (p. ej. 'BB').")
@@ -32,9 +32,10 @@ class Booking(BaseModel):
     assigned_room_type: str = Field(..., description="Tipo de habitación asignada.")
     deposit_type: str = Field(..., description="Tipo de depósito (p. ej. 'No Deposit').")
     customer_type: str = Field(..., description="Tipo de cliente (p. ej. 'Transient').")
-    agent: str = Field(..., description="ID de agencia como texto (p. ej. '9' o 'Unknown').")
+    agent: str = Field(..., description="ID de agencia como texto (p. ej. '9' o 'Desconocido').")
+    company: str = Field(..., description="ID de empresa como texto; 'no_company' si no hay empresa.")
 
-    # --- Numéricas (16) ---
+    # --- Numéricas (15) ---
     lead_time: int = Field(..., ge=0, description="Días de antelación entre reserva y llegada.")
     arrival_date_week_number: int = Field(..., ge=1, le=53, description="Semana del año de llegada.")
     arrival_date_day_of_month: int = Field(..., ge=1, le=31, description="Día del mes de llegada.")
@@ -51,7 +52,6 @@ class Booking(BaseModel):
     booking_changes: int = Field(..., ge=0, description="Número de cambios hechos a la reserva.")
     days_in_waiting_list: int = Field(..., ge=0, description="Días en lista de espera.")
     adr: float = Field(..., description="Tarifa media diaria (Average Daily Rate).")
-    required_car_parking_spaces: int = Field(..., ge=0, description="Plazas de parking solicitadas.")
     total_of_special_requests: int = Field(..., ge=0, description="Número de peticiones especiales.")
 
     model_config = ConfigDict(json_schema_extra={"example": BOOKING_EXAMPLE})

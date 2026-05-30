@@ -27,8 +27,9 @@ literals, comments or docstrings (that is the Spanish layer).
 ```
 src/ml_hotel_cancellations/
   config.py     # single source of truth: paths, columns, constants, BOOKING_EXAMPLE, threshold…
-  ml/           # pipeline: data_loader, preprocessing, model_factory, model_trainer,
-                # evaluator, train, predict + (bonus) tuning, balancing
+  ml/           # pipeline: data_loader, preprocessing (FeatureBuilder +
+                # RareCategoryGrouper + ColumnTransformer), models, evaluate,
+                # train, predict + (bonus) tuning
   api/          # FastAPI: main, schemas, service, registry (MLflow client)
   ui/           # Streamlit: app, config, data, booking, layout, sections/
   utils/        # cross-cutting: reporting, visualization_2d, interpretability,
@@ -65,7 +66,7 @@ only, it does not install Python*; point it at a specific interpreter with
 | `make setup` / `setup-dev` | venv + `pip install -e .` (runtime) / `.[train,dev]` (dev+train) |
 | `make run` | API + UI together (Ctrl-C stops both, no orphans) |
 | `make api` / `ui` | either one alone |
-| `make train` / `tune` / `balance` / `register-model` | pipeline/bonus CLIs (need `setup-dev`); pass flags with `ARGS="--tune"` |
+| `make train` / `tune` / `register-model` | pipeline/bonus CLIs (need `setup-dev`); pass flags with `ARGS="--tune"` |
 | `make predict` / `explain` / `viz2d` | inference/interpretability (runtime install is enough); `ARGS="--sample 5"` |
 | `make test` | pytest (needs `setup-dev`) |
 | `make clean` | remove `.venv` + build artifacts |
@@ -82,7 +83,6 @@ CLIs (console scripts in `pyproject.toml`, or the `python -m` form):
 | `train` | `python -m ml_hotel_cancellations.ml.train` | trains the 5 models and saves the best one (`--tune` optional) |
 | `predict` | `…ml.predict` | inference with `models/best_model.pkl` |
 | `tune` | `…ml.tuning` | hyperparameter search (bonus) |
-| `balance` | `…ml.balancing` | class-balancing comparison (bonus) |
 | `register-model` | `…utils.register_model` | registers the model in MLflow (bonus) |
 
 ```bash
@@ -103,7 +103,7 @@ pytest -m "not slow"    # skip the ones that load the bundled model
   truth in `config.py`**. If you touch those constants, don't duplicate them — derive
   them from `config`.
 - After pipeline changes, also run an end-to-end `python -m …ml.train` (reproduces
-  XGBoost ROC-AUC 0.9614); restore artifacts with `git checkout -- outputs/ models/`.
+  XGBoost ROC-AUC ≈ 0.9564); restore artifacts with `git checkout -- outputs/ models/`.
 
 ## Deployment
 
@@ -121,13 +121,20 @@ pytest -m "not slow"    # skip the ones that load the bundled model
 - `README.md` — entry point (demo, problem, layout, how to run, results).
 - `docs/arquitectura.md` — architecture and diagrams. `docs/informe_final.md` —
   academic report. `docs/glosario.md` — glossary. `docs/interpretabilidad.md` — SHAP.
+  `docs/visualizacion_2d.md` — PLS 2D decision-region visualization.
 - `agents/deep_analysis_report.md` — forward-looking improvement ideas (not yet done).
 - `docs/superpowers/` — work artifacts (specs, plans); not user documentation.
 
 ## Notes
 
-- Winning model is **XGBoost** (ROC-AUC ≈ 0.9614). The decision threshold
-  (`config.DECISION_THRESHOLD = 0.5`) and primary metric (`roc_auc`) live in `config`.
+- Winning model is **XGBoost** (ROC-AUC ≈ 0.9564, leakage-free: the EDA dropped
+  `required_car_parking_spaces` as a check-in leak — see notebooks/playground/01–02).
+  The decision threshold (`config.DECISION_THRESHOLD = 0.5`) and primary metric
+  (`roc_auc`) live in `config`.
 - No GPU support (removed: CPU-only, reproducible with `RANDOM_STATE=42`).
-- When adding a model: register it in `config.MODEL_FAMILY` and in `model_factory`/`model_trainer`.
+- When adding a model: register it in `config.MODEL_FAMILY` and in `ml/models.py` (`build_classic_estimators`/`build_models`).
+- Preprocessing lives in the sklearn `Pipeline` (`ml/preprocessing.py`): `FeatureBuilder`
+  (derives `has_company`/`has_agent`/`noches`) + `RareCategoryGrouper` (supervised
+  fit-on-train cardinality reduction for `agent`/`country`/`company`) → `ColumnTransformer`.
+  Input contract = 27 features (15 numeric + 12 categorical); derived features are NOT input.
 - Editable installs recreate a gitignored `build/` dir; safe to delete.

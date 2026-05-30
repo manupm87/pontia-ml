@@ -26,7 +26,7 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.neural_network import MLPClassifier
 
 from ml_hotel_cancellations.ml.data_loader import load_and_prepare
-from ml_hotel_cancellations.ml.preprocessing import build_preprocessor
+from ml_hotel_cancellations.ml.preprocessing import build_transform_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def _build_2d_models() -> dict:
     La red neuronal de Keras se sustituye por un ``MLPClassifier`` de sklearn
     (sin TensorFlow): aquí solo aprende de 2 variables.
     """
-    from ml_hotel_cancellations.ml.model_factory import build_classic_estimators
+    from ml_hotel_cancellations.ml.models import build_classic_estimators
 
     classic_models = build_classic_estimators()
     return {
@@ -74,8 +74,9 @@ def _compute_artifacts() -> dict:
     logger.info("Cargando y preparando los datos…")
     X_train, X_test, y_train, y_test = load_and_prepare()
 
-    logger.info("Ajustando el preprocesador (ColumnTransformer)…")
-    preprocessor = build_preprocessor().fit(X_train)
+    logger.info("Ajustando el preprocesador (features + reducción + ColumnTransformer)…")
+    # fit-on-train CON target: la reducción de cardinalidad es supervisada.
+    preprocessor = build_transform_pipeline().fit(X_train, y_train)
     Z_train = preprocessor.transform(X_train)
     Z_test = preprocessor.transform(X_test)
 

@@ -1,4 +1,4 @@
-"""Tests de `src.data_loader` (limpieza, normalización y partición)."""
+"""Tests de `ml.data_loader` (limpieza segura de filas/columnas y partición)."""
 
 from __future__ import annotations
 
@@ -9,42 +9,43 @@ from ml_hotel_cancellations import config
 from ml_hotel_cancellations.ml import data_loader
 
 
-def test_clean_data_drops_leakage_columns(raw_like_df: pd.DataFrame) -> None:
+def test_clean_data_drops_leakage_and_non_generalizing_columns(raw_like_df: pd.DataFrame) -> None:
+    """Se eliminan leakage, parking (fuga) y año (no generaliza)."""
     cleaned = data_loader.clean_data(raw_like_df)
     for col in config.DROP_COLUMNS:
         assert col not in cleaned.columns
 
 
+def test_clean_data_keeps_company(raw_like_df: pd.DataFrame) -> None:
+    """`company` ya NO se descarta: es una feature de entrada."""
+    cleaned = data_loader.clean_data(raw_like_df)
+    assert "company" in cleaned.columns
+
+
 def test_clean_data_removes_rows_without_guests(raw_like_df: pd.DataFrame) -> None:
     """La fila con adults+children+babies == 0 se elimina."""
-    n_zero_guests = int(
-        (raw_like_df[["adults", "children", "babies"]].fillna(0).sum(axis=1) == 0).sum()
-    )
-    assert n_zero_guests >= 1  # el fixture incluye al menos una
     cleaned = data_loader.clean_data(raw_like_df)
     guests = cleaned[["adults", "children", "babies"]].fillna(0).sum(axis=1)
     assert (guests == 0).sum() == 0
 
 
-def test_normalize_categoricals_fills_missing_with_unknown(raw_like_df: pd.DataFrame) -> None:
-    normalized = data_loader.normalize_categoricals(raw_like_df)
-    assert normalized["country"].isna().sum() == 0
-    assert "Unknown" in normalized["country"].values
+def test_clean_data_removes_rows_without_nights(raw_like_df: pd.DataFrame) -> None:
+    """Las reservas con 0 noches de estancia se eliminan (EDA §8)."""
+    cleaned = data_loader.clean_data(raw_like_df)
+    nights = cleaned["stays_in_week_nights"] + cleaned["stays_in_weekend_nights"]
+    assert (nights == 0).sum() == 0
 
 
-def test_normalize_categoricals_agent_to_string(raw_like_df: pd.DataFrame) -> None:
-    """`agent` se convierte a texto y sus ausentes a 'Unknown'."""
-    normalized = data_loader.normalize_categoricals(raw_like_df)
-    assert normalized["agent"].map(type).eq(str).all()
-    assert "Unknown" in normalized["agent"].values
-    # El '9' del ejemplo no debe convertirse en '9.0'.
-    assert "9" in normalized["agent"].values
-    assert "9.0" not in normalized["agent"].values
+def test_clean_data_removes_extreme_adr(raw_like_df: pd.DataFrame) -> None:
+    """Los `adr` negativos o desorbitados (>=5400) se eliminan (EDA §8)."""
+    cleaned = data_loader.clean_data(raw_like_df)
+    assert (cleaned["adr"] < 0).sum() == 0
+    assert (cleaned["adr"] >= 5400).sum() == 0
 
 
-def test_normalize_categoricals_does_not_mutate_input(raw_like_df: pd.DataFrame) -> None:
+def test_clean_data_does_not_mutate_input(raw_like_df: pd.DataFrame) -> None:
     before = raw_like_df.copy()
-    data_loader.normalize_categoricals(raw_like_df)
+    data_loader.clean_data(raw_like_df)
     pd.testing.assert_frame_equal(raw_like_df, before)
 
 
