@@ -37,17 +37,21 @@ DEFAULT_SHAP_SAMPLE: int = 2000
 # Utilidades internas
 # ---------------------------------------------------------------------------
 def _transform_features(pipeline: Pipeline, X: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
-    """Aplica el preprocesador del ``Pipeline`` y devuelve la matriz + nombres.
+    """Aplica TODO el preprocesado del ``Pipeline`` y devuelve la matriz + nombres.
 
     SHAP necesita los datos en el espacio del estimador final (numéricas escaladas
-    y categóricas one-hot), no las columnas en crudo.
+    y categóricas one-hot), no las columnas en crudo. Hay que pasar por *todos* los
+    pasos previos al modelo (``FeatureBuilder`` + ``RareCategoryGrouper`` +
+    ``ColumnTransformer``), no solo el ``ColumnTransformer``: si no, faltarían las
+    features derivadas (``has_company``/``has_agent``/``noches``) que aquel espera.
     """
-    preprocessor = pipeline.named_steps["preprocessor"]
-    X_trans = preprocessor.transform(X)
+    preprocess = pipeline[:-1]  # todos los pasos menos el estimador final
+    X_trans = preprocess.transform(X)
     # SHAP trabaja mejor con arrays densos; convertimos si el transformador devuelve sparse.
     if hasattr(X_trans, "toarray"):
         X_trans = X_trans.toarray()
-    feature_names = list(preprocessor.get_feature_names_out())
+    # Los nombres salen del ColumnTransformer (último paso de preprocesado).
+    feature_names = list(pipeline.named_steps["preprocessor"].get_feature_names_out())
     return np.asarray(X_trans), feature_names
 
 

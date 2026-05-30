@@ -21,9 +21,6 @@ RAW_DATASET_PATH: Path = RAW_DATA_DIR / "dataset_practica_final.csv"
 
 # Artefactos concretos que consume la interfaz.
 METRICS_CSV_PATH: Path = OUTPUTS_DIR / "metricas_modelos.csv"
-BEST_HYPERPARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
-BALANCING_MD_PATH: Path = OUTPUTS_DIR / "balanceo_clases.md"
-TUNING_MD_PATH: Path = OUTPUTS_DIR / "tuning_hiperparametros.md"
 
 # API de predicción (FastAPI). La URL base se sobreescribe con PONTIA_API_URL
 # para cambiar de entorno (local, Docker, despliegue) sin tocar el código.
@@ -111,7 +108,7 @@ PLOTS: dict[str, tuple[str, str]] = {
     ),
     "decision_regions_pls.png": (
         "Regiones de decisión en 2D (proyección PLS)",
-        "Para *ver* en 2D modelos que se entrenan con ~200 variables, los "
+        "Para *ver* en 2D modelos que se entrenan con 155 variables, los "
         "proyectamos al plano con **PLS** (un PCA supervisado: elige las 2 "
         "direcciones más correlacionadas con la cancelación). Sobre ese plano "
         "reentrenamos los 5 modelos y pintamos su predicción en cada punto: "
@@ -127,13 +124,5 @@ PLOTS: dict[str, tuple[str, str]] = {
         "Qué características pesan más en la decisión del modelo ganador "
         "(p. ej. `lead_time`, `deposit_type` o el país suelen ser muy "
         "informativos).",
-    ),
-    "balanceo_clases.png": (
-        "Efecto del balanceo de clases",
-        "Compara estrategias para tratar el desbalance "
-        f"(~{BASE_CANCELLATION_RATE * 100:.0f} % de cancelaciones): "
-        "sin balanceo, reponderación (`class_weight`) y sobremuestreo (SMOTE). "
-        "El balanceo sube el *recall* (detecta más cancelaciones) a costa de "
-        "algo de precisión, mientras la ROC-AUC apenas cambia.",
     ),
 }

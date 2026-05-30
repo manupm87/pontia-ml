@@ -8,7 +8,6 @@ permite importarlo y probarlo sin arrancar Streamlit, y cachear lo pesado
 
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -57,15 +56,6 @@ def load_metrics_table() -> pd.DataFrame:
     if "roc_auc" in df.columns:
         df = df.sort_values("roc_auc", ascending=False).reset_index(drop=True)
     return df
-
-
-@_cache_data
-def load_best_hyperparams() -> dict[str, Any]:
-    """Lee los mejores hiperparámetros encontrados en la búsqueda (tuning)."""
-    path = config.BEST_HYPERPARAMS_PATH
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @_cache_data
