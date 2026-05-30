@@ -1,6 +1,6 @@
 """Visualización 2D de los modelos: proyección PLS supervisada + regiones de decisión.
 
-Proyecta los datos (~200 variables) a 2 componentes PLS (correlacionadas con el
+Proyecta los datos (155 variables) a 2 componentes PLS (correlacionadas con el
 target, a diferencia de PCA) para poder dibujar las fronteras de decisión, y
 persiste los artefactos para situar nuevas reservas en el plano sin recomputar.
 

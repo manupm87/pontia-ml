@@ -18,7 +18,6 @@ KNOWN_PLOTS: list[str] = [
     "confusion_matrix_best.png",
     "decision_regions_pls.png",
     "feature_importance.png",
-    "balanceo_clases.png",
 ]
 
 

@@ -54,8 +54,8 @@ streamlit run src/ml_hotel_cancellations/ui/app.py
 1. **Resumen y resultados** — tabla comparativa de los 5 modelos, métricas
    destacadas del ganador (XGBoost, ROC-AUC 0.9564) y gráficos clave.
 2. **Visualización de los modelos** — galería con todas las visualizaciones
-   disponibles en `outputs/` (curvas ROC, matrices de confusión, importancia de
-   variables, balanceo) con explicaciones.
+   disponibles en `outputs/` (curvas ROC, matrices de confusión, regiones de
+   decisión 2D e importancia de variables) con explicaciones.
 3. **Predicción (API)** — formulario con las 27 variables de una reserva que
    consulta la API FastAPI y muestra la predicción.
 4. **Interpretabilidad** — gráficos SHAP si existen (`outputs/shap_*.png`); si
