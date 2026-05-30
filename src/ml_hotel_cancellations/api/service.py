@@ -44,7 +44,7 @@ _MODEL_TYPE_NAMES: dict[str, str] = {
     "LogisticRegression": "Regresión logística",
     "DecisionTreeClassifier": "Árbol de decisión",
     "RandomForestClassifier": "Random Forest",
-    "KerasMLPClassifier": "Red neuronal (Keras)",
+    "MLPClassifier": "Red neuronal (MLP)",
 }
 
 

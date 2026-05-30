@@ -212,10 +212,11 @@ pontia-ml/                  # ← repo root (esta carpeta)
 Necesitas **Python 3.11 ó 3.12** (recomendado 3.12). El requirements está
 pensado para que `pip install -e .` funcione "out of the box"
 en **Linux x86_64**, **Windows x86_64** y **macOS** (tanto Intel como Apple
-Silicon). El techo lo fija TensorFlow 2.16.2 (última versión con rueda para
-macOS x86_64), que arrastra `numpy<2` y los pines compatibles del resto.
+Silicon). El techo lo fija `numba`/`llvmlite` (dependencias de SHAP), cuya última
+rueda publicada cubre hasta Python 3.12, lo que arrastra `numpy<2` y los pines
+compatibles del resto.
 
-> ℹ️ Python 3.13 no se soporta todavía: TensorFlow 2.16 no publica ruedas
+> ℹ️ Python 3.13 no se soporta todavía: `numba`/`llvmlite` aún no publican ruedas
 > para `cp313`.
 >
 > 💡 Si usas XGBoost en **macOS** y obtienes un error de `libomp.dylib`,
@@ -250,7 +251,7 @@ pip install -e ".[train,dev]"    # + reentrenar/MLflow (train) y tests (dev)
 > (`pip install -e .`) trae solo lo necesario para **servir** el modelo
 > (`xgboost`, `fastapi`, `streamlit`, `shap`…), lo que mantiene el despliegue
 > (Render / Streamlit Cloud) ligero. El extra `[train]` añade lo de **entrenar**
-> (`tensorflow`, `imbalanced-learn`, `mlflow`) y `[dev]` las herramientas de test.
+> (`imbalanced-learn`, `mlflow`, `jupyter`…) y `[dev]` las herramientas de test.
 
 ---
 
@@ -497,7 +498,7 @@ justo debajo).
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
 | **XGBoost** ⭐ | 0.8886 | 0.8699 | 0.8243 | 0.8465 | **0.9564** |
-| Red neuronal (Keras) | 0.8636 | 0.8510 | 0.7685 | 0.8077 | 0.9378 |
+| Red neuronal (MLP) | 0.8619 | 0.8358 | 0.7831 | 0.8086 | 0.9366 |
 | Random Forest | 0.8593 | 0.8803 | 0.7202 | 0.7923 | 0.9363 |
 | Árbol de decisión | 0.8486 | 0.8222 | 0.7576 | 0.7886 | 0.9253 |
 | Regresión logística | 0.8096 | 0.7288 | 0.7785 | 0.7528 | 0.8931 |
@@ -564,7 +565,7 @@ El análisis detallado, las limitaciones y las posibles mejoras están en
 
 ## 🧰 Tecnologías utilizadas
 
-Python 3.11–3.12 · scikit-learn · XGBoost · TensorFlow/Keras · pandas · NumPy ·
+Python 3.11–3.12 · scikit-learn (incl. MLP) · XGBoost · pandas · NumPy ·
 matplotlib · seaborn · plotly · Jupyter. Las versiones exactas están en
 [`requirements.txt`](requirements.txt). ¿No sabes qué es alguna? Mírala en el
 [**glosario**](docs/glosario.md).

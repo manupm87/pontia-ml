@@ -46,13 +46,13 @@ install would copy the package into `site-packages` and break those paths.
 ## Environment and commands
 
 ```bash
-pip install -e ".[train,dev]"   # dev/training (TensorFlow, MLflow, pytest…)
+pip install -e ".[train,dev]"   # dev/training (MLflow, Jupyter, pytest…)
 pip install -e .                # runtime only (API + UI + inference)
 ```
 
 Dependencies live in `pyproject.toml` (extras `[train]` and `[dev]`).
 `requirements.txt` is just `-e .` (for platforms that only read that file).
-**Python 3.12** (`requires-python = ">=3.11,<3.13"`; TF 2.16 and numba/llvmlite cap at 3.12).
+**Python 3.12** (`requires-python = ">=3.11,<3.13"`; numba/llvmlite cap at 3.12).
 
 ### Makefile (recommended dev entrypoint — Unix/macOS/WSL)
 

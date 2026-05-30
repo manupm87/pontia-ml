@@ -65,8 +65,8 @@ pls = PLSRegression(n_components=2).fit(Z_train, y_train)   # 155 -> 2
 ## 3. Las cinco regiones de decisión
 
 Sobre el plano de 2 componentes PLS se **reentrena** cada uno de los cinco modelos
-(Regresión Logística, Árbol de Decisión, Random Forest, XGBoost y una red neuronal
-`MLPClassifier` de scikit-learn —no Keras— porque aquí solo aprende de 2 variables).
+(Regresión Logística, Árbol de Decisión, Random Forest, XGBoost y la red neuronal
+`MLPClassifier` de scikit-learn, aquí entrenada sobre solo 2 componentes).
 Para cada modelo se pinta su **región de decisión**: el color de fondo es la
 probabilidad de cancelación que asigna a cada punto del plano (rojo = "aquí se
 cancela", azul = "aquí no"), con la frontera 0.5 marcada en negro, y encima una

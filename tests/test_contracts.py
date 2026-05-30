@@ -82,7 +82,7 @@ def test_model_family_map_in_config() -> None:
         "Decision Tree",
         "Random Forest",
         "XGBoost",
-        "Neural Network (Keras)",
+        "Neural Network (MLP)",
     }
     assert expected.issubset(set(config.MODEL_FAMILY))
 

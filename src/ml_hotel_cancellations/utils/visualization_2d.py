@@ -44,8 +44,8 @@ _POINT_CMAP = ListedColormap(["#0b3d66", "#b32400"])
 def _build_2d_models() -> dict:
     """Devuelve los 5 modelos a reentrenar sobre el plano PLS.
 
-    La red neuronal de Keras se sustituye por un ``MLPClassifier`` de sklearn
-    (sin TensorFlow): aquí solo aprende de 2 variables.
+    La red neuronal es un ``MLPClassifier`` de sklearn (igual que en el pipeline
+    principal); aquí solo aprende de 2 variables.
     """
     from ml_hotel_cancellations.ml.models import build_classic_estimators
 

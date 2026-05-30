@@ -146,7 +146,7 @@ MODEL_FAMILY: dict[str, str] = {
     "Decision Tree": "tree",
     "Random Forest": "forest",
     "XGBoost": "boosting",
-    "Neural Network (Keras)": "neural_net",
+    "Neural Network (MLP)": "neural_net",
 }
 
 # ---------------------------------------------------------------------------
@@ -185,16 +185,17 @@ XGBOOST_PARAMS: dict = {
 }
 
 # ---------------------------------------------------------------------------
-# Hiperparámetros de la red neuronal (Keras / TensorFlow)
+# Hiperparámetros de la red neuronal (MLPClassifier de scikit-learn)
 # ---------------------------------------------------------------------------
+# Perceptrón multicapa de sklearn (sin TensorFlow): para datos tabulares a esta
+# escala rinde igual que una red Keras y se serializa con joblib sin trucos.
 NN_PARAMS: dict = {
-    "hidden_units": [64, 32, 16],
-    "dropout": 0.3,
-    "epochs": 50,
-    "batch_size": 512,
-    "learning_rate": 1e-3,
-    "early_stopping_patience": 5,
-    "validation_split": 0.2,
+    "hidden_layer_sizes": (64, 32, 16),
+    "max_iter": 300,
+    "early_stopping": True,        # corta cuando deja de mejorar en validación
+    "validation_fraction": 0.2,
+    "n_iter_no_change": 10,
+    "random_state": RANDOM_STATE,
 }
 
 # ---------------------------------------------------------------------------

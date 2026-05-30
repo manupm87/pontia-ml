@@ -305,7 +305,7 @@ niveles mediante *extras*:
 
 - **Base** (`pip install -e .`) — *runtime*: lo estrictamente necesario
   para servir la API y la UI (≈ 350 MB instalados).
-- **Extra `[train]`** (`pip install -e ".[train]"`): TensorFlow/Keras,
+- **Extra `[train]`** (`pip install -e ".[train]"`): imbalanced-learn,
   Jupyter, MLflow (cliente completo). Solo se necesitan para reentrenar o
   publicar nuevos *runs* en DagsHub. El extra `[dev]` añade además las
   herramientas de test (`pytest`). El fichero `requirements.txt` es solo
@@ -330,9 +330,9 @@ funcionalmente equivalente y notablemente más ligero.
 
 ### 5.3 Parche puntual SHAP 0.49 ↔ XGBoost ≥ 2.x
 
-El *pin* de versiones del proyecto está condicionado por TensorFlow
-2.16.2, que exige `numpy<2`. Esta restricción arrastra a su vez
-`shap<0.50`, versión que no soporta el formato actual del campo
+El *pin* de versiones del proyecto está condicionado por `numba`/`llvmlite`
+(dependencias de SHAP), cuyas ruedas exigen `numpy<2`. Esta restricción arrastra a
+su vez `shap<0.50`, versión que no soporta el formato actual del campo
 `base_score` que XGBoost ≥ 2.x serializa como `"[0.37]"` (con
 corchetes). `ml_hotel_cancellations/utils/interpretability.py` aplica un *monkey-patch*
 idempotente al decodificador UBJ de SHAP que normaliza el valor antes

@@ -191,7 +191,7 @@ de hiperparámetros vive en `tuning.py` (bonus).
 | `config.py` | Punto único de configuración: rutas, semilla aleatoria, listas de columnas, ajustes (*hiperparámetros*) de los modelos y métrica principal. |
 | `data_loader.py` | Cargar el CSV, marcar los huecos, eliminar las columnas que "hacen trampa", limpiar y **dividir** en entrenamiento/prueba de forma estratificada. |
 | `preprocessing.py` | Construir el preprocesador como un `Pipeline` de 3 pasos: `FeatureBuilder` (deriva variables), `RareCategoryGrouper` (reducción supervisada de cardinalidad) y un `ColumnTransformer` (imputar + estandarizar numéricas / one-hot categóricas). |
-| `models.py` | Construye y entrena los 5 modelos (`build_classic_estimators`, `build_models`, `train_models`, `save_models`); incluye `KerasMLPClassifier`, un envoltorio para que la red neuronal de Keras se comporte como un estimador de scikit-learn. |
+| `models.py` | Construye y entrena los 5 modelos (`build_classic_estimators`, `build_models`, `train_models`, `save_models`); la red neuronal es un `MLPClassifier` de scikit-learn, un estimador estándar más (sin envoltorio especial). |
 | `evaluate.py` | Funciones de evaluación: `compute_metrics`, `evaluate_models`, `comparison_table`, `select_best` y los `plot_*` (calculan métricas, montan la tabla comparativa, eligen el mejor modelo y dibujan los gráficos). |
 | `train.py` | **Programa principal** que ejecuta todo el flujo y guarda los resultados. |
 | `predict.py` | Hacer predicciones con `best_model.pkl` sobre reservas nuevas. |
@@ -225,9 +225,9 @@ El **contrato de entrada** del modelo son **27 variables**: **15 numéricas** (q
   Además, modelo y preprocesado se guardan juntos y la predicción es directa.
 - **Comparación justa:** los cinco modelos comparten **exactamente el mismo
   preprocesado**.
-- **Red neuronal integrada:** creamos un envoltorio (`KerasMLPClassifier`) para que
-  la red de Keras tenga la misma interfaz (`fit`/`predict`) que los modelos de
-  scikit-learn y se pueda **guardar y reutilizar** igual que ellos.
+- **Red neuronal integrada:** la red es un `MLPClassifier` de scikit-learn, con la
+  misma interfaz (`fit`/`predict`) que los demás modelos y que se **persiste con
+  joblib** igual que ellos, sin ningún envoltorio ni serialización especial.
 - **Reproducibilidad:** fijamos la **semilla aleatoria** (`random_state = 42`) en
   las divisiones y en los modelos para que los resultados se puedan repetir.
 
@@ -243,10 +243,10 @@ Cada uno representa una "familia" distinta de algoritmos (todos explicados en el
    sus votos (técnica llamada *ensemble*).
 4. **XGBoost** — variante muy eficiente de *gradient boosting*: añade árboles que
    van **corrigiendo los errores** de los anteriores.
-5. **Red neuronal multicapa (MLP, con Keras/TensorFlow)** — capas de "neuronas"
-   `64-32-16`, con *dropout* 0.3 (apaga neuronas al azar para no sobreajustar),
-   activación ReLU, salida *sigmoide* (da una probabilidad) y **early stopping**
-   (para de entrenar cuando deja de mejorar).
+5. **Red neuronal multicapa (MLP)** — un `MLPClassifier` de scikit-learn con capas
+   de "neuronas" `hidden_layer_sizes=(64, 32, 16)`, activación ReLU, `max_iter=300`
+   y **early stopping** (sklearn: `early_stopping=True`, `validation_fraction=0.2`,
+   `n_iter_no_change=10`), que para de entrenar cuando deja de mejorar.
 
 ### 4.5. Herramientas de producción y su equivalente en clase (`recursos/`)
 
@@ -285,7 +285,7 @@ que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
 | **XGBoost** ⭐ | 0.8886 | 0.8699 | 0.8243 | 0.8465 | **0.9564** |
-| Red neuronal (Keras) | 0.8636 | 0.8510 | 0.7685 | 0.8077 | 0.9378 |
+| Red neuronal (MLP) | 0.8619 | 0.8358 | 0.7831 | 0.8086 | 0.9366 |
 | Random Forest | 0.8593 | 0.8803 | 0.7202 | 0.7923 | 0.9363 |
 | Árbol de decisión | 0.8486 | 0.8222 | 0.7576 | 0.7886 | 0.9253 |
 | Regresión logística | 0.8096 | 0.7288 | 0.7785 | 0.7528 | 0.8931 |

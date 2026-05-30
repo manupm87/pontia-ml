@@ -2,7 +2,7 @@
 
 Para cada modelo clásico busca los mejores hiperparámetros con GridSearchCV
 (espacios pequeños) o RandomizedSearchCV (grandes), optimizando ROC-AUC. La red
-Keras queda fuera (se ajusta con early stopping). Guarda un informe Markdown y un
+neuronal queda fuera (usa early stopping propio). Guarda un informe Markdown y un
 JSON con los mejores params, que `train` usa por defecto si existe.
 
 Uso::

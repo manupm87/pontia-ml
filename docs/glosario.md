@@ -291,7 +291,10 @@ preprocesado, modelos, métricas, Pipelines...
 **XGBoost.** Librería del modelo del mismo nombre (ver sección 3).
 
 **TensorFlow / Keras.** TensorFlow es la librería de Deep Learning de Google; *Keras*
-es su interfaz sencilla para construir redes neuronales. Aquí se usan para el MLP.
+es su interfaz sencilla para construir redes neuronales. **Ya no se usan en el
+pipeline de producción**: la red neuronal del proyecto es un `MLPClassifier` de
+scikit-learn. TensorFlow/Keras solo aparecen en el notebook de *playground*
+`04_red_neuronal`, como ejercicio de aprendizaje.
 
 **matplotlib / seaborn / plotly.** Librerías para crear gráficos (estáticos las dos
 primeras, interactivos plotly).
