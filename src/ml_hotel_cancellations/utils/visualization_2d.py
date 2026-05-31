@@ -1,6 +1,6 @@
 """Visualización 2D de los modelos: proyección PLS supervisada + regiones de decisión.
 
-Proyecta los datos (155 variables) a 2 componentes PLS (correlacionadas con el
+Proyecta los datos (144 variables) a 2 componentes PLS (correlacionadas con el
 target, a diferencia de PCA) para poder dibujar las fronteras de decisión, y
 persiste los artefactos para situar nuevas reservas en el plano sin recomputar.
 
@@ -44,8 +44,10 @@ _POINT_CMAP = ListedColormap(["#0b3d66", "#b32400"])
 def _build_2d_models() -> dict:
     """Devuelve los 5 modelos a reentrenar sobre el plano PLS.
 
-    La red neuronal es un ``MLPClassifier`` de sklearn (igual que en el pipeline
-    principal); aquí solo aprende de 2 variables.
+    Para la red neuronal se usa aquí un ``MLPClassifier`` de sklearn **ligero** como
+    sustituto rápido (la red de producción es Keras): reentrenar Keras por cada píxel de
+    la rejilla sería lento y este gráfico es solo ilustrativo (mismo criterio que el
+    notebook ``05``). Aquí solo aprende de 2 componentes.
     """
     from ml_hotel_cancellations.ml.models import build_classic_estimators
 
@@ -280,7 +282,7 @@ def project_booking(
     booking_df: pd.DataFrame,
     artifacts: dict,
 ) -> tuple[float, float]:
-    """Proyecta UNA reserva (1 fila, 27 features crudas) al plano PLS, con el mismo signo que la figura base."""
+    """Proyecta UNA reserva (1 fila, 26 features crudas) al plano PLS, con el mismo signo que la figura base."""
     from ml_hotel_cancellations.ml.predict import prepare_for_inference
 
     X_one = prepare_for_inference(booking_df)

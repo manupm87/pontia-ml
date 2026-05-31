@@ -32,10 +32,10 @@ def test_model_info() -> None:
     assert body["primary_metric"] == "roc_auc"
     # El ROC-AUC sale del artefacto de métricas (no un literal): comprobamos rango.
     assert 0.5 < body["roc_auc"] <= 1.0
-    # 15 numéricas + 12 categóricas = 27 características de entrada.
-    assert body["n_features"] == 27
+    # 15 numéricas + 11 categóricas = 26 características de entrada.
+    assert body["n_features"] == 26
     assert len(body["features"]["numeric"]) == len(config.NUMERIC_COLUMNS) == 15
-    assert len(body["features"]["categorical"]) == len(config.CATEGORICAL_COLUMNS) == 12
+    assert len(body["features"]["categorical"]) == len(config.CATEGORICAL_COLUMNS) == 11
 
 
 def test_predict() -> None:

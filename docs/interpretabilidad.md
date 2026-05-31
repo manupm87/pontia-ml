@@ -5,7 +5,7 @@
 
 ## 1. ¿Por qué interpretar el modelo?
 
-El mejor modelo del proyecto es **XGBoost**, con un **ROC-AUC de 0.9564** en test.
+El mejor modelo del proyecto es **XGBoost**, con un **ROC-AUC de 0.9529** en test.
 Acierta mucho, pero por sí solo es una **caja negra**: nos da una probabilidad de
 cancelación, pero no *por qué*. En un problema real esto no basta. Necesitamos
 interpretar el modelo para:
@@ -49,7 +49,7 @@ modelo es un `Pipeline`: `FeatureBuilder` (crea variables derivadas como
 `has_company`, `has_agent` y `noches` a partir de la reserva en crudo) →
 `RareCategoryGrouper` (agrupa categorías poco frecuentes) →
 `ColumnTransformer` con *one-hot* → `XGBoost`. SHAP necesita la matriz **ya
-preprocesada** (categóricas en *one-hot*: **155 columnas** tras el preprocesado),
+preprocesada** (categóricas en *one-hot*: **144 columnas** tras el preprocesado),
 así que el módulo aplica primero el `preprocessor` y recupera los nombres de
 columna con `get_feature_names_out()`. Por eficiencia, se calcula sobre una
 **submuestra de 2000 reservas** (da una imagen global estable sin recorrer todo el
@@ -88,7 +88,7 @@ Sus ventajas como complemento:
 - Es **agnóstica al modelo**: funciona con cualquier estimador (regresión
   logística, red neuronal...), no solo con árboles.
 - Atribuye la importancia a las **variables originales** (`deposit_type`,
-  `previous_cancellations`...), no a las 155 columnas one-hot expandidas.
+  `previous_cancellations`...), no a las 144 columnas one-hot expandidas.
 
 ## 4. Hallazgos
 
@@ -150,7 +150,7 @@ La interfaz Streamlit muestra estos mismos gráficos en su sección de interpret
   soporte suficiente (`RARE_MIN_N`) y señal de cancelación extrema, y el resto se
   agrupa en una etiqueta común `"Otros"`. Por eso su importancia se reparte entre
   las categorías más frecuentes (p. ej. `country_PRT`) y ese grupo `"Otros"`; tras
-  el preprocesado quedan **155 columnas** one-hot.
+  el preprocesado quedan **144 columnas** one-hot.
 - Los valores SHAP del modelo de árboles se expresan en **log-odds**, no en
   probabilidad directa: indican la **dirección y fuerza** relativa, no un cambio
   porcentual exacto.

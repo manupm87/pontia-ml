@@ -68,6 +68,7 @@ only, it does not install Python*; point it at a specific interpreter with
 | `make api` / `ui` | either one alone |
 | `make train` / `tune` / `register-model` | pipeline/bonus CLIs (need `setup-dev`); pass flags with `ARGS="--tune"` |
 | `make predict` / `explain` / `viz2d` | inference/interpretability (runtime install is enough); `ARGS="--sample 5"` |
+| `make memo` | builds `memoria/memoria.pdf` (regenerates EDA figures + compiles LaTeX). Bootstraps a self-contained **Tectonic** binary into `.venv/bin` on first run (no system TeX Live needed; downloads its package bundle once, cached in `~/.cache/Tectonic`). Linux x86_64. |
 | `make test` | pytest (needs `setup-dev`) |
 | `make clean` | remove `.venv` + build artifacts |
 
@@ -103,7 +104,7 @@ pytest -m "not slow"    # skip the ones that load the bundled model
   truth in `config.py`**. If you touch those constants, don't duplicate them — derive
   them from `config`.
 - After pipeline changes, also run an end-to-end `python -m …ml.train` (reproduces
-  XGBoost ROC-AUC ≈ 0.9564); restore artifacts with `git checkout -- outputs/ models/`.
+  XGBoost ROC-AUC ≈ 0.9529); restore artifacts with `git checkout -- outputs/ models/`.
 
 ## Deployment
 
@@ -127,7 +128,7 @@ pytest -m "not slow"    # skip the ones that load the bundled model
 
 ## Notes
 
-- Winning model is **XGBoost** (ROC-AUC ≈ 0.9564, leakage-free: the EDA dropped
+- Winning model is **XGBoost** (ROC-AUC ≈ 0.9529, leakage-free: the EDA dropped
   `required_car_parking_spaces` as a check-in leak — see notebooks/playground/01–02).
   The decision threshold (`config.DECISION_THRESHOLD = 0.5`) and primary metric
   (`roc_auc`) live in `config`.
@@ -136,5 +137,5 @@ pytest -m "not slow"    # skip the ones that load the bundled model
 - Preprocessing lives in the sklearn `Pipeline` (`ml/preprocessing.py`): `FeatureBuilder`
   (derives `has_company`/`has_agent`/`noches`) + `RareCategoryGrouper` (supervised
   fit-on-train cardinality reduction for `agent`/`country`/`company`) → `ColumnTransformer`.
-  Input contract = 27 features (15 numeric + 12 categorical); derived features are NOT input.
+  Input contract = 26 features (15 numeric + 11 categorical); derived features are NOT input.
 - Editable installs recreate a gitignored `build/` dir; safe to delete.

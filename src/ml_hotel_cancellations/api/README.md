@@ -22,7 +22,7 @@ Los tests viven en `tests/test_api.py` (raíz del repo), no dentro del paquete.
 El preprocesado de la entrada lo hace el propio `Pipeline` (features derivadas,
 reducción de cardinalidad, one-hot…), reutilizado vía
 `ml_hotel_cancellations.ml.predict`, de modo que la API "ve" los datos
-exactamente igual que el entrenamiento (las 27 features crudas, `agent`/`company`
+exactamente igual que el entrenamiento (las 26 features crudas, `agent`/`company`
 como texto, etc.).
 
 ## Requisitos previos
@@ -73,7 +73,6 @@ curl -X POST http://127.0.0.1:8000/predict \
     "previous_cancellations": 0,
     "previous_bookings_not_canceled": 0,
     "reserved_room_type": "A",
-    "assigned_room_type": "A",
     "booking_changes": 0,
     "deposit_type": "No Deposit",
     "agent": "9",
@@ -113,7 +112,7 @@ Respuesta:
 {
   "model_type": "XGBoost",
   "primary_metric": "roc_auc",
-  "roc_auc": 0.9564,
+  "roc_auc": 0.9529,
   "n_features": 27,
   "features": {"numeric": ["lead_time", "..."], "categorical": ["hotel", "..."]}
 }
@@ -121,7 +120,7 @@ Respuesta:
 
 ### `POST /predict`
 
-- **Entrada**: una reserva (`Booking`) con las 27 características crudas.
+- **Entrada**: una reserva (`Booking`) con las 26 características crudas.
 - **Salida** (`200`):
 
 ```json

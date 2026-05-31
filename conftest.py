@@ -24,17 +24,17 @@ def _make_booking(**overrides) -> dict:
 
 @pytest.fixture
 def booking_example() -> dict:
-    """Una reserva válida (las 27 características), como dict mutable."""
+    """Una reserva válida (las 26 características), como dict mutable."""
     return copy.deepcopy(BOOKING_EXAMPLE)
 
 
 @pytest.fixture
 def raw_like_df() -> pd.DataFrame:
-    """DataFrame que imita el CSV crudo: 27 features + target + columnas a tirar.
+    """DataFrame que imita el CSV crudo: 26 features + target + columnas a tirar.
 
     Incluye a propósito casos que ejercitan la limpieza:
-    - columnas de leakage / baja utilidad (`company`, `reservation_status`,
-      `reservation_status_date`) que `clean_data` debe eliminar.
+    - columnas de leakage / fuga (`reservation_status`, `reservation_status_date`,
+      `assigned_room_type`) que `clean_data` debe eliminar.
     - una fila sin huéspedes (adults+children+babies == 0) que se descarta.
     - un `agent` y una categórica ausentes (NaN) que se normalizan a "Unknown".
     """
@@ -65,6 +65,9 @@ def raw_like_df() -> pd.DataFrame:
     df["arrival_date_year"] = 2016
     df["reservation_status"] = ["Canceled" if c else "Check-Out" for c in df["is_canceled"]]
     df["reservation_status_date"] = "2016-08-15"
+    # `assigned_room_type` está en el CSV crudo pero es fuga (se conoce en el
+    # check-in, EDA §12.8): `clean_data` debe eliminarla. `reserved_room_type` sí es feature.
+    df["assigned_room_type"] = "A"
     return df
 
 

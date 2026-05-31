@@ -18,9 +18,9 @@ from ml_hotel_cancellations.ui import data as ui_data
 # ---------------------------------------------------------------------------
 # ui.booking
 # ---------------------------------------------------------------------------
-def test_form_has_27_fields() -> None:
-    """El formulario describe las 27 características de entrada."""
-    assert len(booking.all_fields()) == 27
+def test_form_has_26_fields() -> None:
+    """El formulario describe las 26 características de entrada."""
+    assert len(booking.all_fields()) == 26
 
 
 def test_form_field_names_match_example() -> None:

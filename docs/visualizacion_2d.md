@@ -4,7 +4,7 @@
 > explicados en [`glosario.md`](glosario.md).
 
 Este documento explica la visualización 2D del proyecto: cómo pasamos de modelos
-entrenados en **155 variables** a un mapa plano donde se *ven* las **regiones de
+entrenados en **144 variables** a un mapa plano donde se *ven* las **regiones de
 decisión** de los cinco modelos. El código vive en
 [`src/ml_hotel_cancellations/utils/visualization_2d.py`](../src/ml_hotel_cancellations/utils/visualization_2d.py)
 (*console script* `viz2d`; `python -m ml_hotel_cancellations.utils.visualization_2d`).
@@ -15,16 +15,16 @@ decisión** de los cinco modelos. El código vive en
 > `utils/visualization_2d.py`, que es lo que consumen la CLI (`viz2d`) y la UI. Es el
 > arco del proyecto: **playground (aprender) → `src` (generalizar) → API + UI (mostrar)**.
 
-## 1. El problema: no se puede dibujar en 155 dimensiones
+## 1. El problema: no se puede dibujar en 144 dimensiones
 
-Tras el preprocesado, cada reserva es un vector de **155 variables** (numéricas
-escaladas + categóricas en *one-hot*). No podemos dibujar 155 ejes, así que para
+Tras el preprocesado, cada reserva es un vector de **144 variables** (numéricas
+escaladas + categóricas en *one-hot*). No podemos dibujar 144 ejes, así que para
 *ver* cómo separan los modelos necesitamos **proyectar a 2 dimensiones**.
 
 El enfoque ingenuo —elegir 2 variables— pierde casi toda la información: la señal
 que separa cancela/no-cancela está repartida entre muchas columnas (sobre todo
 categóricas como `deposit_type` o `country`). La alternativa correcta es una
-**proyección** que combine las 155 variables en 2 ejes nuevos conservando lo que
+**proyección** que combine las 144 variables en 2 ejes nuevos conservando lo que
 importa.
 
 ## 2. PLS supervisado (no PCA)
@@ -41,7 +41,7 @@ importa.
 
 ### Cómo se construye la proyección (sin fuga)
 
-La matriz de 155 variables que alimenta PLS sale del **mismo preprocesado** del
+La matriz de 144 variables que alimenta PLS sale del **mismo preprocesado** del
 pipeline de producción, ajustado **con el target** (porque incluye la reducción de
 cardinalidad **supervisada** `RareCategoryGrouper`, que necesita `y`):
 
@@ -51,22 +51,24 @@ from sklearn.cross_decomposition import PLSRegression
 
 # fit-on-train CON y: la reducción de cardinalidad es supervisada
 preprocessor = build_transform_pipeline().fit(X_train, y_train)
-Z_train = preprocessor.transform(X_train)   # (n, 155)
-pls = PLSRegression(n_components=2).fit(Z_train, y_train)   # 155 -> 2
+Z_train = preprocessor.transform(X_train)   # (n, 144)
+pls = PLSRegression(n_components=2).fit(Z_train, y_train)   # 144 -> 2
 ```
 
 > Antes el módulo usaba `build_preprocessor()` (solo el `ColumnTransformer`). Ahora
 > usa `build_transform_pipeline()` (los 3 pasos: `FeatureBuilder` +
 > `RareCategoryGrouper` + `ColumnTransformer`) y lo ajusta con `(X_train, y_train)`,
-> para que la proyección parta exactamente de las mismas 155 features que ve el
+> para que la proyección parta exactamente de las mismas 144 features que ve el
 > modelo. El signo del eje 1 se orienta hacia "más riesgo" para que la lectura sea
 > siempre la misma (rojo a la derecha).
 
 ## 3. Las cinco regiones de decisión
 
 Sobre el plano de 2 componentes PLS se **reentrena** cada uno de los cinco modelos
-(Regresión Logística, Árbol de Decisión, Random Forest, XGBoost y la red neuronal
-`MLPClassifier` de scikit-learn, aquí entrenada sobre solo 2 componentes).
+(Regresión Logística, Árbol de Decisión, Random Forest, XGBoost y la red neuronal).
+Para la red, en esta visualización se usa un `MLPClassifier` de scikit-learn **ligero**
+como sustituto rápido (la de producción es Keras; reentrenar Keras por cada píxel de la
+rejilla sería lento y este gráfico es solo ilustrativo), entrenado sobre 2 componentes.
 Para cada modelo se pinta su **región de decisión**: el color de fondo es la
 probabilidad de cancelación que asigna a cada punto del plano (rojo = "aquí se
 cancela", azul = "aquí no"), con la frontera 0.5 marcada en negro, y encima una
@@ -79,8 +81,8 @@ mejor la zona de cancelación; la **red neuronal** también curva, de forma más
 blanda. Es la misma jerarquía que se ve en las métricas, ahora a la vista.
 
 > ⚠️ El plano 2D es para **entender**, no para producir: cada modelo aquí se
-> reentrena con solo 2 componentes y rinde algo peor que con las 155. El modelo de
-> producción (XGBoost, **ROC-AUC 0.9564**) usa las 155 features completas.
+> reentrena con solo 2 componentes y rinde algo peor que con las 144. El modelo de
+> producción (XGBoost, **ROC-AUC 0.9529**) usa las 144 features completas.
 
 ## 4. Artefactos y uso en la interfaz
 
@@ -103,9 +105,9 @@ python -m ml_hotel_cancellations.utils.visualization_2d   # o: make viz2d
 ## 5. Limitaciones
 
 - Es una **proyección**: 2 componentes PLS no capturan toda la información de las
-  155 variables, así que las fronteras 2D son una **aproximación** a lo que el modelo
+  144 variables, así que las fronteras 2D son una **aproximación** a lo que el modelo
   hace en el espacio completo.
-- Las métricas de referencia del proyecto provienen del pipeline sobre las 155
+- Las métricas de referencia del proyecto provienen del pipeline sobre las 144
   variables, **no** de estos modelos 2D (que rinden algo menos por diseño).
 - PLS usa el target: se ajusta **solo con `train`** y se aplica a `test` con esa
   misma transformación; si se ajustara con todo el dataset, habría fuga.

@@ -15,7 +15,12 @@ ARGS    ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help venv setup setup-dev api ui run test clean \
-        train tune predict register-model explain viz2d
+        train tune predict register-model explain viz2d memo
+
+# Tectonic: motor LaTeX autocontenido (un único binario, sin instalar TeX Live).
+# Se descarga en .venv/bin la primera vez (binario estático Linux x86_64).
+TECTONIC_VER := 0.16.9
+TECTONIC     := $(VENV)/bin/tectonic
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -71,6 +76,19 @@ explain: ## Genera los gráficos SHAP de interpretabilidad
 
 viz2d: ## Genera las regiones de decisión 2D (proyección PLS)
 	$(VENV)/bin/viz2d $(ARGS)
+
+# --- Memoria académica (PDF) --------------------------------------------------
+
+$(TECTONIC): | $(PY) ## (interno) descarga el binario estático de Tectonic en .venv
+	@echo "⬇️  Descargando Tectonic $(TECTONIC_VER) (binario estático, sin TeX Live)…"
+	@curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40$(TECTONIC_VER)/tectonic-$(TECTONIC_VER)-x86_64-unknown-linux-musl.tar.gz" -o /tmp/tectonic-dl.tar.gz
+	@tar -xzf /tmp/tectonic-dl.tar.gz -C $(VENV)/bin && chmod +x $(TECTONIC)
+	@echo "✓ Tectonic instalado en $(TECTONIC)"
+
+memo: $(TECTONIC) ## Genera memoria/memoria.pdf (figuras EDA + LaTeX vía Tectonic). Requiere setup
+	$(PY) memoria/generar_figuras_eda.py
+	cd memoria && ../$(TECTONIC) memoria.tex
+	@echo "✓ memoria/memoria.pdf"
 
 clean: ## Borra el venv y artefactos de build
 	rm -rf $(VENV) build *.egg-info src/*.egg-info

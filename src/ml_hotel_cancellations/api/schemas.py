@@ -1,7 +1,7 @@
 """Contratos de datos (modelos Pydantic) de la API: validan la entrada y generan el OpenAPI.
 
-Las 27 características de ``Booking`` = ``NUMERIC_COLUMNS`` (15) +
-``CATEGORICAL_COLUMNS`` (12) de ``config``, las mismas columnas crudas que el modelo usa.
+Las 26 características de ``Booking`` = ``NUMERIC_COLUMNS`` (15) +
+``CATEGORICAL_COLUMNS`` (11) de ``config``, las mismas columnas crudas que el modelo usa.
 """
 
 from __future__ import annotations
@@ -15,13 +15,13 @@ BOOKING_EXAMPLE: dict = config.BOOKING_EXAMPLE
 
 
 class Booking(BaseModel):
-    """Una reserva de hotel con las 27 características crudas que espera el ``Pipeline``.
+    """Una reserva de hotel con las 26 características crudas que espera el ``Pipeline``.
 
     El pipeline se encarga del preprocesado; aquí solo se reciben los valores tal cual.
     ``agent`` es string (ID de agencia como categoría) y ``children`` es float a propósito.
     """
 
-    # --- Categóricas (12) ---
+    # --- Categóricas (11) ---
     hotel: str = Field(..., description="Tipo de hotel: 'City Hotel' o 'Resort Hotel'.")
     arrival_date_month: str = Field(..., description="Mes de llegada (p. ej. 'August').")
     meal: str = Field(..., description="Régimen de comidas (p. ej. 'BB').")
@@ -29,7 +29,6 @@ class Booking(BaseModel):
     market_segment: str = Field(..., description="Segmento de mercado (p. ej. 'Online TA').")
     distribution_channel: str = Field(..., description="Canal de distribución (p. ej. 'TA/TO').")
     reserved_room_type: str = Field(..., description="Tipo de habitación reservada.")
-    assigned_room_type: str = Field(..., description="Tipo de habitación asignada.")
     deposit_type: str = Field(..., description="Tipo de depósito (p. ej. 'No Deposit').")
     customer_type: str = Field(..., description="Tipo de cliente (p. ej. 'Transient').")
     agent: str = Field(..., description="ID de agencia como texto (p. ej. '9' o 'Desconocido').")

@@ -52,7 +52,7 @@ flowchart LR
     end
     PLANE1 -- "log_param · log_metric<br/>log_model · log_artifact" --> EXP
 
-    PKL[("best_model.pkl<br/>XGBoost · ROC-AUC 0.9564")]:::artifact
+    PKL[("best_model.pkl<br/>XGBoost · ROC-AUC 0.9529")]:::artifact
     PLANE1 -- "joblib.dump" --> PKL
 
     subgraph PLANE3["Plano 3 · Repositorio (GitHub)"]
@@ -113,7 +113,7 @@ sequenceDiagram
     Note over SC,API: ~30-50 s la primera vez<br/>(Render free se suspende<br/>tras 15 min de inactividad)
     API-->>SC: 200 {status:"ok"}
 
-    U->>SC: Cumplimenta el formulario (27 variables)
+    U->>SC: Cumplimenta el formulario (26 variables)
     U->>SC: Acción "Predecir"
     SC->>API: POST /predict {booking}
     API->>M: pipeline.predict_proba(df)
@@ -208,7 +208,7 @@ la interfaz web de DagsHub no expone los controles correspondientes
 
 ### 4.3 Plano 3 — Repositorio y artefacto
 
-El modelo ganador (**XGBoost**, ROC-AUC 0.9564) se persiste en
+El modelo ganador (**XGBoost**, ROC-AUC 0.9529) se persiste en
 `models/best_model.pkl` y se versiona en GitHub. Esta decisión tiene dos
 motivos prácticos:
 
@@ -417,10 +417,10 @@ limpieza quedan **118 563 filas**, divididas de forma estratificada en
 **94 850 de entrenamiento** y **23 713 de test**, con una tasa de
 cancelación del **~37 %**.
 
-El **contrato de entrada** del modelo son **27 variables crudas** = 15
-numéricas + 12 categóricas. Las variables derivadas
+El **contrato de entrada** del modelo son **26 variables crudas** = 15
+numéricas + 11 categóricas. Las variables derivadas
 (`has_company`/`has_agent`/`noches`) **no** son entrada: las calcula el
-propio `Pipeline`. Tras el *one-hot*, el estimador ve **155 features**.
+propio `Pipeline`. Tras el *one-hot*, el estimador ve **144 features**.
 
 ## 6. Cómo acceder al sistema en producción
 

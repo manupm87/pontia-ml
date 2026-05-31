@@ -10,10 +10,10 @@ from ml_hotel_cancellations import config
 
 
 def test_feature_counts() -> None:
-    """15 numéricas + 12 categóricas = 27 características de entrada."""
+    """15 numéricas + 11 categóricas = 26 características de entrada."""
     assert len(config.NUMERIC_COLUMNS) == 15
-    assert len(config.CATEGORICAL_COLUMNS) == 12
-    assert len(config.NUMERIC_COLUMNS) + len(config.CATEGORICAL_COLUMNS) == 27
+    assert len(config.CATEGORICAL_COLUMNS) == 11
+    assert len(config.NUMERIC_COLUMNS) + len(config.CATEGORICAL_COLUMNS) == 26
 
 
 def test_no_overlap_numeric_categorical() -> None:

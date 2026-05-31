@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 train = [
+    "tensorflow-cpu>=2.16,<2.17",  # red neuronal Keras (solo entrenamiento; la inferencia usa XGBoost)
     "imbalanced-learn>=0.12,<0.14",
     "seaborn>=0.13",
     "mlflow>=2.16,<3.0",

@@ -33,7 +33,7 @@ try:
     MODEL_ROC_AUC: float = round(config.best_metric_value("roc_auc"), 4)
 except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún despliegue
     logger.warning("No se pudo leer el ROC-AUC del artefacto de métricas; uso respaldo.")
-    MODEL_ROC_AUC = 0.9564
+    MODEL_ROC_AUC = 0.9529
 
 # Metadatos del último modelo cargado; los lee /model-info.
 _LOAD_INFO: LoadInfo | None = None
@@ -44,7 +44,8 @@ _MODEL_TYPE_NAMES: dict[str, str] = {
     "LogisticRegression": "Regresión logística",
     "DecisionTreeClassifier": "Árbol de decisión",
     "RandomForestClassifier": "Random Forest",
-    "MLPClassifier": "Red neuronal (MLP)",
+    "KerasMLPClassifier": "Red neuronal (Keras)",
+    "MLPClassifier": "Red neuronal (MLP)",  # compatibilidad con modelos antiguos
 }
 
 

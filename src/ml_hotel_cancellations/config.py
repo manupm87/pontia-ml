@@ -48,11 +48,13 @@ LEAKAGE_COLUMNS: list[str] = ["reservation_status", "reservation_status_date"]
 # Columnas que se descartan en el entrenamiento (hallazgos del EDA):
 # - leakage directo (reservation_status*),
 # - `required_car_parking_spaces`: fuga sutil, se asigna en el check-in (EDA §11),
+# - `assigned_room_type`: fuga, se conoce en el check-in (EDA §12.8); `reserved_room_type` sí se conserva,
 # - `arrival_date_year`: años parciales, no generaliza (EDA §6).
 # `company` ya NO se descarta: se conserva como categórica de cardinalidad reducida.
 DROP_COLUMNS: list[str] = [
     *LEAKAGE_COLUMNS,
     "required_car_parking_spaces",
+    "assigned_room_type",
     "arrival_date_year",
 ]
 
@@ -66,7 +68,6 @@ CATEGORICAL_COLUMNS: list[str] = [
     "market_segment",
     "distribution_channel",
     "reserved_room_type",
-    "assigned_room_type",
     "deposit_type",
     "customer_type",
     "agent",
@@ -93,7 +94,7 @@ NUMERIC_COLUMNS: list[str] = [
     "total_of_special_requests",
 ]
 
-# Las 27 features de entrada (15 numéricas + 12 categóricas); fuente única que usan
+# Las 26 features de entrada (15 numéricas + 11 categóricas); fuente única que usan
 # la API y los esquemas. Las features derivadas (abajo) NO son de entrada: el
 # preprocesado las calcula a partir de estas.
 FEATURE_COLUMNS: list[str] = [*NUMERIC_COLUMNS, *CATEGORICAL_COLUMNS]
@@ -146,7 +147,7 @@ MODEL_FAMILY: dict[str, str] = {
     "Decision Tree": "tree",
     "Random Forest": "forest",
     "XGBoost": "boosting",
-    "Neural Network (MLP)": "neural_net",
+    "Neural Network (Keras)": "neural_net",
 }
 
 # ---------------------------------------------------------------------------
@@ -185,16 +186,17 @@ XGBOOST_PARAMS: dict = {
 }
 
 # ---------------------------------------------------------------------------
-# Hiperparámetros de la red neuronal (MLPClassifier de scikit-learn)
+# Hiperparámetros de la red neuronal (Keras / TensorFlow)
 # ---------------------------------------------------------------------------
-# Perceptrón multicapa de sklearn (sin TensorFlow): para datos tabulares a esta
-# escala rinde igual que una red Keras y se serializa con joblib sin trucos.
+# Red neuronal multicapa con Keras (la que exige el enunciado), con la misma
+# arquitectura que el notebook `04_red_neuronal` (densas 64->32->16 + dropout,
+# salida sigmoide). TensorFlow se importa de forma perezosa: solo se carga al
+# ENTRENAR la red; en inferencia se sirve XGBoost, así que el runtime no lo necesita.
 NN_PARAMS: dict = {
-    "hidden_layer_sizes": (64, 32, 16),
-    "max_iter": 300,
-    "early_stopping": True,        # corta cuando deja de mejorar en validación
-    "validation_fraction": 0.2,
-    "n_iter_no_change": 10,
+    "epochs": 60,
+    "batch_size": 512,
+    "validation_split": 0.2,
+    "patience": 10,                # EarlyStopping: épocas planas toleradas
     "random_state": RANDOM_STATE,
 }
 
@@ -243,7 +245,7 @@ BEST_PARAMS_PATH: Path = OUTPUTS_DIR / "best_hiperparametros.json"
 # ---------------------------------------------------------------------------
 # Reserva de ejemplo (contrato de entrada)
 # ---------------------------------------------------------------------------
-# Reserva válida de ejemplo (27 features con los nombres exactos del Pipeline);
+# Reserva válida de ejemplo (26 features con los nombres exactos del Pipeline);
 # fuente única que reutilizan el esquema Pydantic de la API y el formulario UI.
 BOOKING_EXAMPLE: dict = {
     "hotel": "City Hotel",
@@ -264,7 +266,6 @@ BOOKING_EXAMPLE: dict = {
     "previous_cancellations": 0,
     "previous_bookings_not_canceled": 0,
     "reserved_room_type": "A",
-    "assigned_room_type": "A",
     "booking_changes": 0,
     "deposit_type": "No Deposit",
     "agent": "9",

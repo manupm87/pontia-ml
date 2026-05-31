@@ -1,4 +1,4 @@
-"""Esquema y valores por defecto de la reserva (las 27 variables de entrada).
+"""Esquema y valores por defecto de la reserva (las 26 variables de entrada).
 
 Separa la definición de qué pide el modelo del renderizado del formulario. El
 ejemplo por defecto coincide con el contrato de la API, así el formulario abre
@@ -95,9 +95,6 @@ FORM_SECTIONS: dict[str, list[Field]] = {
         Field("reserved_room_type", "Habitación reservada", "categorical",
               "Tipo de habitación reservada (código anonimizado).",
               options_key="reserved_room_type"),
-        Field("assigned_room_type", "Habitación asignada", "categorical",
-              "Tipo finalmente asignado. Diferir de la reservada puede influir.",
-              options_key="assigned_room_type"),
         Field("booking_changes", "Cambios en la reserva", "int",
               "Nº de modificaciones hechas tras reservar.", min=0, max=30, step=1),
         Field("deposit_type", "Tipo de depósito", "categorical",
@@ -113,7 +110,7 @@ FORM_SECTIONS: dict[str, list[Field]] = {
 
 
 def all_fields() -> list[Field]:
-    """Devuelve la lista plana de los 27 campos (en orden de sección)."""
+    """Devuelve la lista plana de los 26 campos (en orden de sección)."""
     fields: list[Field] = []
     for section_fields in FORM_SECTIONS.values():
         fields.extend(section_fields)

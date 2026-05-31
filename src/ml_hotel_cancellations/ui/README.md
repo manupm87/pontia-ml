@@ -52,11 +52,11 @@ streamlit run src/ml_hotel_cancellations/ui/app.py
 ## Secciones
 
 1. **Resumen y resultados** — tabla comparativa de los 5 modelos, métricas
-   destacadas del ganador (XGBoost, ROC-AUC 0.9564) y gráficos clave.
+   destacadas del ganador (XGBoost, ROC-AUC 0.9529) y gráficos clave.
 2. **Visualización de los modelos** — galería con todas las visualizaciones
    disponibles en `outputs/` (curvas ROC, matrices de confusión, regiones de
    decisión 2D e importancia de variables) con explicaciones.
-3. **Predicción (API)** — formulario con las 27 variables de una reserva que
+3. **Predicción (API)** — formulario con las 26 variables de una reserva que
    consulta la API FastAPI y muestra la predicción.
 4. **Interpretabilidad** — gráficos SHAP si existen (`outputs/shap_*.png`); si
    no, importancia de variables y aviso de que aparecerán al ejecutar el módulo.
@@ -74,7 +74,7 @@ ml_hotel_cancellations/ui/
 ├── layout.py         # Composición del layout y la barra lateral.
 ├── config.py         # Rutas, URL de la API (PONTIA_API_URL) y constantes.
 ├── data.py           # Helpers cacheados: métricas, dataset, EDA y cliente API.
-├── booking.py        # Esquema de las 27 variables del formulario y su payload.
+├── booking.py        # Esquema de las 26 variables del formulario y su payload.
 ├── sections/         # Una función render() por sección (sin lógica de datos).
 │   ├── resumen.py
 │   ├── visualizaciones.py

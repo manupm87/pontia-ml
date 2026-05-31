@@ -291,10 +291,12 @@ preprocesado, modelos, métricas, Pipelines...
 **XGBoost.** Librería del modelo del mismo nombre (ver sección 3).
 
 **TensorFlow / Keras.** TensorFlow es la librería de Deep Learning de Google; *Keras*
-es su interfaz sencilla para construir redes neuronales. **Ya no se usan en el
-pipeline de producción**: la red neuronal del proyecto es un `MLPClassifier` de
-scikit-learn. TensorFlow/Keras solo aparecen en el notebook de *playground*
-`04_red_neuronal`, como ejercicio de aprendizaje.
+es su interfaz sencilla para construir redes neuronales. La **red neuronal del
+proyecto** se construye con Keras (capas densas `64 → 32 → 16` + *dropout*, salida
+sigmoide), envuelta en `KerasMLPClassifier` para encajar en el `Pipeline` como un
+estimador más. TensorFlow solo se carga **al entrenar** la red; en inferencia se sirve
+XGBoost, así que el servicio en la nube no necesita TensorFlow (es dependencia solo del
+extra `[train]`). La misma red está en el notebook de *playground* `04_red_neuronal`.
 
 **matplotlib / seaborn / plotly.** Librerías para crear gráficos (estáticos las dos
 primeras, interactivos plotly).

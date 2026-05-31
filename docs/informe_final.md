@@ -137,14 +137,46 @@ de la §7.
 - `deposit_type = "Non Refund"` (depósito no reembolsable) tiene una tasa de
   cancelación **cercana al 99 %**: una variable muy predictiva.
 - El *City Hotel* cancela más que el *Resort Hotel*.
+- **`assigned_room_type` es otra fuga de *check-in* (se elimina).** Es el tipo de
+  habitación **finalmente asignada**, que solo se conoce al llegar el cliente. La
+  prueba: cuando la habitación asignada **difiere** de la reservada, la cancelación
+  cae al **5.4 %** (frente al 41.6 % cuando coinciden), porque reasignar habitación
+  implica que el cliente **se presentó**. Es la misma familia de fuga que
+  `required_car_parking_spaces`. *Decisión:* **eliminarla**; `reserved_room_type`
+  (la que el cliente **sí** elige al reservar) **se conserva**.
 - Algunas categóricas tienen **cientos de valores distintos** (*alta cardinalidad*):
   `country` (178 países), `agent` (334 agencias) y `company`. Codificarlas tal cual
   crearía cientos de columnas, casi todas casi vacías. Para evitarlo aplicamos una
   **reducción supervisada de cardinalidad** (prototipada en el notebook
-  `02_preparacion_datos` y generalizada al `Pipeline` de `src/`): se conservan las
-  categorías con suficiente soporte (n ≥ 100) y una tasa de cancelación extrema, y el
-  resto se agrupa en `"Otros"`. Así nos quedamos con la señal de las categorías
-  relevantes sin disparar la dimensionalidad.
+  `02_preparacion_datos` y generalizada al `Pipeline` de `src/` como un
+  **transformador propio**, `RareCategoryGrouper`, ya que scikit-learn no trae ninguno
+  que agrupe categorías mirando el *target*). La idea es **quedarse con las categorías
+  que más señal aportan** garantizando que tengan muestras suficientes:
+  - **Soporte:** solo se consideran categorías con `n ≥ 100` reservas (descarta las
+    raras, cuya tasa sería puro ruido).
+  - **Señal extrema en ambos sentidos:** se conserva una categoría si su tasa de
+    cancelación es muy **alta** *o* muy **baja**; ambas discriminan. El umbral es
+    **adaptativo por variable**: se normaliza por la tasa máxima de esa columna (se
+    conserva si `tasa > 0.6·máx` o `tasa < 0.3·máx`), porque las escalas difieren
+    (p. ej. ningún país llega al 60 % absoluto, pero Portugal sí destaca dentro de
+    `country`). El resto se agrupa en `"Otros"` y los nulos en su propia etiqueta
+    (`no_company` para `company`, `"Desconocido"` para el resto).
+  - **Sin fuga:** la selección usa la variable objetivo, así que se **aprende solo con
+    el train** (`fit`) y se reaplica idéntica al test y en inferencia (`transform`). No
+    se codifica la tasa dentro de la *feature*, solo se decide **qué categorías reciben
+    columna one-hot**, lo que mantiene el riesgo de fuga acotado.
+
+  Así pasamos de **902 columnas** tras el one-hot (sin agrupar) a **144** conservando la
+  señal de las categorías relevantes. El umbral (`0.6 / 0.3 / n ≥ 100`) se eligió por
+  inspección del EDA, no por optimización; es un compromiso interpretable, no un óptimo
+  ajustado por validación.
+
+  Lo comprobamos empíricamente (entrenando los 5 modelos con y sin la reducción sobre el
+  mismo *split*): para **XGBoost** (el modelo elegido) el ROC-AUC es prácticamente idéntico
+  (0.9529 vs. 0.9573, dentro del ruido), de modo que la reducción a ~1/6 de columnas sale
+  **gratis** en el modelo que se sirve; **Random Forest** incluso mejora (0.9363 vs. 0.9221),
+  y los modelos lineal/red pierden menos de 0.01. Es decir, recortamos dimensionalidad sin
+  coste para el mejor modelo.
 
 ### 3.6. Limpieza adicional
 
@@ -189,13 +221,13 @@ de hiperparámetros vive en `tuning.py` (bonus).
 | `config.py` | Punto único de configuración: rutas, semilla aleatoria, listas de columnas, ajustes (*hiperparámetros*) de los modelos y métrica principal. |
 | `data_loader.py` | Cargar el CSV, marcar los huecos, eliminar las columnas que "hacen trampa", limpiar y **dividir** en entrenamiento/prueba de forma estratificada. |
 | `preprocessing.py` | Construir el preprocesador como un `Pipeline` de 3 pasos: `FeatureBuilder` (deriva variables), `RareCategoryGrouper` (reducción supervisada de cardinalidad) y un `ColumnTransformer` (imputar + estandarizar numéricas / one-hot categóricas). |
-| `models.py` | Construye y entrena los 5 modelos (`build_classic_estimators`, `build_models`, `train_models`, `save_models`); la red neuronal es un `MLPClassifier` de scikit-learn, un estimador estándar más (sin envoltorio especial). |
+| `models.py` | Construye y entrena los 5 modelos (`build_classic_estimators`, `build_models`, `train_models`, `save_models`); la red neuronal es **Keras/TensorFlow** envuelta en `KerasMLPClassifier` (estimador compatible con scikit-learn, TensorFlow se importa de forma perezosa). |
 | `evaluate.py` | Funciones de evaluación: `compute_metrics`, `evaluate_models`, `comparison_table`, `select_best` y los `plot_*` (calculan métricas, montan la tabla comparativa, eligen el mejor modelo y dibujan los gráficos). |
 | `train.py` | **Programa principal** que ejecuta todo el flujo y guarda los resultados. |
 | `predict.py` | Hacer predicciones con `best_model.pkl` sobre reservas nuevas. |
 
-El **contrato de entrada** del modelo son **27 variables**: **15 numéricas** (que
-**excluyen** `arrival_date_year` y `required_car_parking_spaces`) y **12 categóricas**
+El **contrato de entrada** del modelo son **26 variables**: **15 numéricas** (que
+**excluyen** `arrival_date_year` y `required_car_parking_spaces`) y **11 categóricas**
 (que **incluyen** `company`). `has_company`, `has_agent` y `noches` son variables
 **derivadas** dentro del `Pipeline`, no campos de entrada.
 
@@ -212,7 +244,7 @@ El **contrato de entrada** del modelo son **27 variables**: **15 numéricas** (q
      a `no_company`.
   3. **`ColumnTransformer`** — numéricas: imputación por **mediana** + `StandardScaler`;
      categóricas: imputación `"Unknown"` + `OneHotEncoder`. Tras el one-hot, el modelo
-     recibe **155 características**.
+     recibe **144 características**.
 
   Estos transformadores codifican **exactamente** lo que el notebook
   `02_preparacion_datos` prototipó a mano: el *playground* sirvió para **aprender** las
@@ -223,9 +255,11 @@ El **contrato de entrada** del modelo son **27 variables**: **15 numéricas** (q
   Además, modelo y preprocesado se guardan juntos y la predicción es directa.
 - **Comparación justa:** los cinco modelos comparten **exactamente el mismo
   preprocesado**.
-- **Red neuronal integrada:** la red es un `MLPClassifier` de scikit-learn, con la
-  misma interfaz (`fit`/`predict`) que los demás modelos y que se **persiste con
-  joblib** igual que ellos, sin ningún envoltorio ni serialización especial.
+- **Red neuronal integrada:** la red es una **red Keras/TensorFlow** (la que exige el
+  enunciado), envuelta en un estimador compatible con scikit-learn (`KerasMLPClassifier`)
+  para que tenga la misma interfaz (`fit`/`predict`) que los demás modelos y encaje en el
+  mismo `Pipeline`. TensorFlow se importa **solo al entrenar** la red; en inferencia se
+  sirve XGBoost, así que el servicio (Render) **no carga TensorFlow**.
 - **Reproducibilidad:** fijamos la **semilla aleatoria** (`random_state = 42`) en
   las divisiones y en los modelos para que los resultados se puedan repetir.
 
@@ -241,10 +275,12 @@ Cada uno representa una "familia" distinta de algoritmos (todos explicados en el
    sus votos (técnica llamada *ensemble*).
 4. **XGBoost** — variante muy eficiente de *gradient boosting*: añade árboles que
    van **corrigiendo los errores** de los anteriores.
-5. **Red neuronal multicapa (MLP)** — un `MLPClassifier` de scikit-learn con capas
-   de "neuronas" `hidden_layer_sizes=(64, 32, 16)`, activación ReLU, `max_iter=300`
-   y **early stopping** (sklearn: `early_stopping=True`, `validation_fraction=0.2`,
-   `n_iter_no_change=10`), que para de entrenar cuando deja de mejorar.
+5. **Red neuronal multicapa (Keras/TensorFlow)** — la que pide el enunciado: una red
+   `Sequential` de Keras con capas densas `64 → 32 → 16` (activación ReLU) + `Dropout(0.3)`
+   y salida **sigmoide**, optimizador Adam y **early stopping** (`patience=10`,
+   `restore_best_weights`). Va envuelta en `KerasMLPClassifier` (estimador compatible con
+   scikit-learn) para encajar en el mismo `Pipeline`; misma arquitectura que el notebook
+   `04_red_neuronal`.
 
 ### 4.5. Herramientas de producción y su equivalente en clase (`recursos/`)
 
@@ -282,19 +318,21 @@ que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8886 | 0.8699 | 0.8243 | 0.8465 | **0.9564** |
-| Red neuronal (MLP) | 0.8619 | 0.8358 | 0.7831 | 0.8086 | 0.9366 |
-| Random Forest | 0.8593 | 0.8803 | 0.7202 | 0.7923 | 0.9363 |
-| Árbol de decisión | 0.8486 | 0.8222 | 0.7576 | 0.7886 | 0.9253 |
-| Regresión logística | 0.8096 | 0.7288 | 0.7785 | 0.7528 | 0.8931 |
+| **XGBoost** ⭐ | 0.8811 | 0.8593 | 0.8141 | 0.8361 | **0.9529** |
+| Red neuronal (Keras) | 0.8614 | 0.8450 | 0.7691 | 0.8053 | 0.9353 |
+| Random Forest | 0.8562 | 0.8719 | 0.7198 | 0.7886 | 0.9338 |
+| Árbol de decisión | 0.8455 | 0.8219 | 0.7473 | 0.7828 | 0.9235 |
+| Regresión logística | 0.8031 | 0.7233 | 0.7636 | 0.7429 | 0.8862 |
 
 > Estas cifras se obtienen con los **hiperparámetros optimizados** por validación
 > cruzada (ver §6, bonus), que el pipeline usa por defecto.
 
 > **Nota de honestidad sobre el titular.** Una versión anterior reportaba ROC-AUC
-> **0.9614**, pero incluía `required_car_parking_spaces`, que es una **fuga de
-> información** del *check-in* (ver §3.4). Al eliminar esa variable, el ROC-AUC
-> **honesto** baja a **0.9564**. Las variables derivadas `has_company`/`has_agent`
+> **0.9614**, pero incluía dos **fugas de información** del *check-in*:
+> `required_car_parking_spaces` (ver §3.4) y `assigned_room_type` (ver §3.5). Al
+> eliminar ambas, el ROC-AUC **honesto** baja a **0.9529** (0.9564 tras quitar solo
+> el parking, y −0.003 adicional al quitar la habitación asignada). Las variables
+> derivadas `has_company`/`has_agent`
 > (de la ausencia informativa, §3.3) junto con la **reducción supervisada de
 > cardinalidad** (§3.5) recuperan la mayor parte de la señal perdida.
 
@@ -324,7 +362,7 @@ predicciones del Random Forest.*
   decisión (lo que permite ajustar la "agresividad" del *overbooking*) y es
   comparable entre modelos. Reportamos además *recall* y *F1* por su lectura de
   negocio.
-- **Modelo elegido: XGBoost** (ROC-AUC = 0.9564). Supera al resto en la métrica
+- **Modelo elegido: XGBoost** (ROC-AUC = 0.9529). Supera al resto en la métrica
   principal y en F1, y aun así entrena en pocos segundos (~3.6 s). Se guarda como
   `models/best_model.pkl`.
 
@@ -362,7 +400,7 @@ validación cruzada), el finetuning encontró
 `n_estimators=600, max_depth=16, learning_rate=0.03, subsample=0.9,
 colsample_bytree=1.0`, subiendo el ROC-AUC de CV a **0.9586**. Sobre el conjunto de
 test, con el contrato de variables honesto (sin la fuga de parking, §3.4), el modelo
-alcanza **0.9564**. El detalle (CV base vs. optimizada) queda en
+alcanza **0.9529**. El detalle (CV base vs. optimizada) queda en
 `outputs/tuning_hiperparametros.md`.
 Implementado en `src/ml_hotel_cancellations/ml/tuning.py`.
 
@@ -446,7 +484,7 @@ pantalla). Incluye:
    muestra las regiones de decisión de los 5 modelos en un mismo plano (notebook
    `notebooks/playground/05_comparativa_y_visualizacion.ipynb`, reexportada como
    `outputs/decision_regions_pls.png`).
-3. **Predicción:** un formulario con las 27 variables que **llama a la API de FastAPI**
+3. **Predicción:** un formulario con las 26 variables que **llama a la API de FastAPI**
    y muestra la probabilidad de cancelación. Tras la predicción la página añade
    **dos explicaciones locales**: (a) el **waterfall SHAP** de esa reserva concreta,
    que dice qué variables han empujado hacia "cancela" o "no cancela", y (b) la

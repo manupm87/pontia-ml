@@ -1,6 +1,7 @@
 % ============================================================================
 %  Memoria — Predicción de cancelaciones de reservas hoteleras
-%  Compilar con Tectonic (XeTeX):  tectonic memoria.tex
+%  Compilar:  make memo   (regenera figuras + compila con Tectonic; bootstrapea
+%             el binario en .venv/bin la primera vez). Manual: tectonic memoria.tex
 %  Las figuras del EDA se generan con:  python memoria/generar_figuras_eda.py
 % ============================================================================
 \documentclass[10pt,twocolumn,a4paper]{article}
@@ -59,7 +60,7 @@ Partiendo de un análisis exploratorio que detecta y corrige varias fugas de
 información, se diseña un \emph{pipeline} de preprocesado reproducible (derivación de
 variables, reducción supervisada de cardinalidad, imputación, estandarización y
 codificación \emph{one-hot}) y se comparan cinco familias de modelos. El ganador,
-\textbf{XGBoost}, alcanza un \textbf{ROC-AUC de 0.9564} sobre un conjunto de prueba
+\textbf{XGBoost}, alcanza un \textbf{ROC-AUC de 0.9529} sobre un conjunto de prueba
 independiente. El modelo se sirve mediante una API REST (FastAPI) y se muestra en una
 interfaz web (Streamlit) que predice e interpreta cada reserva con SHAP.
 
@@ -161,6 +162,13 @@ principal causa del optimismo de versiones anteriores.
   \label{fig:parking}
 \end{figure}
 
+La misma lógica descarta \var{assigned\_room\_type}, el tipo de habitación
+\textbf{finalmente asignado}: solo se conoce en el \emph{check-in}. Cuando la
+habitación asignada \textbf{difiere} de la reservada la cancelación cae al
+5.4\,\% (frente al 41.6\,\% cuando coinciden), porque reasignar habitación
+implica que el cliente se presentó. Se elimina; \var{reserved\_room\_type} ---la que
+el cliente elige al reservar--- sí se conserva.
+
 También se descarta \var{arrival\_date\_year}: apenas discrimina (la tasa es casi
 idéntica los tres años), no generaliza a años futuros no vistos y va confundido con la
 estación (correlación $-0.54$ con la semana del año, porque el dataset cubre años
@@ -239,9 +247,18 @@ El problema es que \var{country} (177 países), \var{agent} (333 agencias) y
 (Figura~\ref{fig:cardinalidad}): un \emph{one-hot} directo crearía cientos de columnas
 casi vacías, disparando la dimensionalidad y el sobreajuste. \textit{Decisión:}
 aplicar una \textbf{reducción supervisada de cardinalidad} \emph{antes} del
-\emph{one-hot}: se conservan las categorías con soporte suficiente ($n \geq 100$) y
-tasa de cancelación extrema, y el resto se agrupa en \var{Otros}. Así se preserva la
-señal de las categorías relevantes sin pagar el coste dimensional.
+\emph{one-hot}, implementada como un \textbf{transformador propio}
+(\texttt{RareCategoryGrouper}, ya que \texttt{scikit-learn} no incluye ninguno que
+agrupe categorías según el \emph{target}). Se conservan las categorías con soporte
+suficiente ($n \geq 100$) y tasa de cancelación \textbf{extrema en cualquiera de los dos
+sentidos} (muy alta o muy baja, con umbral adaptativo por variable: $>0.6$ o $<0.3$ de la
+tasa máxima de esa columna); el resto se agrupa en \var{Otros}. La selección usa el
+objetivo, así que se aprende \textbf{solo con el \emph{train}} y se reaplica idéntica en
+test e inferencia (sin fuga). Lo verificamos entrenando los 5 modelos con y sin la
+reducción: pasamos de \textbf{902 a 144 columnas} sin coste para \textbf{XGBoost}
+(ROC-AUC $0.9529$ vs.\ $0.9573$, dentro del ruido) y con mejora para \textbf{Random
+Forest} ($0.9363$ vs.\ $0.9221$). Así se preserva la señal de las categorías relevantes
+sin pagar el coste dimensional.
 
 \begin{figure}[t]
   \centering
@@ -285,7 +302,9 @@ modelo}: así se evita cualquier fuga hacia el conjunto de prueba y se garantiza
 inferencia replica exactamente el entrenamiento. Sobre ese preprocesado común se
 entrenan y comparan, en igualdad de condiciones, \textbf{cinco familias de modelos}
 ---regresión logística (línea base), árbol de decisión, Random Forest, XGBoost y una
-red neuronal multicapa---, con sus hiperparámetros optimizados por validación cruzada.
+red neuronal multicapa con \textbf{Keras/TensorFlow} (densas $64\!\to\!32\!\to\!16$ con
+\emph{dropout} y salida sigmoide)---, con sus hiperparámetros optimizados por validación
+cruzada. TensorFlow solo se usa al entrenar la red; en producción se sirve XGBoost.
 La Figura~\ref{fig:pipeline} resume este flujo de extremo a extremo.
 
 \begin{figure*}[t]
@@ -455,11 +474,11 @@ directa para el negocio.
     \toprule
     \textbf{Modelo} & Acc. & Prec. & Rec. & F1 & \textbf{ROC-AUC} \\
     \midrule
-    \textbf{XGBoost} & 0.889 & 0.870 & 0.824 & 0.847 & \textbf{0.9564} \\
-    Red neuronal     & 0.862 & 0.836 & 0.783 & 0.809 & 0.9366 \\
-    Random Forest    & 0.859 & 0.880 & 0.720 & 0.792 & 0.9363 \\
-    Árbol decisión   & 0.849 & 0.822 & 0.758 & 0.789 & 0.9253 \\
-    Reg. logística   & 0.810 & 0.729 & 0.778 & 0.753 & 0.8931 \\
+    \textbf{XGBoost} & 0.881 & 0.859 & 0.814 & 0.836 & \textbf{0.9529} \\
+    Red neuronal     & 0.861 & 0.845 & 0.769 & 0.805 & 0.9353 \\
+    Random Forest    & 0.856 & 0.872 & 0.720 & 0.789 & 0.9338 \\
+    Árbol decisión   & 0.846 & 0.822 & 0.747 & 0.783 & 0.9235 \\
+    Reg. logística   & 0.803 & 0.723 & 0.764 & 0.743 & 0.8862 \\
     \bottomrule
   \end{tabular}
   \caption{Métricas sobre el conjunto de prueba. XGBoost domina en la métrica
@@ -469,7 +488,7 @@ directa para el negocio.
 
 \subsection{El modelo ganador}
 
-\textbf{Se elige XGBoost} (ROC-AUC $=0.9564$). Supera al resto en la métrica principal
+\textbf{Se elige XGBoost} (ROC-AUC $=0.9529$). Supera al resto en la métrica principal
 y en F1, y aun así entrena en pocos segundos. En términos de negocio, con el umbral
 por defecto detecta el \textbf{82\,\% de las cancelaciones reales} (\emph{recall}
 $0.82$) con una \textbf{precisión del 87\,\%}: un buen equilibrio para actuar sin
@@ -499,10 +518,10 @@ falsas alarmas sobre las reservas que no se cancelaban.
 \end{figure}
 
 \paragraph{Nota de honestidad.} Una versión previa reportaba ROC-AUC $0.9614$, pero
-incluía \var{required\_car\_parking\_spaces} (la fuga de \emph{check-in} de la
-sección 2). Al eliminarla, la cifra \emph{honesta} baja a $0.9564$. Las variables
-derivadas \var{has\_company}/\var{has\_agent} y la reducción de cardinalidad
-recuperan la mayor parte de la señal perdida.
+incluía dos fugas de \emph{check-in} (sección 2): \var{required\_car\_parking\_spaces}
+y \var{assigned\_room\_type}. Al eliminar ambas, la cifra \emph{honesta} baja a
+$0.9529$. Las variables derivadas \var{has\_company}/\var{has\_agent} y la reducción
+de cardinalidad recuperan la mayor parte de la señal perdida.
 
 \begin{figure}[t]
   \centering

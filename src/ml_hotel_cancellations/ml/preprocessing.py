@@ -176,6 +176,12 @@ def build_preprocessor() -> ColumnTransformer:
     Espera el DataFrame ya pasado por ``FeatureBuilder``/``RareCategoryGrouper``
     (usa ``NUMERIC_FEATURES``, que incluye las derivadas). Sin ajustar.
     """
+    # Escalado: en los notebooks el escalado es POR MODELO (solo la red y la
+    # regresión logística lo usan; los árboles/XGBoost no). Aquí, con un único
+    # pipeline compartido por los 5 modelos, lo aplicamos a todos a propósito: el
+    # StandardScaler es un no-op para los modelos de árbol (transformación monótona
+    # por feature -> los cortes solo se reescalan, ROC-AUC idéntico), así que
+    # mantener una sola ruta de preprocesado es más simple sin coste en métricas.
     numeric_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),

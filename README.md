@@ -91,10 +91,10 @@ La columna `is_canceled` es la respuesta a predecir. Tras la limpieza quedan
 **118 563 reservas**, que se reparten de forma estratificada en **94 850 de
 entrenamiento** y **23 713 de prueba** (*test*).
 
-El **contrato de entrada** del modelo son **27 características = 15 numéricas + 12
+El **contrato de entrada** del modelo son **26 características = 15 numéricas + 11
 categóricas** (incluida `company`). A partir de ellas el pipeline **deriva** otras
 (`has_company`, `has_agent` y `noches`, que no se piden como entrada) y, tras el
-*one-hot encoding*, el modelo acaba viendo **155 columnas**.
+*one-hot encoding*, el modelo acaba viendo **144 columnas**.
 
 Un dato importante: **las clases están desbalanceadas** — alrededor del **37 % de
 las reservas se cancelan** y el 63 % no. Esto influye en cómo evaluamos (ver más
@@ -301,7 +301,7 @@ Usa **GridSearchCV** (regresión logística y árbol) y **RandomizedSearchCV**
 (Random Forest y XGBoost), optimizando ROC-AUC por validación cruzada. Los
 mejores hiperparámetros de XGBoost son `n_estimators=600, max_depth=16,
 learning_rate=0.03, subsample=0.9, colsample_bytree=1.0`, con los que alcanza
-**0.9564** de ROC-AUC en test; el detalle queda en
+**0.9529** de ROC-AUC en test; el detalle queda en
 `outputs/tuning_hiperparametros.md`.
 
 #### Balanceo de clases (bonus)
@@ -377,7 +377,7 @@ Abre la documentación interactiva en <http://127.0.0.1:8000/docs>. Endpoints:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" \
-  -d '{"hotel":"City Hotel","lead_time":100,"arrival_date_month":"August","arrival_date_week_number":33,"arrival_date_day_of_month":15,"stays_in_weekend_nights":2,"stays_in_week_nights":5,"adults":2,"children":0,"babies":0,"meal":"BB","country":"PRT","market_segment":"Online TA","distribution_channel":"TA/TO","is_repeated_guest":0,"previous_cancellations":0,"previous_bookings_not_canceled":0,"reserved_room_type":"A","assigned_room_type":"A","booking_changes":0,"deposit_type":"No Deposit","agent":"9","company":"no_company","days_in_waiting_list":0,"customer_type":"Transient","adr":100.0,"total_of_special_requests":1}'
+  -d '{"hotel":"City Hotel","lead_time":100,"arrival_date_month":"August","arrival_date_week_number":33,"arrival_date_day_of_month":15,"stays_in_weekend_nights":2,"stays_in_week_nights":5,"adults":2,"children":0,"babies":0,"meal":"BB","country":"PRT","market_segment":"Online TA","distribution_channel":"TA/TO","is_repeated_guest":0,"previous_cancellations":0,"previous_bookings_not_canceled":0,"reserved_room_type":"A","booking_changes":0,"deposit_type":"No Deposit","agent":"9","company":"no_company","days_in_waiting_list":0,"customer_type":"Transient","adr":100.0,"total_of_special_requests":1}'
 ```
 
 Guía completa y contrato en
@@ -476,13 +476,13 @@ justo debajo).
 
 | Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
 |--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8886 | 0.8699 | 0.8243 | 0.8465 | **0.9564** |
-| Red neuronal (MLP) | 0.8619 | 0.8358 | 0.7831 | 0.8086 | 0.9366 |
-| Random Forest | 0.8593 | 0.8803 | 0.7202 | 0.7923 | 0.9363 |
-| Árbol de decisión | 0.8486 | 0.8222 | 0.7576 | 0.7886 | 0.9253 |
-| Regresión logística | 0.8096 | 0.7288 | 0.7785 | 0.7528 | 0.8931 |
+| **XGBoost** ⭐ | 0.8811 | 0.8593 | 0.8141 | 0.8361 | **0.9529** |
+| Red neuronal (Keras) | 0.8614 | 0.8450 | 0.7691 | 0.8053 | 0.9353 |
+| Random Forest | 0.8562 | 0.8719 | 0.7198 | 0.7886 | 0.9338 |
+| Árbol de decisión | 0.8455 | 0.8219 | 0.7473 | 0.7828 | 0.9235 |
+| Regresión logística | 0.8031 | 0.7233 | 0.7636 | 0.7429 | 0.8862 |
 
-⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.9564). Se guarda como
+⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.9529). Se guarda como
 `models/best_model.pkl`. *(Estas cifras son con los hiperparámetros optimizados,
 que el pipeline usa por defecto — ver más abajo.)*
 

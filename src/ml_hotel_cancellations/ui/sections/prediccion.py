@@ -1,6 +1,6 @@
 """Sección 3 — Predicción.
 
-Formulario con las 27 variables de una reserva que, al enviarse, llama a la API
+Formulario con las 26 variables de una reserva que, al enviarse, llama a la API
 (`POST /predict`) para obtener la probabilidad de cancelación.
 
 Las explicaciones extra (waterfall SHAP y mapa 2D) se calculan en proceso con

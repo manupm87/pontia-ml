@@ -99,7 +99,6 @@ def get_categorical_options() -> dict[str, list[str]]:
         "market_segment",
         "distribution_channel",
         "reserved_room_type",
-        "assigned_room_type",
         "deposit_type",
         "customer_type",
     ]
@@ -227,7 +226,7 @@ def check_api_health() -> tuple[bool, dict[str, Any] | str]:
 def predict_booking(booking: dict[str, Any]) -> tuple[bool, dict[str, Any] | str]:
     """Envía una reserva a `POST /predict` y devuelve la predicción.
 
-    `booking` debe seguir el contrato de la API (27 variables, nombres EXACTOS).
+    `booking` debe seguir el contrato de la API (26 variables, nombres EXACTOS).
     Devuelve `(ok, resultado)`: el JSON de la predicción o un mensaje de error.
     """
     try:

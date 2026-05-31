@@ -39,7 +39,7 @@ BEST_MODEL_NAME: str = "XGBoost"
 try:
     BEST_MODEL_ROC_AUC: float = round(_src_config.best_metric_value("roc_auc"), 4)
 except Exception:  # noqa: BLE001 - el artefacto puede faltar en algún entorno
-    BEST_MODEL_ROC_AUC = 0.9564
+    BEST_MODEL_ROC_AUC = 0.9529
 
 # Etiquetas legibles de las clases (derivadas de la fuente única en src.config).
 CLASS_LABELS: dict[int, str] = dict(enumerate(_src_config.CLASS_LABELS_SHORT))
@@ -108,7 +108,7 @@ PLOTS: dict[str, tuple[str, str]] = {
     ),
     "decision_regions_pls.png": (
         "Regiones de decisión en 2D (proyección PLS)",
-        "Para *ver* en 2D modelos que se entrenan con 155 variables, los "
+        "Para *ver* en 2D modelos que se entrenan con 144 variables, los "
         "proyectamos al plano con **PLS** (un PCA supervisado: elige las 2 "
         "direcciones más correlacionadas con la cancelación). Sobre ese plano "
         "reentrenamos los 5 modelos y pintamos su predicción en cada punto: "
