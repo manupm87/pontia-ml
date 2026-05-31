@@ -59,3 +59,8 @@ iframe_figures/
 # --- Trabajo en curso del asistente (no versionar) ---
 .claude/
 debug/
+# Binario de Tectonic (toolchain LaTeX descargable; no versionar)
+.tools/
+# Previsualizaciones temporales del PDF de la memoria
+memoria/_preview_*.png
+memoria/_zoom_*.png
