@@ -9,11 +9,11 @@ decisión** de los cinco modelos. El código vive en
 [`src/ml_hotel_cancellations/utils/visualization_2d.py`](../src/ml_hotel_cancellations/utils/visualization_2d.py)
 (*console script* `viz2d`; `python -m ml_hotel_cancellations.utils.visualization_2d`).
 
-> Trazabilidad de los notebooks (dos niveles): esta visualización se prototipó en el
+> Trazabilidad: esta visualización se prototipó en el
 > *playground* [`notebooks/playground/05_comparativa_y_visualizacion.ipynb`](../notebooks/playground/05_comparativa_y_visualizacion.ipynb)
 > (estilo recursos, autónomo) y de ahí se **generalizó** al módulo reutilizable
-> `utils/visualization_2d.py`. Es el arco del proyecto:
-> **playground (aprender) → `src` (generalizar) → notebooks (mostrar)**.
+> `utils/visualization_2d.py`, que es lo que consumen la CLI (`viz2d`) y la UI. Es el
+> arco del proyecto: **playground (aprender) → `src` (generalizar) → API + UI (mostrar)**.
 
 ## 1. El problema: no se puede dibujar en 155 dimensiones
 

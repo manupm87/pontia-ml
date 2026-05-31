@@ -128,12 +128,10 @@ Estas decisiones se **descubrieron** explorando los datos en los notebooks de
 **generalizaron** al código de producción en
 [`src/ml_hotel_cancellations/ml/preprocessing.py`](src/ml_hotel_cancellations/ml/preprocessing.py)
 (las clases `FeatureBuilder` y `RareCategoryGrouper`). Es el arco que vertebra todo
-el proyecto: **playground (aprender) → `src` (generalizar) → notebooks finales
-(mostrar)**.
+el proyecto: **playground (aprender) → `src` (generalizar) → API + UI (mostrar)**.
 
-El estudio completo de los datos está en
-[`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) (*EDA = análisis exploratorio de
-datos*).
+El estudio completo de los datos (*EDA = análisis exploratorio de datos*) está en el
+*playground* [`notebooks/playground/01_eda_exploracion.ipynb`](notebooks/playground/01_eda_exploracion.ipynb).
 
 ---
 
@@ -155,13 +153,8 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   └── visualizacion_2d.md   # Visualización 2D de regiones de decisión (PLS)
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 │   └── best_model.pkl  # El mejor modelo, listo para hacer predicciones
-├── notebooks/          # Dos niveles: playground (aprender) → finales (mostrar)
-│   ├── README.md                            # Explica los dos niveles
-│   ├── 01_eda.ipynb                         # (finales) EDA usando el paquete `src`
-│   ├── 02_entrenamiento_y_comparativa.ipynb #   entrena los 5 modelos y los compara
-│   ├── 03_balanceo_clases.ipynb            #   desbalance: class_weight vs SMOTE
-│   ├── 04_interpretabilidad_shap.ipynb     #   interpretabilidad con SHAP (bonus)
-│   ├── 05_inferencia.ipynb                 #   inferencia con el mejor modelo
+├── notebooks/          # playground (aprender) → src (generalizar) → API+UI (mostrar)
+│   ├── README.md                           # Explica el arco de dos niveles
 │   └── playground/                         # Autónomos (sin `src`), estilo `recursos/`
 │       ├── README.md                       #   donde se DESCUBRIERON las decisiones
 │       ├── 01_eda_exploracion.ipynb
@@ -346,32 +339,18 @@ jupyter lab    # o: jupyter notebook
 > Un **notebook** es un documento interactivo que combina texto, código y
 > resultados. El **kernel** es el "motor" de Python que ejecuta su código.
 
-Los notebooks están organizados en **dos niveles** (detalle en
+Los notebooks viven en `notebooks/playground/` (detalle en
 [`notebooks/README.md`](notebooks/README.md) y
-[`notebooks/playground/README.md`](notebooks/playground/README.md)):
+[`notebooks/playground/README.md`](notebooks/playground/README.md)): son cuadernos
+**autónomos** (no importan `src`), estilo `recursos/`, donde se **descubrieron** las
+decisiones del proyecto: `01_eda_exploracion`, `02_preparacion_datos`,
+`03_modelos_supervisados`, `04_red_neuronal`, `05_comparativa_y_visualizacion`,
+`06_balanceo_clases` y `07_interpretabilidad`.
 
-**Nivel `playground/`** — notebooks **autónomos** (no importan `src`), estilo
-`recursos/`, donde se **descubrieron** las decisiones del proyecto:
-`01_eda_exploracion`, `02_preparacion_datos`, `03_modelos_supervisados`,
-`04_red_neuronal`, `05_comparativa_y_visualizacion`, `06_balanceo_clases` y
-`07_interpretabilidad`.
-
-**Nivel final** (`notebooks/`) — usan el **paquete `src`**, para *mostrar* el
-sistema ya consolidado:
-
-- `notebooks/01_eda.ipynb` — EDA usando el paquete: exploramos los datos y
-  explicamos cada decisión de preprocesado.
-- `notebooks/02_entrenamiento_y_comparativa.ipynb` — entrena los 5 modelos y los
-  compara (incluida la visualización 2D: proyección PLS y t-SNE).
-- `notebooks/03_balanceo_clases.ipynb` — desbalance de clases: `class_weight` vs
-  SMOTE y para qué sirven.
-- `notebooks/04_interpretabilidad_shap.ipynb` — **interpretabilidad (bonus)**:
-  explica con **SHAP** por qué el modelo predice cada cancelación.
-- `notebooks/05_inferencia.ipynb` — inferencia con el mejor modelo sobre reservas
-  nuevas.
-
-El arco completo es **playground (aprender) → `src` (generalizar) → notebooks
-finales (mostrar)**.
+Lo que en el *playground* se aprendió se **generalizó** al paquete `src`, y el
+resultado consolidado ya no se enseña en cuadernos: se **muestra en vivo** con la
+**API** y la **interfaz Streamlit** (secciones 5 y 6 más abajo). El arco completo es
+**playground (aprender) → `src` (generalizar) → API + UI (mostrar)**.
 
 ### 4. Interpretabilidad del modelo con SHAP (bonus)
 
@@ -382,8 +361,8 @@ local (una reserva concreta). Genera los gráficos en `outputs/`:
 python -m ml_hotel_cancellations.utils.interpretability
 ```
 
-Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) y en el notebook
-`04_interpretabilidad_shap.ipynb`.
+Detalles en [`docs/interpretabilidad.md`](docs/interpretabilidad.md) (la exploración
+inicial está en el *playground* `07_interpretabilidad.ipynb`).
 
 ### 5. API REST con FastAPI (bonus)
 

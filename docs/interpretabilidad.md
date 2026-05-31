@@ -17,13 +17,13 @@ interpretar el modelo para:
 
 Para ello usamos dos técnicas complementarias, implementadas en el módulo
 reutilizable [`src/ml_hotel_cancellations/utils/interpretability.py`](../src/ml_hotel_cancellations/utils/interpretability.py)
-(con el *console script* `explain`) y mostradas de forma didáctica en el notebook
-[`notebooks/04_interpretabilidad_shap.ipynb`](../notebooks/04_interpretabilidad_shap.ipynb).
+(con el *console script* `explain`) y mostradas en la interfaz Streamlit (sección de
+interpretabilidad), que renderiza los gráficos SHAP generados por ese módulo.
 
-> Trazabilidad de los notebooks (dos niveles): la exploración inicial de SHAP vive
-> en el *playground* [`notebooks/playground/07_interpretabilidad.ipynb`](../notebooks/playground/07_interpretabilidad.ipynb)
+> Trazabilidad: la exploración inicial de SHAP vive en el *playground*
+> [`notebooks/playground/07_interpretabilidad.ipynb`](../notebooks/playground/07_interpretabilidad.ipynb)
 > (estilo recursos, autónomo); de ahí se generalizó el módulo reutilizable
-> `utils/interpretability.py`.
+> `utils/interpretability.py`, que es lo que consumen la CLI (`explain`) y la UI.
 
 ## 2. SHAP: repartir la predicción de forma justa
 
@@ -117,12 +117,12 @@ asociada a la reserva eleva el riesgo de cancelación. Lo mismo aplica a su geme
 > retiró del pipeline, por lo que no aparece en estos rankings.
 
 **Conclusión clave**: el modelo ha aprendido **exactamente los patrones que el
-EDA** ([`01_eda.ipynb`](../notebooks/01_eda.ipynb)) había señalado como
+EDA** ([`playground/01_eda_exploracion.ipynb`](../notebooks/playground/01_eda_exploracion.ipynb)) había señalado como
 informativos —`deposit_type`, `previous_cancellations` y las variables de ausencia
 informativa `has_company`/`has_agent`—, lo que corrobora las decisiones del análisis
 exploratorio. Esto da confianza en que generaliza por las razones correctas.
 
-A nivel **local**, los dos ejemplos del notebook ilustran ambos extremos: una
+A nivel **local**, los gráficos *waterfall* de `outputs/` ilustran ambos extremos: una
 reserva con depósito *Non Refund*, mucha antelación y desde Portugal se predice como
 cancelación casi segura; otra con depósito *No Deposit*, peticiones especiales y con
 empresa asociada se predice como no cancelación.
@@ -139,7 +139,7 @@ python -m ml_hotel_cancellations.utils.interpretability
 python -m ml_hotel_cancellations.utils.interpretability --sample 2000 --no-permutation
 ```
 
-El notebook didáctico se ejecuta de principio a fin con sus salidas renderizadas.
+La interfaz Streamlit muestra estos mismos gráficos en su sección de interpretabilidad.
 
 ## 6. Limitaciones
 

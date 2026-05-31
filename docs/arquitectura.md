@@ -173,20 +173,20 @@ idéntico al de un proyecto sin instrumentación de *tracking*. El helper
 (*no-op*) hasta que detecta credenciales, momento en el cual cada
 ejecución pasa a publicar un árbol de *runs* en DagsHub.
 
-#### Origen de las decisiones de datos: los notebooks de dos niveles
+#### Origen de las decisiones de datos: la historia de dos niveles
 
 El diseño del preprocesado no es arbitrario: codifica las conclusiones de
-un trabajo previo de EDA. El proyecto mantiene una historia de notebooks
-**en dos niveles**. Los notebooks de `notebooks/playground/` son
-autónomos (no importan `src`, replican el estilo de los recursos del
-curso) y son donde se **descubrieron** las decisiones de datos a través
-del análisis exploratorio (notebooks `01_eda_exploracion` y
-`02_preparacion_datos`). Esos hallazgos se **generalizaron** después al
-paquete `src/ml_hotel_cancellations/`: los transformadores
-`FeatureBuilder` y `RareCategoryGrouper` de `preprocessing.py` encapsulan
-exactamente lo que el notebook 02 prototipó a mano. Los notebooks de la
-raíz `notebooks/` son el segundo nivel: usan ya el paquete instalado y
-narran el entregable.
+un trabajo previo de EDA. El proyecto mantiene una historia **en dos
+niveles**. Los notebooks de `notebooks/playground/` son autónomos (no
+importan `src`, replican el estilo de los recursos del curso) y son donde
+se **descubrieron** las decisiones de datos a través del análisis
+exploratorio (notebooks `01_eda_exploracion` y `02_preparacion_datos`).
+Esos hallazgos se **generalizaron** después al paquete
+`src/ml_hotel_cancellations/`: los transformadores `FeatureBuilder` y
+`RareCategoryGrouper` de `preprocessing.py` encapsulan exactamente lo que
+el notebook 02 prototipó a mano. El segundo nivel ya no son cuadernos: el
+resultado consolidado se **muestra en vivo** a través de la API y la
+interfaz Streamlit.
 
 ### 4.2 Plano 2 — Trazabilidad con MLflow
 

@@ -51,10 +51,8 @@ El **EDA** (*Exploratory Data Analysis*) es la fase en la que exploramos los dat
 con tablas y gráficos **antes de modelar**, para entenderlos y tomar decisiones con
 fundamento. El análisis se exploró primero en el *playground*
 [`notebooks/playground/01_eda_exploracion.ipynb`](../notebooks/playground/01_eda_exploracion.ipynb)
-(aprender) y la versión depurada y presentable está en
-[`notebooks/01_eda.ipynb`](../notebooks/01_eda.ipynb) (mostrar); las decisiones que
-provocó se generalizaron luego al `Pipeline` de `src/`. Principales hallazgos y la
-decisión de diseño que provocó cada uno:
+(aprender) y las decisiones que provocó se generalizaron luego al `Pipeline` de
+`src/`. Principales hallazgos y la decisión de diseño que provocó cada uno:
 
 ### 3.1. La variable objetivo está desbalanceada
 
@@ -271,9 +269,9 @@ documentación explícita de por qué `src/` se aparta de `recursos/`):
 > herramientas de `recursos/`** (`pd.get_dummies`, `GridSearchCV`, etc.) y son el
 > **puente** entre la versión "de clase" y la "de producción": ahí se **aprenden** y
 > validan las reglas (EDA, preparación de datos, balanceo, comparativa), que luego
-> `src/` **generaliza** en transformadores y `Pipeline`s reutilizables, y los
-> notebooks finales (`notebooks/`) **muestran** el resultado depurado. Arco completo:
-> *playground (aprender) → `src` (generalizar) → `notebooks` (mostrar)*.
+> `src/` **generaliza** en transformadores y `Pipeline`s reutilizables, y la **API +
+> la interfaz Streamlit** **muestran** el resultado depurado en vivo. Arco completo:
+> *playground (aprender) → `src` (generalizar) → API + UI (mostrar)*.
 
 ---
 
@@ -412,8 +410,8 @@ Confirma los hallazgos del EDA. El *ranking* por ganancia de XGBoost lo encabeza
 ausencia informativa** (§3.3): la presencia/ausencia de empresa es señal real. Como
 complemento *model-agnóstico* (válido para cualquier modelo) incluimos la
 **importancia por permutación**.
-Implementado en `src/ml_hotel_cancellations/utils/interpretability.py` (`python -m ml_hotel_cancellations.utils.interpretability`) y en el
-notebook [`04_interpretabilidad_shap.ipynb`](../notebooks/04_interpretabilidad_shap.ipynb);
+Implementado en `src/ml_hotel_cancellations/utils/interpretability.py` (`python -m ml_hotel_cancellations.utils.interpretability`),
+con la exploración inicial en el *playground* [`07_interpretabilidad.ipynb`](../notebooks/playground/07_interpretabilidad.ipynb);
 gráficos en `outputs/shap_*.png` y `outputs/permutation_importance.png`. Explicación
 detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
 
