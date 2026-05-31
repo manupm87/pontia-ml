@@ -1,644 +1,373 @@
-# Informe final — Predicción de cancelaciones de reservas hoteleras
+# Predicción de cancelaciones de reservas hoteleras
 
-**Máster en IA, Cloud Computing y DevOps · Módulo de Machine Learning y Deep Learning**
+**Memoria del Proyecto Final de Módulo**
+Máster en IA, Cloud Computing y DevOps · Módulo de Machine Learning y Deep Learning
 
-> 📖 Todos los términos técnicos que aparecen en este informe están explicados, en
-> lenguaje sencillo, en el [**Glosario**](glosario.md). Si lees una palabra que no
-> conoces, búscala allí.
+> 📄 Esta memoria existe también en **PDF** (`memoria/memoria.pdf`, formato académico a
+> dos columnas); se compila con `make memo`. Los términos técnicos están explicados en
+> el [**glosario**](glosario.md).
 
----
+**Resumen.** Las cancelaciones tardías de reservas vacían habitaciones difíciles de
+revender y distorsionan la previsión de ocupación del hotel. Este trabajo aborda la
+predicción de la cancelación de una reserva (`is_canceled`) como un problema de
+**clasificación binaria** sobre ~119 000 reservas y 31 características. Partiendo de un
+análisis exploratorio que detecta y corrige varias fugas de información, se diseña un
+*pipeline* de preprocesado reproducible (derivación de variables, reducción supervisada
+de cardinalidad, imputación, estandarización y codificación *one-hot*) y se comparan
+cinco familias de modelos. El ganador, **XGBoost**, alcanza un **ROC-AUC de 0.9529**
+sobre un conjunto de prueba independiente. El modelo se sirve mediante una API REST
+(FastAPI) y se muestra en una interfaz web (Streamlit) que predice e interpreta cada
+reserva con SHAP.
 
-## 1. Roles de la pareja
+**Participantes.**
 
-La práctica se ha realizado por parejas. El reparto de tareas ha sido el siguiente
-(rellenar/ajustar con los datos reales del/de la segundo/a integrante):
+| Integrante | Responsabilidades principales |
+|---|---|
+| **Manuel Pérez** (*manugijon@gmail.com*) | Arquitectura del paquete `src/`, proceso de entrenamiento y evaluación, integración de la red neuronal, API, interfaz y redacción de la memoria. |
+| *[Nombre del/de la compañero/a]* | *Exploración de datos, diseño del preprocesado, pruebas de modelos y revisión de resultados.* |
 
-| Integrante | Responsabilidades principales | Aportaciones concretas |
-|------------|-------------------------------|------------------------|
-| **Manuel Pérez** (manugijon@gmail.com) | Arquitectura del sistema, modelado y documentación | Diseño del paquete `src/`, proceso de entrenamiento (`train.py`), integración de la red neuronal, evaluación y redacción de README/informe/glosario |
-| **[Nombre compañero/a]** (*[email]*) | *[p. ej.: exploración de datos, preprocesado y validación]* | *[p. ej.: notebook de análisis exploratorio, diseño del preprocesado, pruebas de modelos, revisión de resultados]* |
-
-> La contribución individual es trazable mediante el **historial de commits** (el
-> registro de cambios) del repositorio. Si no se distinguen roles, ambos integrantes
-> reciben la misma nota (según el enunciado).
-
----
-
-## 2. Justificación del problema
-
-Las **cancelaciones de reservas** son un problema económico de primer orden en el
-sector hotelero. Una cancelación tardía deja una habitación vacía que difícilmente
-se vuelve a vender, distorsiona la previsión de ocupación y complica la gestión de
-personal y recursos. La práctica habitual para mitigarlo —el *overbooking* (aceptar
-más reservas de las plazas disponibles contando con que algunas se cancelarán)— solo
-es segura si se puede **estimar el riesgo de cancelación** de cada reserva.
-
-Por eso predecir `is_canceled` (la *variable objetivo*, lo que queremos adivinar) es
-un caso de uso **realista y de alto valor**:
-
-- **Aplicación directa:** priorizar reservas para *overbooking*, lanzar campañas de
-  retención o pedir un depósito a las reservas de mayor riesgo.
-- **Respuesta de dos valores (clasificación binaria):** cancelada (1) o no (0).
-- **Datos ricos:** ~119 000 reservas y 31 *características* (columnas) de tipos muy
-  distintos: temporales, categóricas (texto) y numéricas, ideales para ilustrar un
-  preprocesado completo y comparar modelos.
+*La contribución individual es trazable mediante el historial de commits del repositorio.*
 
 ---
 
-## 3. Análisis exploratorio de datos (EDA)
+## 1. Justificación del problema
 
-El **EDA** (*Exploratory Data Analysis*) es la fase en la que exploramos los datos
-con tablas y gráficos **antes de modelar**, para entenderlos y tomar decisiones con
-fundamento. El análisis se exploró primero en el *playground*
-[`notebooks/playground/01_eda_exploracion.ipynb`](../notebooks/playground/01_eda_exploracion.ipynb)
-(aprender) y las decisiones que provocó se generalizaron luego al `Pipeline` de
-`src/`. Principales hallazgos y la decisión de diseño que provocó cada uno:
+Las **cancelaciones de reservas** son uno de los principales problemas económicos del
+sector hotelero. Una cancelación, sobre todo si llega con poca antelación, deja una
+habitación vacía que rara vez vuelve a venderse: se pierde el ingreso de esa noche y, con
+él, parte del margen del establecimiento. El daño va más allá del ingreso directo, porque
+las cancelaciones **distorsionan la previsión de ocupación** sobre la que se planifican el
+personal, los aprovisionamientos y los precios, complicando la gestión diaria del hotel.
 
-### 3.1. La variable objetivo está desbalanceada
+Para defenderse, los hoteles recurren a prácticas como el *overbooking* (aceptar más
+reservas que plazas contando con que algunas se cancelarán), la exigencia de depósitos o
+las campañas de retención. Todas comparten un requisito: solo son seguras y rentables si
+el hotel puede **anticipar qué reservas tienen más riesgo** de cancelarse. Una estimación
+fiable de ese riesgo permite actuar de forma selectiva —sobrevender en la medida justa,
+pedir garantías a las reservas dudosas o intervenir antes de que el cliente cancele— y
+proteger así los ingresos y la calidad del servicio.
 
-- **~37 % de las reservas se cancelan** (44 224 de 119 390); el 63 % no. A esto se
-  le llama **desbalance de clases**.
-- *Decisión:* usar una **partición estratificada** (mantener ese 37 % tanto en los
-  datos de entrenamiento como en los de prueba) y elegir **ROC-AUC** como métrica
-  principal en lugar de la *accuracy* (ver sección 5).
-
-### 3.2. Hay columnas que "hacen trampa" (*fuga de información*)
-
-La **fuga de información** (*data leakage*) ocurre cuando el modelo usa, sin querer,
-datos que revelan la respuesta o que no existirían en el momento de predecir.
-
-- `reservation_status` vale `Canceled`/`No-Show` **exactamente** cuando
-  `is_canceled = 1`. Junto con `reservation_status_date`, describen lo que pasó
-  **después** de decidir la cancelación.
-- *Decisión:* eliminar ambas columnas siempre. Si no, el modelo "vería la
-  respuesta" y obtendría un ~100 % de acierto **engañoso e inútil**.
-
-### 3.3. Valores ausentes (huecos en los datos)
-
-Un **valor ausente** (o nulo, *NaN*) es una celda vacía. La **imputación** es
-rellenarla con un valor razonable.
-
-| Columna | % de huecos | Qué hacemos |
-|---------|:-----------:|-------------|
-| `company` | ~94 % | **Conservar**: hueco → `no_company` + **reducción supervisada de cardinalidad**; además se deriva `has_company` |
-| `agent` | ~14 % | Tratar como categoría; huecos → `"Desconocido"` |
-| `country` | ~0.4 % | Imputar con la constante `"Desconocido"` |
-| `children` | residual | Imputar con **0** (ausencia de niños) |
-
-**La ausencia es informativa, no ruido (hallazgo del EDA §5).** Que una reserva no
-tenga `company` o `agent` asignado **no** es un simple hueco: es una señal con valor
-predictivo. Las reservas **con** empresa cancelan ≈14 %, frente a ≈38 % de las que
-**no** la tienen. Por eso, en lugar de descartar `company`, derivamos dos indicadores
-binarios `has_company` / `has_agent` que capturan explícitamente esa diferencia.
-
-### 3.4. Variables numéricas
-
-- `lead_time` (días de antelación entre la reserva y la llegada) es la numérica que
-  **más se relaciona** con la cancelación: a más antelación, más probabilidad de
-  cancelar.
-- `total_of_special_requests` se relaciona al revés (clientes más comprometidos
-  cancelan menos).
-- Como las variables están en escalas muy diferentes, aplicamos
-  **estandarización** (ponerlas todas en una escala comparable, media 0 y
-  desviación 1).
-
-**`required_car_parking_spaces` es una fuga de información (no un predictor).**
-A primera vista parece útil —ninguna reserva con plaza de parking se cancela—, pero
-esa relación es **determinista (0 % de cancelación)** precisamente porque el dato
-**solo se conoce en el *check-in*** (cuando el cliente ya se ha presentado y, por
-tanto, no ha cancelado). Usarlo como predictor es *data leakage*: en el momento de
-puntuar una reserva futura ese valor no existe. *Decisión:* **eliminarlo del modelo**.
-Esta era la principal causa del optimismo de versiones anteriores (ver §5 y §6.1).
-
-**Descartamos `arrival_date_year`.** El dataset tiene cuatro variables de fecha de
-llegada (`year`, `month`, `week_number`, `day_of_month`). Las tres últimas aportan
-**estacionalidad** (épocas del año en que se cancela más o menos), pero el **año**
-no aporta valor real, por tres motivos:
-
-- **Apenas discrimina:** la tasa de cancelación es casi idéntica los tres años
-  (2015: 37.0 %, 2016: 35.9 %, 2017: 38.7 %).
-- **No generaliza:** el modelo debe puntuar reservas *futuras*. Un año que no vio al
-  entrenar (2018 en adelante) no tiene un valor de "año" interpretable: los árboles
-  lo meterían en el último tramo conocido y un modelo lineal extrapolaría una
-  tendencia inexistente.
-- **Va confundido con la estación:** el dataset cubre **años parciales** (2015 solo
-  jul–dic; 2017 solo ene–ago), de ahí que el año tenga una correlación de **−0.54**
-  con `week_number` (la más alta de todas las numéricas). Esa señal estacional ya la
-  recogen `month` y `week_number`, que **sí se repiten** cada año.
-
-*Decisión:* eliminar `arrival_date_year`. En una partición aleatoria, incluirla
-subía el ROC-AUC de XGBoost en ~0.003, pero es una mejora **engañosa** (optimismo
-que no se trasladaría a producción, donde siempre se predice el futuro). Renunciar a
-ella hace el modelo más honesto, en línea con la limitación de *validación temporal*
-de la §7.
-
-### 3.5. Variables categóricas (de texto)
-
-- `deposit_type = "Non Refund"` (depósito no reembolsable) tiene una tasa de
-  cancelación **cercana al 99 %**: una variable muy predictiva.
-- El *City Hotel* cancela más que el *Resort Hotel*.
-- **`assigned_room_type` es otra fuga de *check-in* (se elimina).** Es el tipo de
-  habitación **finalmente asignada**, que solo se conoce al llegar el cliente. La
-  prueba: cuando la habitación asignada **difiere** de la reservada, la cancelación
-  cae al **5.4 %** (frente al 41.6 % cuando coinciden), porque reasignar habitación
-  implica que el cliente **se presentó**. Es la misma familia de fuga que
-  `required_car_parking_spaces`. *Decisión:* **eliminarla**; `reserved_room_type`
-  (la que el cliente **sí** elige al reservar) **se conserva**.
-- Algunas categóricas tienen **cientos de valores distintos** (*alta cardinalidad*):
-  `country` (178 países), `agent` (334 agencias) y `company`. Codificarlas tal cual
-  crearía cientos de columnas, casi todas casi vacías. Para evitarlo aplicamos una
-  **reducción supervisada de cardinalidad** (prototipada en el notebook
-  `02_preparacion_datos` y generalizada al `Pipeline` de `src/` como un
-  **transformador propio**, `RareCategoryGrouper`, ya que scikit-learn no trae ninguno
-  que agrupe categorías mirando el *target*). La idea es **quedarse con las categorías
-  que más señal aportan** garantizando que tengan muestras suficientes:
-  - **Soporte:** solo se consideran categorías con `n ≥ 100` reservas (descarta las
-    raras, cuya tasa sería puro ruido).
-  - **Señal extrema en ambos sentidos:** se conserva una categoría si su tasa de
-    cancelación es muy **alta** *o* muy **baja**; ambas discriminan. El umbral es
-    **adaptativo por variable**: se normaliza por la tasa máxima de esa columna (se
-    conserva si `tasa > 0.6·máx` o `tasa < 0.3·máx`), porque las escalas difieren
-    (p. ej. ningún país llega al 60 % absoluto, pero Portugal sí destaca dentro de
-    `country`). El resto se agrupa en `"Otros"` y los nulos en su propia etiqueta
-    (`no_company` para `company`, `"Desconocido"` para el resto).
-  - **Sin fuga:** la selección usa la variable objetivo, así que se **aprende solo con
-    el train** (`fit`) y se reaplica idéntica al test y en inferencia (`transform`). No
-    se codifica la tasa dentro de la *feature*, solo se decide **qué categorías reciben
-    columna one-hot**, lo que mantiene el riesgo de fuga acotado.
-
-  Así pasamos de **902 columnas** tras el one-hot (sin agrupar) a **144** conservando la
-  señal de las categorías relevantes. El umbral (`0.6 / 0.3 / n ≥ 100`) se eligió por
-  inspección del EDA, no por optimización; es un compromiso interpretable, no un óptimo
-  ajustado por validación.
-
-  Lo comprobamos empíricamente (entrenando los 5 modelos con y sin la reducción sobre el
-  mismo *split*): para **XGBoost** (el modelo elegido) el ROC-AUC es prácticamente idéntico
-  (0.9529 vs. 0.9573, dentro del ruido), de modo que la reducción a ~1/6 de columnas sale
-  **gratis** en el modelo que se sirve; **Random Forest** incluso mejora (0.9363 vs. 0.9221),
-  y los modelos lineal/red pierden menos de 0.01. Es decir, recortamos dimensionalidad sin
-  coste para el mejor modelo.
-
-### 3.6. Limpieza adicional
-
-- Eliminamos ~180 reservas **sin ningún huésped** (`adults+children+babies = 0`),
-  que son registros claramente erróneos.
+Anticipar las cancelaciones es, por tanto, un problema con un retorno claro y directo para
+el negocio, lo que justifica el esfuerzo de construir un sistema que las prediga.
 
 ---
 
-## 4. Diseño del sistema
+## 2. Análisis exploratorio de datos
 
-El proyecto está construido como un **paquete de software modular** (la carpeta
-`src/`), separando cada responsabilidad en un fichero, en lugar de amontonar todo en
-un único notebook.
+El EDA es la fase en la que exploramos los datos con tablas y gráficos *antes de modelar*,
+para tomar decisiones con fundamento. Cada hallazgo de esta sección se tradujo en una
+decisión de diseño concreta del *pipeline*.
 
-> Esta sección describe el diseño del **paquete de modelado**. Para una
-> visión de arquitectura que abarca todo el sistema —entrenamiento,
-> trazabilidad MLflow, repositorio y servicio público— véase
-> [`arquitectura.md`](arquitectura.md), con diagramas detallados.
+### 2.1. La clase objetivo está desbalanceada
 
-### 4.1. El flujo de trabajo (*pipeline*)
+Alrededor del **37 %** de las reservas se cancelan frente a un 63 % que no. Es un
+desbalance moderado. *Decisión:* usar una **partición estratificada** (preservar ese 37 %
+en entrenamiento y prueba) y elegir el **ROC-AUC** como métrica principal en lugar de la
+*accuracy*, que premiaría a un clasificador trivial.
 
-Un **pipeline** ("tubería") es una secuencia de pasos encadenados. El nuestro va de
-los datos crudos hasta el modelo elegido:
+![Reparto de la clase objetivo](../memoria/figuras/eda_desbalance_clase.png)
+*Reparto de la clase objetivo. El desbalance (~37/63) motiva la estratificación y el uso de ROC-AUC.*
 
-```text
- CSV crudo ──► data_loader ──► preprocessing ──► models ──► evaluate ──► best_model.pkl
-              (cargar +        (Pipeline de 3    (entrenar   (medir y
-               limpiar +        pasos: derivar    los 5       comparar:
-               dividir en       features, reducir modelos)    ROC, matriz de
-               train/test)      cardinalidad,                 confusión...)
-                                imputar+escalar
-                                +one-hot)
+### 2.2. Columnas que "hacen trampa" (fuga de información)
+
+La **fuga de información** (*data leakage*) ocurre cuando el modelo usa, sin querer, datos
+que revelan la respuesta o que no existirían en el momento de predecir.
+
+`reservation_status` vale `Canceled`/`No-Show` *exactamente* cuando `is_canceled = 1`, y
+junto con `reservation_status_date` describe lo que ocurrió *después* de decidir la
+cancelación. *Decisión:* eliminar ambas columnas; de lo contrario el modelo "vería la
+respuesta" y obtendría un acierto del ~100 % engañoso e inútil.
+
+Más sutil es `required_car_parking_spaces`: ninguna reserva con plaza de parking se cancela
+(0 %), pero esa relación es *determinista* precisamente porque el dato **solo se conoce en
+el *check-in***, cuando el cliente ya se ha presentado y, por tanto, no ha cancelado. El
+0 % se mantiene incluso restringiendo a las reservas cancelables (`deposit_type = No
+Deposit`), lo que descarta que sea una mera correlación con el depósito. *Decisión:*
+**eliminarla** del modelo: en el momento de puntuar una reserva futura ese valor no existe.
+Era la principal causa del optimismo de versiones anteriores.
+
+![Fuga de parking](../memoria/figuras/eda_fuga_parking.png)
+*`required_car_parking_spaces`: el 0 % de cancelación con plaza asignada persiste dentro de las reservas cancelables, revelando una fuga de check-in, no un predictor.*
+
+La misma lógica descarta `assigned_room_type`, el tipo de habitación **finalmente
+asignado**: solo se conoce en el *check-in*. Cuando la habitación asignada **difiere** de la
+reservada la cancelación cae al 5.4 % (frente al 41.6 % cuando coinciden), porque reasignar
+habitación implica que el cliente se presentó. Se elimina; `reserved_room_type` —la que el
+cliente elige al reservar— sí se conserva.
+
+También se descarta `arrival_date_year`: apenas discrimina (la tasa es casi idéntica los
+tres años), no generaliza a años futuros no vistos y va confundido con la estación
+(correlación −0.54 con la semana del año, porque el dataset cubre años parciales). La señal
+estacional ya la recogen `arrival_date_month` y `week_number`, que sí se repiten cada año.
+
+### 2.3. Valores ausentes
+
+Cuatro columnas presentan huecos. En lugar de descartarlas, se tratan según su naturaleza:
+`company` (~94 % vacía) y `agent` se conservan como categorías (el hueco pasa a una
+etiqueta propia), `country` se imputa con una constante y `children` con 0. La imputación
+se aprende *solo en entrenamiento* para no filtrar información del test.
+
+![Valores ausentes](../memoria/figuras/eda_valores_ausentes.png)
+*Porcentaje de valores ausentes por columna. `company` está casi totalmente vacía, pero su ausencia es informativa.*
+
+### 2.4. La ausencia es señal, no ruido
+
+Que una reserva no tenga `company` o `agent` asignado no es un simple hueco: es una señal
+con valor predictivo. Las reservas **con** empresa cancelan mucho menos que las que no la
+tienen; con `agent` la señal va en sentido contrario. *Decisión:* derivar dos indicadores
+binarios `has_company` y `has_agent` que capturan explícitamente esa diferencia, en vez de
+descartar las columnas.
+
+![Ausencia informativa](../memoria/figuras/eda_ausencia_informativa.png)
+*Tasa de cancelación según la presencia/ausencia de `company` y `agent`. La ausencia discrimina, lo que justifica las variables derivadas `has_company`/`has_agent`.*
+
+### 2.5. Variables numéricas
+
+`lead_time` (días de antelación) es la numérica más relacionada con la cancelación: a más
+antelación, mayor probabilidad de cancelar, de forma casi monótona por tramos.
+`total_of_special_requests` se relaciona a la inversa (clientes más comprometidos cancelan
+menos). Como las variables conviven en escalas muy distintas, se aplica
+**estandarización** (media 0, desviación 1) para que ningún rango domine artificialmente.
+
+![lead_time](../memoria/figuras/eda_lead_time.png)
+*Tasa de cancelación por tramos de `lead_time`: relación creciente y casi monótona, la señal numérica más fuerte.*
+
+### 2.6. Variables categóricas y codificación
+
+`deposit_type = Non Refund` (depósito no reembolsable) tiene una tasa de cancelación
+**cercana al 99 %**: la variable más predictiva del conjunto. Las categóricas se
+transforman a números mediante codificación **one-hot** (`OneHotEncoder`), una columna
+binaria por categoría.
+
+![deposit_type](../memoria/figuras/eda_deposit_type.png)
+*`deposit_type`: el depósito no reembolsable casi garantiza la cancelación. Señal categórica dominante.*
+
+El problema es que `country` (177 países), `agent` (333 agencias) y `company` (352) tienen
+**altísima cardinalidad**: un *one-hot* directo crearía cientos de columnas casi vacías,
+disparando la dimensionalidad y el sobreajuste. *Decisión:* aplicar una **reducción
+supervisada de cardinalidad** *antes* del *one-hot*, implementada como un **transformador
+propio** (`RareCategoryGrouper`, ya que scikit-learn no incluye ninguno que agrupe
+categorías según el *target*). Se conservan las categorías con soporte suficiente
+(`n ≥ 100`) y tasa de cancelación **extrema en cualquiera de los dos sentidos** (muy alta o
+muy baja, con umbral adaptativo por variable: > 0.6 o < 0.3 de la tasa máxima de esa
+columna); el resto se agrupa en `Otros`. La selección usa el objetivo, así que se aprende
+**solo con el *train*** y se reaplica idéntica en test e inferencia (sin fuga). Lo
+verificamos entrenando los 5 modelos con y sin la reducción: pasamos de **902 a 144
+columnas** sin coste para **XGBoost** (ROC-AUC 0.9529 vs. 0.9573, dentro del ruido) y con
+mejora para **Random Forest** (0.9363 vs. 0.9221). Así se preserva la señal de las
+categorías relevantes sin pagar el coste dimensional.
+
+![Reducción de cardinalidad](../memoria/figuras/eda_cardinalidad.png)
+*Reducción supervisada de cardinalidad: de cientos de categorías a unas pocas columnas con señal, paso previo al `OneHotEncoder`.*
+
+Por último, se sanea el conjunto eliminando registros claramente erróneos: ~180 reservas
+sin ningún huésped (`adults + children + babies = 0`) y dos *outliers* flagrantes en la
+tarifa diaria `adr` —un valor **negativo** (−6.4) y otro **desorbitado** (5400)— que solo
+pueden ser errores de captura.
+
+---
+
+## 3. Diseño del sistema
+
+El sistema no se construyó de una vez, sino siguiendo un **arco de desarrollo** en tres
+etapas que va de la exploración libre a un servicio en producción. La progresión es
+deliberada: cada etapa valida sus decisiones antes de comprometerlas en la siguiente.
+
+### 3.1. Etapa 1 — Exploración con cuadernos
+
+La fase exploratoria se realizó en *notebooks* autónomos, donde se analizaron los datos y
+se prototiparon a mano las reglas de preparación y los primeros modelos. Es el terreno para
+equivocarse barato: probar codificaciones, detectar y descartar variables con fuga, medir
+el efecto del balanceo de clases, etc. De aquí salieron ya validadas todas las decisiones
+del EDA de la sección anterior.
+
+### 3.2. Etapa 2 — Generalización en un *pipeline*
+
+Lo aprendido se consolidó en un *pipeline* de preprocesado reproducible que encadena, como
+pasos sucesivos, la derivación de variables informativas (entre ellas
+`has_company`/`has_agent`), la reducción supervisada de cardinalidad de las categóricas, la
+imputación de huecos, la estandarización de las numéricas y la codificación *one-hot*. La
+clave metodológica es que el preprocesado se **ajusta únicamente con los datos de
+entrenamiento** y se guarda *junto al modelo*: así se evita cualquier fuga hacia el conjunto
+de prueba y se garantiza que la inferencia replica exactamente el entrenamiento. Sobre ese
+preprocesado común se entrenan y comparan, en igualdad de condiciones, **cinco familias de
+modelos** —regresión logística (línea base), árbol de decisión, Random Forest, XGBoost y una
+red neuronal multicapa con **Keras/TensorFlow** (densas 64→32→16 con *dropout* y salida
+sigmoide)—, con sus hiperparámetros optimizados por validación cruzada. TensorFlow solo se
+usa al entrenar la red; en producción se sirve XGBoost.
+
+```mermaid
+flowchart LR
+    D["Datos crudos<br/>~119k reservas"] --> P["Preprocesado<br/>derivar · reducir cardinalidad<br/>imputar · escalar · one-hot"]
+    P --> T["Entrenamiento<br/>5 modelos (tuning CV)"]
+    T --> E["Evaluación<br/>ROC-AUC · mejor modelo"]
+    E --> R["Registro<br/>modelo persistido + MLflow"]
+    R --> I["Inferencia<br/>API + interfaz"]
 ```
 
-`train.py` orquesta este flujo y `predict.py` lo reutiliza para inferir; la búsqueda
-de hiperparámetros vive en `tuning.py` (bonus).
+*El *pipeline* de extremo a extremo. El preprocesado se aprende del entrenamiento y se
+persiste junto al modelo, de modo que predecir reproduce exactamente las transformaciones
+del entrenamiento.*
 
-### 4.2. Para qué sirve cada módulo
+### 3.3. Etapa 3 — Productivización
 
-| Módulo (fichero) | Responsabilidad |
-|------------------|-----------------|
-| `config.py` | Punto único de configuración: rutas, semilla aleatoria, listas de columnas, ajustes (*hiperparámetros*) de los modelos y métrica principal. |
-| `data_loader.py` | Cargar el CSV, marcar los huecos, eliminar las columnas que "hacen trampa", limpiar y **dividir** en entrenamiento/prueba de forma estratificada. |
-| `preprocessing.py` | Construir el preprocesador como un `Pipeline` de 3 pasos: `FeatureBuilder` (deriva variables), `RareCategoryGrouper` (reducción supervisada de cardinalidad) y un `ColumnTransformer` (imputar + estandarizar numéricas / one-hot categóricas). |
-| `models.py` | Construye y entrena los 5 modelos (`build_classic_estimators`, `build_models`, `train_models`, `save_models`); la red neuronal es **Keras/TensorFlow** envuelta en `KerasMLPClassifier` (estimador compatible con scikit-learn, TensorFlow se importa de forma perezosa). |
-| `evaluate.py` | Funciones de evaluación: `compute_metrics`, `evaluate_models`, `comparison_table`, `select_best` y los `plot_*` (calculan métricas, montan la tabla comparativa, eligen el mejor modelo y dibujan los gráficos). |
-| `train.py` | **Programa principal** que ejecuta todo el flujo y guarda los resultados. |
-| `predict.py` | Hacer predicciones con `best_model.pkl` sobre reservas nuevas. |
+Finalmente, el modelo ganador se lleva a producción. El artefacto se persiste y se
+**versiona en un registro de modelos** (MLflow), el código y el modelo viven en un
+repositorio Git, y dos servicios desplegados de forma continua exponen el sistema al
+usuario: una **API REST** (FastAPI) que sirve las predicciones y una **interfaz web**
+(Streamlit) que permite explorar los resultados y predecir reservas concretas consumiendo
+esa API. La arquitectura se organiza en cuatro planos —experimentación, trazabilidad,
+repositorio y servicio— que pueden evolucionar de forma independiente: una nueva iteración
+de modelado solo afecta a los dos primeros, y un cambio de interfaz, solo al último.
 
-El **contrato de entrada** del modelo son **26 variables**: **15 numéricas** (que
-**excluyen** `arrival_date_year` y `required_car_parking_spaces`) y **11 categóricas**
-(que **incluyen** `company`). `has_company`, `has_agent` y `noches` son variables
-**derivadas** dentro del `Pipeline`, no campos de entrada.
+```mermaid
+flowchart LR
+    Datos["Datos<br/>hotel bookings"] --> Exp["Experimentación<br/>entrenamiento + tuning (local)"]
+    Exp --> Modelo["Modelo<br/>XGBoost persistido"]
+    Modelo --> Repo["Repositorio<br/>GitHub"]
+    Repo --> Svc["Servicio<br/>FastAPI (Render)<br/>Streamlit (Cloud)"]
+    Svc <--> User["Usuario<br/>navegador"]
+    Exp --> MLflow["MLflow · DagsHub<br/>Experiments + Registry"]
+    MLflow -.-> Svc
+```
 
-### 4.3. Decisiones de ingeniería destacables (y por qué)
+*Arquitectura en cuatro planos. El dato alimenta la experimentación local, que emite un
+modelo versionado (MLflow/DagsHub) y un artefacto en el repositorio; de ahí, el despliegue
+continuo publica la API y la interfaz que consume el usuario.*
 
-- **Preprocesado como `Pipeline` de 3 pasos:** el preprocesador es a su vez un
-  `Pipeline` de scikit-learn que se **ajusta solo con el train** y se persiste junto
-  al modelo, garantizando que la inferencia es idéntica al entrenamiento. Sus pasos:
-  1. **`FeatureBuilder`** — deriva las variables nuevas: `has_company`, `has_agent`,
-     `noches` (estancia total) e imputa `children → 0`.
-  2. **`RareCategoryGrouper`** — **reducción supervisada de cardinalidad** de `agent`,
-     `country` y `company`: conserva las categorías con soporte n ≥ 100 y tasa de
-     cancelación extrema, agrupa el resto en `"Otros"` y mapea los nulos de `company`
-     a `no_company`.
-  3. **`ColumnTransformer`** — numéricas: imputación por **mediana** + `StandardScaler`;
-     categóricas: imputación `"Unknown"` + `OneHotEncoder`. Tras el one-hot, el modelo
-     recibe **144 características**.
+### 3.4. Interpretabilidad
 
-  Estos transformadores codifican **exactamente** lo que el notebook
-  `02_preparacion_datos` prototipó a mano: el *playground* sirvió para **aprender** las
-  reglas y `src/` las **generaliza** en transformadores reutilizables.
-- **Uso de `Pipeline` (preprocesado + modelo):** encadenar ambos en un solo objeto
-  tiene una ventaja clave: el preprocesado **aprende solo de los datos de
-  entrenamiento**, lo que evita *fugas de información* hacia los datos de prueba.
-  Además, modelo y preprocesado se guardan juntos y la predicción es directa.
-- **Comparación justa:** los cinco modelos comparten **exactamente el mismo
-  preprocesado**.
-- **Red neuronal integrada:** la red es una **red Keras/TensorFlow** (la que exige el
-  enunciado), envuelta en un estimador compatible con scikit-learn (`KerasMLPClassifier`)
-  para que tenga la misma interfaz (`fit`/`predict`) que los demás modelos y encaje en el
-  mismo `Pipeline`. TensorFlow se importa **solo al entrenar** la red; en inferencia se
-  sirve XGBoost, así que el servicio (Render) **no carga TensorFlow**.
-- **Reproducibilidad:** fijamos la **semilla aleatoria** (`random_state = 42`) en
-  las divisiones y en los modelos para que los resultados se puedan repetir.
+Un sistema que decide sobre el negocio debe poder **explicar** sus decisiones, no solo
+acertar. Por eso el diseño incorpora interpretabilidad con **SHAP**, una técnica que reparte
+cada predicción entre las variables, indicando cuánto empuja cada una hacia "cancela" o "no
+cancela", a nivel **global** (qué pesa en general) y **local** (por qué *esa* reserva
+concreta).
 
-### 4.4. Los cinco modelos que comparamos
+**A nivel global.** El resumen SHAP lo encabeza `deposit_type = Non Refund`, seguido del
+segmento de mercado, las cancelaciones previas, el país (Portugal) y `has_company`. Que esta
+última variable derivada aparezca tan arriba **valida la hipótesis de la ausencia
+informativa** del EDA. La importancia interna del Random Forest ordena las variables de
+forma muy parecida: que dos familias de modelos distintas coincidan en lo que importa
+refuerza que el sistema aprende patrones reales, no artefactos de un algoritmo concreto.
 
-Cada uno representa una "familia" distinta de algoritmos (todos explicados en el
-[glosario](glosario.md)):
-
-1. **Regresión logística** — modelo lineal sencillo; sirve de **línea base**
-   (referencia mínima a superar).
-2. **Árbol de decisión** — una serie de preguntas tipo "sí/no"; fácil de entender.
-3. **Random Forest ("bosque aleatorio")** — combina **muchos árboles** y promedia
-   sus votos (técnica llamada *ensemble*).
-4. **XGBoost** — variante muy eficiente de *gradient boosting*: añade árboles que
-   van **corrigiendo los errores** de los anteriores.
-5. **Red neuronal multicapa (Keras/TensorFlow)** — la que pide el enunciado: una red
-   `Sequential` de Keras con capas densas `64 → 32 → 16` (activación ReLU) + `Dropout(0.3)`
-   y salida **sigmoide**, optimizador Adam y **early stopping** (`patience=10`,
-   `restore_best_weights`). Va envuelta en `KerasMLPClassifier` (estimador compatible con
-   scikit-learn) para encajar en el mismo `Pipeline`; misma arquitectura que el notebook
-   `04_red_neuronal`.
-
-### 4.5. Herramientas de producción y su equivalente en clase (`recursos/`)
-
-El paquete `src/` está pensado como **sistema de producción**, así que en varios
-puntos usa utilidades de scikit-learn más robustas que las vistas en los notebooks
-de clase (`recursos/`). Cada una **hace lo mismo** que su equivalente de clase,
-pero de forma reproducible y segura para la inferencia. Esta tabla las mapea (es la
-documentación explícita de por qué `src/` se aparta de `recursos/`):
-
-| Herramienta en `src/` (producción) | Equivalente en `recursos/` | Qué añade la versión de producción |
-|---|---|---|
-| `Pipeline(preprocessor, modelo)` | entrenar el modelo directamente sobre el DataFrame ya preparado a mano | Empaqueta preprocesado + modelo en **un único objeto**: el preprocesado se **aprende solo del train** (sin fugas) y se persiste junto al modelo para predecir. |
-| `FeatureBuilder` (transformador propio) | crear columnas derivadas a mano con pandas (`df["has_company"] = …`) | Encapsula la derivación de `has_company`/`has_agent`/`noches` (+`children→0`) como un paso del `Pipeline`, reproducible e idéntico en train/inferencia. |
-| `RareCategoryGrouper` (transformador propio) | agrupar categorías raras a mano con `value_counts()` y `.replace()` | **Aprende del train** qué categorías de `agent`/`country`/`company` conservar (soporte y tasa de cancelación) y agrupa el resto en `"Otros"`; se reaplica idéntico al predecir. |
-| `ColumnTransformer` | preparar cada grupo de columnas por separado con pandas | Aplica transformaciones distintas a numéricas y categóricas de forma declarativa dentro del `Pipeline`. |
-| `OneHotEncoder(handle_unknown="ignore")` | `pd.get_dummies(X)` | Recuerda las categorías del *train* y **tolera categorías no vistas** al predecir (la cardinalidad ya la controla `RareCategoryGrouper` aguas arriba). |
-| `SimpleImputer(strategy=…)` | `.fillna()` / `.dropna()` | Aprende el valor de relleno (p. ej. la mediana) **en train** y lo reaplica idéntico en test/predicción. |
-| `StandardScaler` (todas las numéricas) | `StandardScaler` (solo KNN/SVM en clase) | Es la **misma** herramienta; en producción se aplica a todas las numéricas dentro del `Pipeline` por consistencia. |
-| `RandomizedSearchCV` (Random Forest, XGBoost) | `GridSearchCV` | Muestrea combinaciones al azar cuando el espacio es grande, donde una búsqueda exhaustiva sería inviable. En los espacios pequeños (regresión logística, árbol) sí usamos `GridSearchCV`, **igual que en clase**. |
-
-> Los notebooks de `notebooks/playground/` replican el flujo **solo con las
-> herramientas de `recursos/`** (`pd.get_dummies`, `GridSearchCV`, etc.) y son el
-> **puente** entre la versión "de clase" y la "de producción": ahí se **aprenden** y
-> validan las reglas (EDA, preparación de datos, balanceo, comparativa), que luego
-> `src/` **generaliza** en transformadores y `Pipeline`s reutilizables, y la **API +
-> la interfaz Streamlit** **muestran** el resultado depurado en vivo. Arco completo:
-> *playground (aprender) → `src` (generalizar) → API + UI (mostrar)*.
-
----
-
-## 5. Resultados y elección final
-
-Evaluamos sobre el **conjunto de prueba** (*test*): 23 842 reservas (20 % del total)
-que el modelo **no usó al entrenar**, para medir si generaliza a casos nuevos.
-
-| Modelo | Accuracy | Precision | Recall | F1 | **ROC-AUC** |
-|--------|:--------:|:---------:|:------:|:--:|:-----------:|
-| **XGBoost** ⭐ | 0.8811 | 0.8593 | 0.8141 | 0.8361 | **0.9529** |
-| Red neuronal (Keras) | 0.8614 | 0.8450 | 0.7691 | 0.8053 | 0.9353 |
-| Random Forest | 0.8562 | 0.8719 | 0.7198 | 0.7886 | 0.9338 |
-| Árbol de decisión | 0.8455 | 0.8219 | 0.7473 | 0.7828 | 0.9235 |
-| Regresión logística | 0.8031 | 0.7233 | 0.7636 | 0.7429 | 0.8862 |
-
-> Estas cifras se obtienen con los **hiperparámetros optimizados** por validación
-> cruzada (ver §6, bonus), que el pipeline usa por defecto.
-
-> **Nota de honestidad sobre el titular.** Una versión anterior reportaba ROC-AUC
-> **0.9614**, pero incluía dos **fugas de información** del *check-in*:
-> `required_car_parking_spaces` (ver §3.4) y `assigned_room_type` (ver §3.5). Al
-> eliminar ambas, el ROC-AUC **honesto** baja a **0.9529** (0.9564 tras quitar solo
-> el parking, y −0.003 adicional al quitar la habitación asignada). Las variables
-> derivadas `has_company`/`has_agent`
-> (de la ausencia informativa, §3.3) junto con la **reducción supervisada de
-> cardinalidad** (§3.5) recuperan la mayor parte de la señal perdida.
-
-> **Recordatorio de métricas** (detalle en el [glosario](glosario.md)):
-> *accuracy* = % de aciertos · *precision* = pocas falsas alarmas · *recall* = se
-> escapan pocas cancelaciones · *F1* = equilibrio de las dos · *ROC-AUC* = capacidad
-> de ordenar bien por riesgo (0.5 = azar, 1 = perfecto).
-
-![Curva ROC comparativa](../outputs/roc_curves.png)
-
-*La curva ROC enfrenta cancelaciones detectadas (eje Y) frente a falsas alarmas (eje
-X) según el umbral; cuanto más cerca de la esquina superior izquierda, mejor.*
-
-![Matrices de confusión](../outputs/confusion_matrices.png)
-
-*La matriz de confusión cruza lo predicho con lo real: los aciertos están en la
-diagonal.*
+![Resumen SHAP global](../outputs/shap_summary_beeswarm.png)
+*Resumen SHAP global (beeswarm) del modelo ganador: aporte de cada variable a la predicción. Confirma los hallazgos del EDA.*
 
 ![Importancia de variables](../outputs/feature_importance.png)
+*Importancia de variables del Random Forest. Coincide en lo esencial con el ranking SHAP del ganador (depósito, `lead_time`, país, cancelaciones previas…), una validación cruzada entre familias de modelos.*
 
-*La importancia de variables indica qué características influyen más en las
-predicciones del Random Forest.*
+**A nivel local.** SHAP también explica reservas individuales. El siguiente *waterfall*
+desglosa una reserva de **altísimo riesgo** (*p* ≈ 1): partiendo del riesgo medio, el
+depósito no reembolsable (+3.2) y las cancelaciones previas (+2.8) la empujan con fuerza
+hacia "cancela", y la elevada antelación añade más riesgo, mientras que pocos factores
+tiran en sentido contrario. Este tipo de explicación es lo que permite **justificar al
+negocio** por qué una reserva concreta se marca como dudosa.
 
-### 5.1. Elección del modelo y de la métrica
-
-- **Métrica principal: ROC-AUC.** Es robusta al desbalance, no depende del umbral de
-  decisión (lo que permite ajustar la "agresividad" del *overbooking*) y es
-  comparable entre modelos. Reportamos además *recall* y *F1* por su lectura de
-  negocio.
-- **Modelo elegido: XGBoost** (ROC-AUC = 0.9529). Supera al resto en la métrica
-  principal y en F1, y aun así entrena en pocos segundos (~3.6 s). Se guarda como
-  `models/best_model.pkl`.
-
-### 5.2. Qué significan estos resultados para el hotel
-
-- XGBoost detecta el **82 % de las cancelaciones reales** (*recall* 0.82) con una
-  **precisión del 87 %**: un buen equilibrio para actuar sin generar demasiadas
-  falsas alarmas.
-- El Random Forest es el más **conservador** (más precisión pero menos recall):
-  preferible si una falsa alarma fuese muy costosa.
+![Explicación local SHAP](../outputs/shap_waterfall_ejemplo1.png)
+*Explicación local (waterfall SHAP) de una reserva de ejemplo con alta probabilidad de cancelación: contribución de cada variable a su predicción.*
 
 ---
 
-## 6. Bonus técnicos implementados
+## 4. Resultados y elección final
 
-Más allá de los requisitos mínimos, añadimos los siguientes extras (el enunciado
-los puntúa como *bonus*).
+La evaluación se realiza sobre un **conjunto de prueba** de 23 713 reservas (20 % del
+total) que el modelo no usó al entrenar. Las cifras corresponden a los hiperparámetros ya
+optimizados.
 
-### 6.1. Optimización de hiperparámetros
+### 4.1. La métrica: ROC-AUC
 
-Buscamos automáticamente la mejor configuración de cada modelo clásico mediante
-**validación cruzada** (3 particiones), optimizando ROC-AUC:
+La métrica principal es el **ROC-AUC** (área bajo la curva ROC). En vez de medir cuántas
+predicciones acierta con un umbral fijo, evalúa la capacidad del modelo de **ordenar** las
+reservas por riesgo: equivale a la probabilidad de que, tomadas al azar una reserva
+cancelada y otra no, el modelo asigne mayor riesgo a la cancelada. Vale 0.5 si no distingue
+mejor que el azar y 1 si las ordena perfectamente. Se eligió por tres razones alineadas con
+el caso de uso:
 
-- **GridSearchCV** (búsqueda exhaustiva) para los espacios pequeños: regresión
-  logística y árbol de decisión.
-- **RandomizedSearchCV** (muestreo aleatorio) para los grandes: Random Forest y
-  XGBoost.
+- **Robusta al desbalance:** a diferencia de la *accuracy*, no se deja engañar por la clase
+  mayoritaria (un modelo que dijera "nadie cancela" acertaría el 63 % pero sería inútil).
+- **Independiente del umbral:** no fija de antemano a partir de qué probabilidad se
+  considera "cancelará", de modo que el hotel puede mover ese punto de corte según su coste
+  —más agresivo para llenar plazas, más prudente si una falsa alarma es cara.
+- **Comparable:** da una cifra única y homogénea para ordenar los cinco modelos.
 
-Los mejores hiperparámetros se **persisten** en `outputs/best_hiperparametros.json`
-y el pipeline los **usa por defecto** (`python -m ml_hotel_cancellations.ml.train`); rehacer la búsqueda
-es tan simple como `python -m ml_hotel_cancellations.ml.train --tune` o `python -m ml_hotel_cancellations.ml.tuning`. Partiendo
-de unos valores base ya buenos hallados explorando a mano
-(`max_depth=14, n_estimators=500, learning_rate=0.1`; **0.9573** de ROC-AUC en
-validación cruzada), el finetuning encontró
-`n_estimators=600, max_depth=16, learning_rate=0.03, subsample=0.9,
-colsample_bytree=1.0`, subiendo el ROC-AUC de CV a **0.9586**. Sobre el conjunto de
-test, con el contrato de variables honesto (sin la fuga de parking, §3.4), el modelo
-alcanza **0.9529**. El detalle (CV base vs. optimizada) queda en
-`outputs/tuning_hiperparametros.md`.
-Implementado en `src/ml_hotel_cancellations/ml/tuning.py`.
+Como el valor de negocio está precisamente en *priorizar* reservas por riesgo (para
+*overbooking*, depósitos o retención), una métrica de **ordenación** es la más adecuada. Se
+reportan además *recall* y precisión por su lectura directa para el negocio.
 
-> *Nota de hardware:* todo el entrenamiento se ejecuta en **CPU**, porque a
-> esta escala de datos la GPU no acelera y la CPU es plenamente reproducible
-> (semilla `RANDOM_STATE=42`).
+| Modelo | Acc. | Prec. | Rec. | F1 | **ROC-AUC** |
+|---|:--:|:--:|:--:|:--:|:--:|
+| **XGBoost** | 0.881 | 0.859 | 0.814 | 0.836 | **0.9529** |
+| Red neuronal (Keras) | 0.861 | 0.845 | 0.769 | 0.805 | 0.9353 |
+| Random Forest | 0.856 | 0.872 | 0.720 | 0.789 | 0.9338 |
+| Árbol de decisión | 0.846 | 0.822 | 0.747 | 0.783 | 0.9235 |
+| Regresión logística | 0.803 | 0.723 | 0.764 | 0.743 | 0.8862 |
 
-### 6.2. Balanceo de clases
+*Métricas sobre el conjunto de prueba. XGBoost domina en la métrica principal (ROC-AUC) y en F1.*
 
-El problema está moderadamente desbalanceado (~37 % de cancelaciones). Exploramos
-tres estrategias en el notebook
-[`notebooks/playground/06_balanceo_clases.ipynb`](../notebooks/playground/06_balanceo_clases.ipynb):
-**sin balanceo**, **class_weight** (reponderar la clase minoritaria;
-`scale_pos_weight` en XGBoost) y **SMOTE** (sobremuestreo sintético con
-*imbalanced-learn*, aplicado solo al entrenamiento).
+### 4.2. El modelo ganador
 
-| XGBoost | recall | precision | ROC-AUC |
-|---|:--:|:--:|:--:|
-| Sin balanceo | 0.81 | 0.86 | 0.952 |
-| class_weight | **0.87** | 0.81 | 0.952 |
-| SMOTE | 0.83 | 0.84 | 0.950 |
+**Se elige XGBoost** (ROC-AUC = 0.9529). Supera al resto en la métrica principal y en F1, y
+aun así entrena en pocos segundos. En términos de negocio, con el umbral por defecto detecta
+el **81 % de las cancelaciones reales** (*recall* 0.81) con una **precisión del 86 %**: un
+buen equilibrio para actuar sin generar demasiadas falsas alarmas. El Random Forest es el
+más conservador (más precisión, menos *recall*), preferible si una falsa alarma fuese muy
+costosa. Las curvas ROC confirman esta jerarquía.
 
-**Conclusión:** el balanceo **sube el recall** (detecta más cancelaciones) a costa
-de **precisión**, y el **ROC-AUC apenas cambia** (es independiente del umbral). Por
-eso el pipeline de `src/` **no** balancea y **no se distribuye ningún módulo de
-balanceo** (la exploración quedó en el *playground*): como optimizamos ROC-AUC, el
-compromiso recall/precisión se ajusta mejor **moviendo el umbral** de decisión según
-el coste de negocio (una cancelación no detectada vs. una falsa alarma).
+La matriz de confusión del ganador desglosa su comportamiento sobre las 23 713 reservas de
+prueba: detecta **7193** de las 8835 cancelaciones reales y se le escapan 1642 (los falsos
+negativos), generando solo **1178** falsas alarmas sobre las reservas que no se cancelaban.
 
-### 6.3. Interpretabilidad con SHAP
+![Curvas ROC comparativas](../outputs/roc_curves.png)
+*Curvas ROC comparativas. Cuanto más cerca de la esquina superior izquierda, mejor; XGBoost domina al resto.*
 
-Para entender **por qué** el modelo predice cada cancelación añadimos
-**interpretabilidad** con **SHAP** (*SHapley Additive exPlanations*): una técnica
-que reparte la predicción entre las variables, asignando a cada una cuánto ha
-empujado hacia "cancela" o "no cancela". Lo aplicamos en dos niveles:
+![Matriz de confusión del ganador](../outputs/confusion_matrix_best.png)
+*Matriz de confusión del modelo ganador (XGBoost) sobre el conjunto de prueba: los aciertos están en la diagonal.*
 
-- **Global** (todo el conjunto): qué variables pesan más en general.
-- **Local** (una reserva): por qué *esa* reserva concreta se predice como
-  cancelación.
+**Nota de honestidad.** Una versión previa reportaba ROC-AUC 0.9614, pero incluía dos fugas
+de *check-in* (sección 2): `required_car_parking_spaces` y `assigned_room_type`. Al eliminar
+ambas, la cifra *honesta* baja a 0.9529. Las variables derivadas
+`has_company`/`has_agent` y la reducción de cardinalidad recuperan la mayor parte de la
+señal perdida.
 
-Confirma los hallazgos del EDA. El *ranking* por ganancia de XGBoost lo encabeza
-`deposit_type='Non Refund'` (domina con diferencia), seguido de
-`market_segment='Online TA'`, `previous_cancellations`, `country='PRT'` (Portugal) y
-`has_company`. Que `has_company` aparezca tan arriba **valida la hipótesis de la
-ausencia informativa** (§3.3): la presencia/ausencia de empresa es señal real. Como
-complemento *model-agnóstico* (válido para cualquier modelo) incluimos la
-**importancia por permutación**.
-Implementado en `src/ml_hotel_cancellations/utils/interpretability.py` (`python -m ml_hotel_cancellations.utils.interpretability`),
-con la exploración inicial en el *playground* [`07_interpretabilidad.ipynb`](../notebooks/playground/07_interpretabilidad.ipynb);
-gráficos en `outputs/shap_*.png` y `outputs/permutation_importance.png`. Explicación
-detallada en [`docs/interpretabilidad.md`](interpretabilidad.md).
-
-### 6.4. API REST con FastAPI
-
-Para **productivizar** el modelo (poder consumirlo desde otros sistemas) creamos una
-**API REST** con **FastAPI** (`ml_hotel_cancellations/api/`). Carga
-`models/best_model.pkl` una sola vez y reutiliza el **mismo preprocesado** del
-pipeline (`ml_hotel_cancellations.ml.predict`), de modo que la inferencia es
-idéntica al entrenamiento. Endpoints:
-
-- `GET /health` — comprobación de estado.
-- `GET /model-info` — modelo, métrica y variables que espera.
-- `POST /predict` — una reserva → `{prediction, label, probability}` (probabilidad de
-  cancelación).
-- `POST /predict/batch` — varias reservas a la vez.
-
-Incluye **documentación interactiva automática** (Swagger UI en `/docs`) y **tests**
-(`pytest`, 6 casos que pasan). Arrancar desde la raíz del repo:
-`uvicorn ml_hotel_cancellations.api.main:app --reload`. Guía completa en
-[`api/README.md`](../src/ml_hotel_cancellations/api/README.md).
-
-### 6.5. Interfaz visual con Streamlit
-
-Una **interfaz visual** con **Streamlit** (`ui/`) reúne todo el proyecto en una
-web sencilla, con código **modular** (configuración, carga de datos y una sección por
-pantalla). Incluye:
-
-1. **Resumen y resultados:** tabla comparativa de los 5 modelos y sus gráficos.
-2. **Visualización de modelos:** todas las figuras de `outputs/` (ROC, matrices de
-   confusión, importancia, balanceo) y una **proyección 2D supervisada con PLS** que
-   muestra las regiones de decisión de los 5 modelos en un mismo plano (notebook
-   `notebooks/playground/05_comparativa_y_visualizacion.ipynb`, reexportada como
-   `outputs/decision_regions_pls.png`).
-3. **Predicción:** un formulario con las 26 variables que **llama a la API de FastAPI**
-   y muestra la probabilidad de cancelación. Tras la predicción la página añade
-   **dos explicaciones locales**: (a) el **waterfall SHAP** de esa reserva concreta,
-   que dice qué variables han empujado hacia "cancela" o "no cancela", y (b) la
-   **posición de la reserva en el mapa 2D PLS**, marcada con una estrella sobre las
-   regiones de decisión de los 5 modelos.
-4. **Interpretabilidad:** los gráficos SHAP globales y locales.
-5. **Exploración (EDA):** tasa de cancelación por categoría y balance de clases.
-
-Arrancar desde la raíz del repo: `streamlit run src/ml_hotel_cancellations/ui/app.py` (con la API levantada para que
-funcione la predicción; la URL se configura con `PONTIA_API_URL`). Guía en
-[`ui/README.md`](../src/ml_hotel_cancellations/ui/README.md).
-
-### 6.6. Registro de experimentos con MLflow
-
-**MLflow** es la herramienta estándar de *MLOps* para el registro de
-experimentos: en cada ejecución de entrenamiento se persisten los
-hiperparámetros utilizados, las métricas obtenidas y los artefactos generados
-(modelos, gráficos, tablas), y permite **versionar** los modelos en un registro
-central. El proyecto usa el servidor MLflow alojado gratuitamente por
-**DagsHub** como *backend* de tracking, expuesto en una URL pública asociada
-al repositorio.
-
-La instrumentación, encapsulada en `src/ml_hotel_cancellations/utils/tracking.py`, integra los dos
-scripts de entrenamiento en una topología de *runs* coherente:
-
-| Script | *Run* padre | *Child runs* | Datos registrados |
-|---|---|---|---|
-| `python -m ml_hotel_cancellations.ml.train` | `train_all_models` | 5 (uno por modelo) | `params`, métricas, `train_time_s`; el ganador se persiste como artefacto sklearn |
-| `python -m ml_hotel_cancellations.ml.tuning` | `tuning_hyperparameters` | 4 (uno por modelo clásico) | mejores `params`, `cv_default`, `cv_tuned`, mejora, combinaciones probadas |
-
-Cuando la búsqueda de hiperparámetros se invoca desde
-`python -m ml_hotel_cancellations.ml.train --tune`, su *run* queda **anidado**
-bajo el padre de entrenamiento, presentando todo el experimento como un único
-árbol navegable.
-
-El helper `ml_hotel_cancellations.utils.tracking` es deliberadamente
-**silencioso**: si las variables
-de entorno `MLFLOW_TRACKING_URI`, `MLFLOW_TRACKING_USERNAME` y
-`MLFLOW_TRACKING_PASSWORD` no están definidas, los scripts se comportan
-exactamente como si MLflow no estuviera presente. Activar el *tracking* se
-reduce a exportar dichas variables.
-
-**Model Registry.** Tras el entrenamiento, el modelo ganador se registra como
-`pontia-cancellations` y se promociona al *stage* `Production` ejecutando
-`python -m ml_hotel_cancellations.utils.register_model`. Este CLI invoca el API REST del *Model
-Registry* directamente, ya que el frontend de DagsHub no expone los
-controles correspondientes (limitación documentada de su fork del cliente
-MLflow).
-
-**Inferencia desde el registro.** La API admite cargar el modelo en producción
-directamente desde el registro. Si la variable de entorno
-`MLFLOW_MODEL_URI=models:/pontia-cancellations/Production` está definida,
-`api/service.py` descarga la versión actual, la cachea en
-`/tmp/pontia_models/<hash>` y la sirve. La descarga se realiza con peticiones
-HTTP directas al API REST de MLflow para evitar la huella en memoria que
-introduciría importar la librería completa (decisión detallada en
-[`arquitectura.md`](arquitectura.md) §5.2). Cualquier fallo —ausencia de red,
-token caducado, versión inexistente— desencadena una caída automática al
-*pickle* versionado en el repositorio y queda reflejado en
-`GET /model-info`:
-
-```json
-{
-  "source": "registry",
-  "registry_uri": "models:/pontia-cancellations/Production",
-  "version": 1,
-  "stage": "Production",
-  "run_id": "ebd5156e76b94fe0bcff126e961d2b1f",
-  "fallback_reason": null
-}
-```
-
-Se cierra así el ciclo **entrenar → registrar → promocionar → servir** sin
-otra dependencia que un *flag* de entorno, con un mecanismo de respaldo
-explícito en caso de indisponibilidad del registro.
-
-### 6.7. Despliegue público gratuito
-
-Con objeto de hacer el sistema accesible públicamente sin requerir
-instalación local, los dos componentes activos del proyecto se publican en
-servicios *cloud* de uso gratuito:
-
-| Componente | Plataforma | URL pública |
-|---|---|---|
-| API REST (FastAPI) | Render | <https://pontia-api-fi8t.onrender.com> |
-| Documentación Swagger | Render | <https://pontia-api-fi8t.onrender.com/docs> |
-| Interfaz visual (Streamlit) | Streamlit Community Cloud | <https://ml-hotel-cancellations-manupm87.streamlit.app> |
-| MLflow Tracking + Model Registry | DagsHub | <https://dagshub.com/manupm87/pontia-ml.mlflow> |
-
-La interfaz Streamlit consume la API por HTTPS; su URL se inyecta como
-*secret* en Streamlit Cloud, permitiendo modificarla sin tocar código.
-En la configuración actual de Render, la API sirve el *pickle* versionado
-en el repositorio. La cadena de carga *registry → pickle* descrita en §6.6
-también está implementada y verificada en local, pero el camino del *Model
-Registry* se mantiene desactivado en producción: el coste de RAM de
-importar el cliente MLflow y deserializar el artefacto descargado excede
-los 512 MB del *tier* gratuito de Render. La transición a un plan con
-mayor memoria, o la migración a Hugging Face Spaces, reactivaría el
-camino del registro modificando una única variable de entorno.
-
-**Características de cada plataforma:**
-
-- **Render** (API): 512 MB de RAM, 0,1 vCPU, suspensión del contenedor
-  tras 15 minutos de inactividad y latencia de arranque en frío de
-  30-50 s. La interfaz detecta automáticamente este intervalo y muestra
-  un aviso contextual durante la reactivación.
-- **Streamlit Community Cloud** (UI): 1 GB de RAM compartida, despliegue
-  directo desde la rama `main` del repositorio de GitHub.
-- **DagsHub** (MLflow): servidor MLflow gestionado, con autenticación
-  HTTP Basic mediante token personal.
-
-La arquitectura completa del sistema —del entrenamiento al servicio en
-vivo, con diagramas de los planos lógicos y la secuencia de una
-predicción— se documenta en [`arquitectura.md`](arquitectura.md).
+![Regiones de decisión 2D (PLS)](../outputs/decision_regions_pls.png)
+*Regiones de decisión de los cinco modelos sobre una proyección 2D supervisada (PLS). Permite comparar visualmente la frontera que aprende cada familia de algoritmos sobre el mismo plano.*
 
 ---
 
-## 7. Reflexión crítica: limitaciones y mejoras
+## 5. Reflexión crítica: limitaciones y mejoras
 
 Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 
-**Limitaciones actuales**
+**Limitaciones actuales.**
 
-- **Validación temporal pendiente:** dividimos los datos al azar. Como las reservas
-  tienen fecha (2015–2017), una división **por tiempo** (entrenar con el pasado y
-  probar con el futuro) sería más realista y probablemente daría una cifra algo más
-  baja pero más fiable.
-- **Desbalance sin tratamiento explícito:** lo abordamos con estratificación y una
-  métrica adecuada, pero no con técnicas específicas de reequilibrado.
-- **Alta cardinalidad simplificada:** la reducción supervisada de cardinalidad de
-  `country`/`agent`/`company` agrupa las categorías menos frecuentes en `"Otros"`, por
-  lo que perdemos parte de su información individual.
-- **Umbral fijo en 0.5:** no lo hemos ajustado a un objetivo concreto de negocio.
+- **Validación temporal pendiente:** la partición es aleatoria. Como las reservas tienen
+  fecha (2015–2017), una división *por tiempo* (entrenar con el pasado, probar con el
+  futuro) sería más realista y probablemente daría una cifra algo más baja, pero más fiable.
+- **Desbalance sin tratamiento explícito:** se aborda con estratificación y una métrica
+  adecuada, no con técnicas de reequilibrado. El balanceo (`class_weight`, SMOTE) se exploró
+  y sube el *recall* a costa de precisión, pero deja el ROC-AUC casi igual, por lo que no se
+  incorpora al *pipeline* de producción.
+- **Cardinalidad simplificada:** agrupar las categorías raras en `Otros` sacrifica parte de
+  su información individual.
+- **Umbral fijo en 0.5:** no se ha ajustado a un objetivo de negocio concreto.
 
-> Seis de los siete *bonus* del enunciado están implementados (ver §6):
-> optimización de hiperparámetros, balanceo de clases, **interpretabilidad
-> (SHAP)**, **API REST (FastAPI)**, **interfaz visual (Streamlit)** y **registro
-> de experimentos con MLflow + Model Registry (DagsHub)**.
+**Líneas de mejora.**
 
-**Líneas de mejora (trabajo futuro)**
-
-- **Validación temporal** (entrenar con el pasado y probar con el futuro) para
-  cifras más fiables que la división aleatoria actual.
-- **Calibración de probabilidades** y ajuste del umbral según coste/beneficio.
-- **Embeddings** para las categóricas de alta cardinalidad (`country`, `agent`)
-  (sería el séptimo *bonus*, ahora mismo el único pendiente).
-- **API más generosa**: el tier gratis de Render limita la RAM a 512 MB, lo que
-  obliga a desactivar la lectura del modelo desde el Model Registry de MLflow
-  en producción. Migrar a un servicio con más memoria (p. ej. Hugging Face
-  Spaces, 16 GB) permitiría activar también ese camino en la URL pública.
+- **Un modelo por hotel.** El EDA mostró que el *City Hotel* y el *Resort Hotel* se
+  comportan casi como dos negocios distintos, con estacionalidad y tasa de cancelación
+  diferentes. Entrenar un modelo especializado para cada uno, en lugar de uno único, podría
+  capturar mejor sus patrones propios, a costa de mantener y servir dos modelos.
+- **Validación temporal** para cifras más fiables que la partición aleatoria.
+- **Calibración de probabilidades** y ajuste del umbral según el coste de una cancelación no
+  detectada frente a una falsa alarma.
+- ***Embeddings*** para las categóricas de alta cardinalidad (`country`, `agent`), que
+  preservarían más señal que el agrupamiento.
+- **Infraestructura con más memoria** (p. ej. Hugging Face Spaces) para reactivar la carga
+  del modelo desde el *Model Registry* de MLflow en el despliegue público, hoy limitado por
+  la RAM del *tier* gratuito.
 
 ---
 
-> **Reproducibilidad.** Todos los resultados de este informe se generan ejecutando
-> `python -m ml_hotel_cancellations.ml.train` desde la raíz del repo, con las
-> dependencias declaradas en `pyproject.toml` (Python 3.12; `requirements.txt` es
-> simplemente `-e .`). Las tablas y figuras provienen de `outputs/`.
+*Reproducibilidad.* Los resultados se generan con
+`python -m ml_hotel_cancellations.ml.train` (Python 3.12) y las figuras del EDA con
+`python memoria/generar_figuras_eda.py`; el resto provienen de `outputs/`.

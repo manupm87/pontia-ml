@@ -3,7 +3,7 @@
 Este documento describe la arquitectura completa del proyecto, desde el ciclo
 de experimentación con datos hasta la inferencia servida en producción. Su
 objetivo es ofrecer una visión integradora que complementa la descripción
-modular del informe ([`informe_final.md`](informe_final.md), §4) y permite
+modular del informe ([`informe_final.md`](informe_final.md), §3) y permite
 ubicar cada herramienta y artefacto en el contexto de su responsabilidad.
 
 ## 1. Visión general: cuatro planos

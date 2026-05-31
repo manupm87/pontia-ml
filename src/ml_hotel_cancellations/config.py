@@ -209,7 +209,7 @@ TUNING_SCORING: str = "roc_auc"
 TUNING_N_ITER: int = 12  # nº de combinaciones que prueba RandomizedSearchCV
 
 # Espacios de búsqueda; el prefijo "model__" apunta al paso "model" del Pipeline.
-# Grids pequeños -> GridSearchCV; grandes -> RandomizedSearchCV (ver §4.5).
+# Grids pequeños -> GridSearchCV; grandes -> RandomizedSearchCV.
 LOGISTIC_REGRESSION_GRID: dict = {
     "model__C": [0.01, 0.1, 1.0, 10.0],
     "model__class_weight": [None, "balanced"],

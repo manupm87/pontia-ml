@@ -435,7 +435,7 @@ reserva concreta se marca como dudosa.
 % ============================================================================
 \section{Resultados y elección final}
 
-La evaluación se realiza sobre un \textbf{conjunto de prueba} de 23\,842 reservas
+La evaluación se realiza sobre un \textbf{conjunto de prueba} de 23\,713 reservas
 (20\,\% del total) que el modelo no usó al entrenar (Tabla~\ref{tab:resultados}). Las
 cifras corresponden a los hiperparámetros ya optimizados.
 
@@ -490,15 +490,15 @@ directa para el negocio.
 
 \textbf{Se elige XGBoost} (ROC-AUC $=0.9529$). Supera al resto en la métrica principal
 y en F1, y aun así entrena en pocos segundos. En términos de negocio, con el umbral
-por defecto detecta el \textbf{82\,\% de las cancelaciones reales} (\emph{recall}
-$0.82$) con una \textbf{precisión del 87\,\%}: un buen equilibrio para actuar sin
+por defecto detecta el \textbf{81\,\% de las cancelaciones reales} (\emph{recall}
+$0.81$) con una \textbf{precisión del 86\,\%}: un buen equilibrio para actuar sin
 generar demasiadas falsas alarmas. El Random Forest es el más conservador (más
 precisión, menos \emph{recall}), preferible si una falsa alarma fuese muy costosa. Las
 curvas ROC (Figura~\ref{fig:roc}) confirman esta jerarquía.
 
 La matriz de confusión del ganador (Figura~\ref{fig:cm}) desglosa su comportamiento
-sobre las 23\,842 reservas de prueba: detecta \textbf{7283} de las 8835 cancelaciones
-reales y se le escapan 1552 (los falsos negativos), generando solo \textbf{1089}
+sobre las 23\,713 reservas de prueba: detecta \textbf{7193} de las 8835 cancelaciones
+reales y se le escapan 1642 (los falsos negativos), generando solo \textbf{1178}
 falsas alarmas sobre las reservas que no se cancelaban.
 
 \begin{figure}[t]
