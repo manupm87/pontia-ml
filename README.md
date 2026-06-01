@@ -78,7 +78,7 @@ flowchart LR
 | Autor                                         | Rol principal                                      |
 | --------------------------------------------- | -------------------------------------------------- |
 | **Manuel Pérez** (manugijon@gmail.com)        | Arquitectura src/, entrenamiento, API, UI, memoria |
-| **Joaquin Castro** (jcastrosalas03@gmail.com) | EDA, preprocesado, pruebas de modelos              |
+| **Joaquin Castro** (jcastrosalas03@gmail.com) | EDA, preprocesado, pruebas de modelos, testing     |
 
 > Reparto detallado de tareas: [`docs/informe_final.md`](docs/informe_final.md)
 
@@ -87,31 +87,69 @@ flowchart LR
 ## 🗂️ Estructura
 
 ```text
-pontia-ml/
-├── data/raw/               # Dataset original
-├── docs/                   # arquitectura.md · glosario.md · informe_final.md
-├── models/best_model.pkl   # Mejor modelo entrenado
-├── notebooks/              # 01_eda … 07_interpretabilidad (autónomos)
-├── outputs/                # Métricas, gráficos e hiperparámetros
-├── src/ml_hotel_cancellations/
-│   ├── ml/        # train · predict · tuning · preprocessing · evaluate
-│   ├── api/       # FastAPI: main · schemas · service · registry
-│   ├── ui/        # Streamlit: app · secciones
-│   └── utils/     # SHAP · MLflow · reporting
-├── tests/          # 65 tests
-└── pyproject.toml  # dependencias y config de pytest
+pontia-ml/                  # ← repo root (esta carpeta)
+├── .devcontainer/      # Configuración de contenedor de desarrollo (VS Code)
+├── agents/             # Informes y análisis auxiliares del proyecto
+├── data/
+│   └── raw/            # Datos originales (dataset_practica_final.csv)
+├── docs/
+│   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
+│   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
+│   ├── informe_final.md      # Informe (roles, EDA, diseño, resultados, mejoras)
+├── memoria/            # Memoria académica en LaTeX y figuras
+├── models/             # Modelos entrenados y guardados (ficheros .pkl)
+├── notebooks/          # playground (aprender) → src (generalizar) → API+UI (mostrar)
+│   ├── README.md                           # Explica el arco de dos niveles
+│   ├── 01_eda_exploracion.ipynb
+│   ├── 02_preparacion_datos.ipynb
+│   ├── 03_modelos_supervisados.ipynb
+│   ├── 04_red_neuronal.ipynb
+│   ├── 05_comparativa_y_visualizacion.ipynb
+│   ├── 06_balanceo_clases.ipynb
+│   └── 07_interpretabilidad.ipynb
+├── outputs/            # Gráficos y tablas que genera el sistema
+├── src/                                    # Código fuente (src-layout PyPA)
+│   └── ml_hotel_cancellations/             # 📦 El paquete instalable del proyecto
+│       ├── config.py        # Fuente única: rutas, columnas, constantes, ejemplo
+│       ├── ml/              # 🤖 Pipeline ML (entrenamiento + inferencia + experimentos)
+│       │   ├── data_loader.py · preprocessing.py · models.py
+│       │   ├── evaluate.py
+│       │   ├── train.py      # 🚀 Programa principal (--tune opcional)
+│       │   ├── predict.py    # Inferencia con el mejor modelo
+│       │   └── tuning.py     # bonus (búsqueda de hiperparámetros por CV)
+│       ├── api/            # 🔌 API REST (FastAPI)
+│       │   ├── main.py · schemas.py · service.py
+│       │   └── registry.py  # Cliente REST del Model Registry de MLflow
+│       ├── ui/             # 🖥️ Interfaz Streamlit
+│       │   ├── app.py · config.py · data.py · booking.py · layout.py
+│       │   └── sections/    # Una pantalla por sección (resumen, predicción, EDA…)
+│       └── utils/          # 🔧 Transversales (reporting, viz 2D, SHAP, MLflow)
+│           ├── reporting.py · visualization_2d.py · interpretability.py
+│           └── tracking.py · register_model.py
+├── tests/              # 🧪 Suite de tests (pipeline + contract tests de fuente única)
+├── conftest.py         # Fixtures compartidas (datos sintéticos, modelo, API)
+├── pyproject.toml      # Metadatos, dependencias (+extras), scripts y config de pytest
+├── requirements.txt    # Una línea `-e .` (para plataformas que solo leen este fichero)
+├── render.yaml         # Configuración del despliegue en Render (API)
+├── recursos/           # 📚 Material de referencia (no parte del entregable):
+│   ├── clase_*.ipynb               # Notebooks de clase
+│   └── 2.Proyecto Final de Módulo/ # Enunciado y dataset originales
+└── README.md
 ```
 
 ---
 
 ## ⚙️ Instalación
 
-Requiere **Python 3.11 ó 3.12**. Python 3.13 no soportado aún.
+Requiere **Python 3.11 o 3.12**.
 
 ```bash
 git clone https://github.com/manupm87/pontia-ml.git && cd pontia-ml
-python3 -m venv .venv
-source .venv/bin/activate       # Linux/macOS · Windows: .venv\Scripts\activate
+python -m venv .venv
+# Linux/macOS
+source .venv/bin/activate
+# Windows (PowerShell)
+# .venv\Scripts\activate
 pip install --upgrade pip
 pip install -e .                 # API + UI + inferencia
 pip install -e ".[train,dev]"   # + entrenamiento, MLflow y tests
@@ -196,13 +234,27 @@ La URL de la API se configura con la variable `PONTIA_API_URL` (por defecto `htt
 
 ```bash
 cp .env.example .env && $EDITOR .env   # añade token DagsHub (scope: mlflow)
+
+# Linux/macOS: cargar variables desde .env en la sesión actual
 set -a; source .env; set +a
 
 python -m ml_hotel_cancellations.ml.train             # loguea a DagsHub automáticamente
 python -m ml_hotel_cancellations.utils.register_model # registra el ganador en el Model Registry
 
-# API sirve desde el registry:
+# API sirve desde el registry (Linux/macOS):
 export MLFLOW_MODEL_URI="models:/pontia-cancellations/Production"
+uvicorn ml_hotel_cancellations.api.main:app --reload
+```
+
+```powershell
+# Windows (PowerShell): define variables manualmente en la sesión actual
+$env:MLFLOW_TRACKING_URI = "<tu_tracking_uri>"
+$env:MLFLOW_TRACKING_USERNAME = "<tu_usuario>"
+$env:MLFLOW_TRACKING_PASSWORD = "<tu_token>"
+$env:MLFLOW_MODEL_URI = "models:/pontia-cancellations/Production"
+
+python -m ml_hotel_cancellations.ml.train
+python -m ml_hotel_cancellations.utils.register_model
 uvicorn ml_hotel_cancellations.api.main:app --reload
 ```
 
@@ -211,9 +263,9 @@ Sin las variables de entorno los scripts funcionan igual (no-op silencioso). Si 
 ### 8. Tests
 
 ```bash
-.venv/bin/python -m pytest                          # suite completa (65 tests)
-.venv/bin/python -m pytest -m "not slow"            # sin tests lentos
-.venv/bin/python -m pytest tests/test_contracts.py  # contract tests
+python -m pytest                          # suite completa (65 tests)
+python -m pytest -m "not slow"            # sin tests lentos
+python -m pytest tests/test_contracts.py  # contract tests
 ```
 
 ---
@@ -242,4 +294,4 @@ Sin las variables de entorno los scripts funcionan igual (no-op silencioso). Si 
 
 ## 🧰 Tecnologías
 
-Python 3.11–3.12 · scikit-learn · XGBoost · Keras/TensorFlow · FastAPI · Streamlit · MLflow · SHAP · pandas · NumPy · pytest. Versiones exactas en [`requirements.txt`](requirements.txt).
+Python 3.11–3.12 · scikit-learn · XGBoost · Keras/TensorFlow · FastAPI · Streamlit · MLflow · SHAP · pandas · NumPy · pytest. Dependencias y rangos en [`pyproject.toml`](pyproject.toml) (y `requirements.txt` instala `-e .` para plataformas que lo requieren).
