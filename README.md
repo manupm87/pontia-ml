@@ -75,12 +75,10 @@ flowchart LR
 
 ## 👥 Autores
 
-| Autor                                         | Rol principal                                      |
-| --------------------------------------------- | -------------------------------------------------- |
-| **Manuel Pérez** (manugijon@gmail.com)        | Arquitectura src/, entrenamiento, API, UI, memoria |
-| **Joaquin Castro** (jcastrosalas03@gmail.com) | EDA, preprocesado, pruebas de modelos, testing     |
-
-> Reparto detallado de tareas: [`docs/informe_final.md`](docs/informe_final.md)
+| Autor                                         |
+| --------------------------------------------- |
+| **Manuel Pérez** (manugijon@gmail.com)        |
+| **Joaquin Castro** (jcastrosalas03@gmail.com) |
 
 ---
 
@@ -95,7 +93,7 @@ pontia-ml/                  # ← repo root (esta carpeta)
 ├── docs/
 │   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
 │   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
-│   ├── informe_final.md      # Informe (roles, EDA, diseño, resultados, mejoras)
+│   ├── informe_final.md      # Informe (EDA, diseño, resultados, mejoras)
 ├── memoria/            # Memoria académica en LaTeX y figuras
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
 ├── notebooks/          # playground (aprender) → src (generalizar) → API+UI (mostrar)
