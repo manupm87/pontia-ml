@@ -228,8 +228,12 @@ una reserva del usuario sobre el mapa de regiones de decisión.
 
 #### Backend: FastAPI sobre Render
 
-La API (`ml_hotel_cancellations/api/`) implementa cuatro *endpoints*:
+La API (`ml_hotel_cancellations/api/`) separa la creación de la app
+(`api/main.py`: instancia FastAPI + CORS) de la definición de rutas
+(`api/router.py`, incluido con `include_router`). Implementa cinco
+*endpoints*:
 
+- `GET /` — mensaje de bienvenida; apunta a la documentación (`/docs`).
 - `GET /health` — sonda de salud, retorna `{status, model_loaded}`.
 - `GET /model-info` — metadatos del modelo servido: tipo, métrica
   principal, características esperadas y, crucialmente, **origen del
@@ -237,6 +241,10 @@ La API (`ml_hotel_cancellations/api/`) implementa cuatro *endpoints*:
   `fallback_reason`).
 - `POST /predict` — predicción para una reserva.
 - `POST /predict/batch` — predicción para una lista de reservas.
+
+Los endpoints que necesitan el modelo (`/model-info`, `/predict`,
+`/predict/batch`) comparten la dependencia `require_model`, que responde
+**503** si el modelo no está disponible.
 
 La carga del modelo (`api.service.get_model`) implementa una **cadena
 de respaldo**:

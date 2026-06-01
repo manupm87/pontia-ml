@@ -11,15 +11,20 @@
 \usepackage{geometry}
 \geometry{a4paper,margin=1.9cm,columnsep=0.7cm}
 \usepackage{graphicx}
+\usepackage{float}   % opción [H]: ancla la figura EXACTAMENTE donde se declara
+\usepackage{stfloats}  % permite figure* a pie de página ([b]) en doble columna
+\usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{caption}
+\usepackage{subcaption}
 \usepackage{xcolor}
 \usepackage{enumitem}
 \usepackage{microtype}
 \usepackage[hidelinks]{hyperref}
+\usepackage{xurl}   % permite cortar URLs largas en cualquier carácter (evita overfull)
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta}
+\usetikzlibrary{positioning,arrows.meta,calc}
 
 \graphicspath{{figuras/}{../outputs/}}
 
@@ -39,6 +44,20 @@
 \setlength{\parskip}{0.28em}
 \setlength{\parindent}{0pt}
 
+% --- Parámetros de flotantes: relajamos los límites conservadores de LaTeX para
+%     que las figuras se coloquen lo más cerca posible de donde se mencionan
+%     (más flotantes por página, menos texto mínimo reservado).
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{3}
+\setcounter{totalnumber}{6}
+\setcounter{dbltopnumber}{3}
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.9}
+\renewcommand{\textfraction}{0.06}
+\renewcommand{\floatpagefraction}{0.7}
+\renewcommand{\dbltopfraction}{0.92}
+\renewcommand{\dblfloatpagefraction}{0.7}
+
 % ============================================================================
 \begin{document}
 
@@ -47,9 +66,20 @@
 \begin{center}
   {\LARGE\bfseries\color{azul} Predicción de cancelaciones de reservas hoteleras}\\[0.4em]
   {\large Memoria del Proyecto Final de Módulo}\\[0.3em]
-  {\normalsize Máster en IA, Cloud Computing y DevOps\,\textbullet\, Módulo de Machine Learning y Deep Learning}
+  {\normalsize Máster en IA, Cloud Computing y DevOps\,\textbullet\, Módulo de Machine Learning y Deep Learning}\\[0.7em]
+  {\normalsize Manuel Pérez Martínez\quad Joaquín Castro Salas}\\[0.15em]
+  {\small\ttfamily manugijon@gmail.com\quad jcastrosalas03@gmail.com}
 \end{center}
-\vspace{0.6em}
+\vspace{0.4em}
+
+\begin{center}
+  \includegraphics[width=0.99\textwidth]{decision_regions_strip.png}\\[0.3em]
+  {\small\captionof{figure}{Regiones de decisión aprendidas por los cinco modelos sobre
+  el mismo plano 2D supervisado (PLS): el color es la probabilidad estimada de
+  cancelación (azul$\to$rojo) y los puntos, reservas reales del conjunto de prueba.
+  Anticipa visualmente la comparativa de la Sección~4.}}
+\end{center}
+\vspace{0.8em}
 
 \noindent\textbf{\color{azul}Resumen.}\;
 Las cancelaciones tardías de reservas vacían habitaciones difíciles de revender y
@@ -63,26 +93,6 @@ codificación \emph{one-hot}) y se comparan cinco familias de modelos. El ganado
 \textbf{XGBoost}, alcanza un \textbf{ROC-AUC de 0.9529} sobre un conjunto de prueba
 independiente. El modelo se sirve mediante una API REST (FastAPI) y se muestra en una
 interfaz web (Streamlit) que predice e interpreta cada reserva con SHAP.
-
-\vspace{0.5em}
-\noindent\textbf{\color{azul}Participantes.}
-\renewcommand{\arraystretch}{1.25}
-\noindent\begin{tabular}{@{}p{0.30\textwidth}p{0.63\textwidth}@{}}
-\toprule
-\textbf{Integrante} & \textbf{Responsabilidades principales} \\
-\midrule
-Manuel Pérez \textit{(manugijon@gmail.com)} &
-  Arquitectura del paquete \var{src/}, proceso de entrenamiento y evaluación,
-  integración de la red neuronal, API, interfaz y redacción de la memoria. \\
-\textit{[Nombre del/de la compañero/a]} &
-  \textit{Exploración de datos, diseño del preprocesado, pruebas de modelos y
-  revisión de resultados.} \\
-\bottomrule
-\end{tabular}
-
-\vspace{0.3em}
-{\small La contribución individual es trazable mediante el historial de
-\emph{commits} del repositorio.}
 \vspace{1.2em}
 }]
 
@@ -109,6 +119,22 @@ la calidad del servicio.
 Anticipar las cancelaciones es, por tanto, un problema con un retorno claro y directo
 para el negocio, lo que justifica el esfuerzo de construir un sistema que las prediga.
 
+Formalmente, representamos la cancelación como una variable aleatoria binaria
+$Y \in \{0,1\}$ ($Y=1$ si la reserva se cancela). El sistema estima la probabilidad
+condicionada $\hat{p}(\mathbf{x}) = P(Y=1 \mid \mathbf{x})$ a partir del vector de
+características $\mathbf{x} \in \mathbb{R}^{D}$, y la decisión final se obtiene aplicando
+un umbral $\tau$:
+\begin{equation}
+\hat{Y} =
+\begin{cases}
+1 & \text{si } \hat{p}(\mathbf{x}) \geq \tau, \\
+0 & \text{si } \hat{p}(\mathbf{x}) < \tau,
+\end{cases}
+\end{equation}
+donde $\tau$ puede ajustarse según la matriz de costes del hotel, ponderando el coste de
+un falso negativo (habitación vacía) frente al de un falso positivo (compensación por
+\emph{overbooking}).
+
 % ============================================================================
 \section{Análisis exploratorio de datos}
 
@@ -124,7 +150,7 @@ Alrededor del \textbf{37\,\%} de las reservas se cancelan frente a un 63\,\% que
 en entrenamiento y prueba) y elegir el \textbf{ROC-AUC} como métrica principal en
 lugar de la \emph{accuracy}, que premiaría a un clasificador trivial.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_desbalance_clase.png}
   \caption{Reparto de la clase objetivo. El desbalance ($\sim$37\,/\,63) motiva la
@@ -153,7 +179,7 @@ sea una mera correlación con el depósito. \textit{Decisión:} \textbf{eliminar
 modelo: en el momento de puntuar una reserva futura ese valor no existe. Era la
 principal causa del optimismo de versiones anteriores.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_fuga_parking.png}
   \caption{\var{required\_car\_parking\_spaces}: el 0\,\% de cancelación con plaza
@@ -183,7 +209,7 @@ conservan como categorías (el hueco pasa a una etiqueta propia), \var{country} 
 imputa con una constante y \var{children} con 0. La imputación se aprende
 \emph{solo en entrenamiento} para no filtrar información del test.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_valores_ausentes.png}
   \caption{Porcentaje de valores ausentes por columna. \var{company} está casi
@@ -200,7 +226,7 @@ la señal va en sentido contrario. \textit{Decisión:} derivar dos indicadores b
 \var{has\_company} y \var{has\_agent} que capturan explícitamente esa diferencia, en
 vez de descartar las columnas.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_ausencia_informativa.png}
   \caption{Tasa de cancelación según la presencia/ausencia de \var{company} y
@@ -217,8 +243,14 @@ monótona por tramos (Figura~\ref{fig:leadtime}). \var{total\_of\_special\_reque
 se relaciona a la inversa (clientes más comprometidos cancelan menos). Como las
 variables conviven en escalas muy distintas, se aplica \textbf{estandarización}
 (media 0, desviación 1) para que ningún rango domine artificialmente.
+Esta transformación \textbf{no perjudica a ningún modelo}: los basados en árboles
+(Random Forest y XGBoost, el ganador) son insensibles a la escala ---deciden por cortes
+y el orden de los valores no cambia---, mientras que la regresión logística y la red
+neuronal sí se benefician de ella (convergen mejor y sus coeficientes son comparables).
+Por eso, aunque matemáticamente algunas variables no la necesiten, la aplicamos de forma
+\textbf{global}: simplifica el \emph{pipeline} y no introduce ningún efecto negativo.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_lead_time.png}
   \caption{Tasa de cancelación por tramos de \var{lead\_time}: relación creciente y
@@ -234,7 +266,7 @@ predictiva del conjunto. Las categóricas se transforman a números mediante
 codificación \textbf{\emph{one-hot}} (\var{OneHotEncoder}), una columna binaria por
 categoría.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_deposit_type.png}
   \caption{\var{deposit\_type}: el depósito no reembolsable casi garantiza la
@@ -258,14 +290,32 @@ test e inferencia (sin fuga). Lo verificamos entrenando los 5 modelos con y sin 
 reducción: pasamos de \textbf{902 a 144 columnas} sin coste para \textbf{XGBoost}
 (ROC-AUC $0.9529$ vs.\ $0.9573$, dentro del ruido) y con mejora para \textbf{Random
 Forest} ($0.9363$ vs.\ $0.9221$). Así se preserva la señal de las categorías relevantes
-sin pagar el coste dimensional.
+sin pagar el coste dimensional. La Figura~\ref{fig:keepcats} muestra, en sus tres
+paneles, \emph{qué} categorías sobreviven en cada variable, ordenadas por tasa de
+cancelación: en rojo las de \textbf{alto riesgo} (tasa $>0.6$ del máximo de la columna)
+y en azul las \textbf{muy fiables} ($<0.3$ del máximo). El resto, sin señal extrema, se
+agrupa en \var{Otros}.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{eda_cardinalidad.png}
   \caption{Reducción supervisada de cardinalidad: de cientos de categorías a unas
   pocas columnas con señal, paso previo al \var{OneHotEncoder}.}
   \label{fig:cardinalidad}
+\end{figure}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.80\columnwidth]{eda_keep_country.png}\\[4pt]
+  \includegraphics[width=0.80\columnwidth]{eda_keep_company.png}\\[4pt]
+  \includegraphics[width=0.80\columnwidth]{eda_keep_agent.png}
+  \caption{Categorías conservadas por la reducción supervisada en las tres variables de
+  alta cardinalidad, una bajo otra por tratar lo mismo: \var{country} (14 conservadas;
+  Portugal y Angola, alto riesgo), \var{company} (10) y \var{agent}. Ordenadas por tasa
+  de cancelación ---en rojo el alto riesgo, en azul las muy fiables; el resto va a
+  \var{Otros}---. En \var{agent} se muestran solo las 8 que más y las 8 que menos
+  cancelan (de las $\sim$55 conservadas), por legibilidad.}
+  \label{fig:keepcats}
 \end{figure}
 
 Por último, se sanea el conjunto eliminando registros claramente erróneos:
@@ -304,38 +354,48 @@ entrenan y comparan, en igualdad de condiciones, \textbf{cinco familias de model
 ---regresión logística (línea base), árbol de decisión, Random Forest, XGBoost y una
 red neuronal multicapa con \textbf{Keras/TensorFlow} (densas $64\!\to\!32\!\to\!16$ con
 \emph{dropout} y salida sigmoide)---, con sus hiperparámetros optimizados por validación
-cruzada. TensorFlow solo se usa al entrenar la red; en producción se sirve XGBoost.
-La Figura~\ref{fig:pipeline} resume este flujo de extremo a extremo.
+cruzada. La Figura~\ref{fig:pipeline} resume este flujo de extremo a extremo.
 
-\begin{figure*}[t]
+\begin{figure}[tb]
   \centering
-  \resizebox{\textwidth}{!}{%
+  \resizebox{\columnwidth}{!}{%
   \begin{tikzpicture}[
-    >={Latex[length=2.6mm]},
+    >={Latex[length=2.2mm]},
     stage/.style={draw, rounded corners=2pt, align=center, font=\small\sffamily,
-                  minimum height=14mm, text width=25mm, line width=0.5pt},
-    node distance=8mm,
+                  minimum height=8mm, text width=42mm, line width=0.5pt},
+    node distance=4.5mm,
   ]
     \node[stage, fill=orange!12] (d) {\textbf{Datos crudos}\\[1pt]\scriptsize $\sim$119\,k reservas};
-    \node[stage, fill=blue!10, right=of d]   (p) {\textbf{Preprocesado}\\[1pt]\scriptsize derivar · reducir cardinalidad\\\scriptsize imputar · escalar · one-hot};
-    \node[stage, fill=violet!10, right=of p] (t) {\textbf{Entrenamiento}\\[1pt]\scriptsize 5 modelos\\\scriptsize (tuning por CV)};
-    \node[stage, fill=violet!10, right=of t] (e) {\textbf{Evaluación}\\[1pt]\scriptsize ROC-AUC\\\scriptsize selección del mejor};
-    \node[stage, fill=teal!14, right=of e]   (r) {\textbf{Registro}\\[1pt]\scriptsize modelo persistido\\\scriptsize + versionado (MLflow)};
-    \node[stage, fill=green!14, right=of r]  (i) {\textbf{Inferencia}\\[1pt]\scriptsize API + interfaz};
+    \node[stage, fill=blue!10, below=of d]   (p) {\textbf{Preprocesado}\\[1pt]\scriptsize derivar · reducir cardinalidad\\\scriptsize imputar · escalar · one-hot};
+    \node[stage, fill=violet!10, below=of p] (t) {\textbf{Entrenamiento}\\[1pt]\scriptsize 5 modelos (tuning por CV)};
+    \node[stage, fill=violet!10, below=of t] (e) {\textbf{Evaluación}\\[1pt]\scriptsize ROC-AUC · selección del mejor};
+    \node[stage, fill=teal!14, below=of e]   (r) {\textbf{Registro}\\[1pt]\scriptsize modelo persistido + MLflow};
+    \node[stage, fill=green!14, below=of r]  (i) {\textbf{Inferencia}\\[1pt]\scriptsize API + interfaz};
     \draw[->] (d) -- (p);
     \draw[->] (p) -- (t);
     \draw[->] (t) -- (e);
     \draw[->] (e) -- (r);
     \draw[->] (r) -- (i);
-    \draw[->, dashed, gray] (p.south) to[out=-90,in=-90] node[below, font=\scriptsize\itshape, text=black!60, midway] {el preprocesado, ajustado solo en \emph{train}, viaja con el modelo hasta la inferencia} (i.south);
+    % anotación lateral: el preprocesado, ajustado en train, viaja hasta la inferencia
+    \draw[->, dashed, gray] (p.east) -- ++(7mm,0) |- (i.east);
+    \node[font=\scriptsize\itshape, text=black!60, align=left, text width=23mm, right=10mm of e]
+      {el preprocesado (ajustado solo en \emph{train}) viaja con el modelo};
   \end{tikzpicture}%
   }
-  \caption{El \emph{pipeline} de ML de extremo a extremo: preprocesado, entrenamiento
-  y evaluación de los modelos, registro del ganador e inferencia. El preprocesado se
-  aprende del entrenamiento y se persiste junto al modelo, de modo que predecir
-  reproduce exactamente las transformaciones del entrenamiento.}
+  \caption{El \emph{pipeline} de ML de extremo a extremo (flujo vertical):
+  preprocesado, entrenamiento y evaluación de los modelos, registro del ganador e
+  inferencia. El preprocesado se aprende del entrenamiento y se persiste junto al modelo,
+  de modo que predecir reproduce exactamente las transformaciones del entrenamiento.}
   \label{fig:pipeline}
-\end{figure*}
+\end{figure}
+
+\paragraph{¿Qué es la validación cruzada?} En lugar de fiar la elección de
+hiperparámetros a una única partición, la \emph{validación cruzada} ($k$\emph{-fold})
+divide el entrenamiento en $k$ bloques: entrena con $k-1$ y mide en el bloque restante,
+rotando hasta que cada bloque ha servido una vez de validación. El promedio de las $k$
+medidas es una estimación \textbf{más estable y menos optimista} del rendimiento, y evita
+ajustar los hiperparámetros al azar de un único reparto. La configuración finalmente
+elegida es la que mejor puntúa en ese promedio.
 
 \subsection{Etapa 3 --- Productivización}
 
@@ -349,7 +409,7 @@ arquitectura en cuatro planos ---experimentación, trazabilidad, repositorio y
 servicio--- que pueden evolucionar de forma independiente: una nueva iteración de
 modelado solo afecta a los dos primeros, y un cambio de interfaz, solo al último.
 
-\begin{figure*}[t]
+\begin{figure*}[tb]
   \centering
   \resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[
@@ -382,6 +442,14 @@ modelado solo afecta a los dos primeros, y un cambio de interfaz, solo al últim
   \label{fig:arquitectura}
 \end{figure*}
 
+\paragraph{Despliegue público.} El sistema está accesible en línea (servicios en
+\emph{tier} gratuito, pueden tardar unos segundos en activarse tras inactividad):
+\begin{itemize}
+  \item \textbf{Interfaz web} (Streamlit): {\small\url{https://ml-hotel-cancellations-manupm87.streamlit.app}}
+  \item \textbf{API REST} (FastAPI, Swagger): {\small\url{https://pontia-api-fi8t.onrender.com/docs}}
+  \item \textbf{Experimentos y registro de modelos} (MLflow en DagsHub): {\small\url{https://dagshub.com/manupm87/pontia-ml.mlflow}}
+\end{itemize}
+
 \subsection{Interpretabilidad}
 
 Un sistema que decide sobre el negocio debe poder \textbf{explicar} sus decisiones, no
@@ -391,40 +459,47 @@ una hacia ``cancela'' o ``no cancela'', a nivel \textbf{global} (qué pesa en ge
 y \textbf{local} (por qué \emph{esa} reserva concreta).
 
 \paragraph{A nivel global.} El resumen SHAP (Figura~\ref{fig:shap}) lo encabeza
-\var{deposit\_type} = \var{Non Refund}, seguido del segmento de mercado, las
-cancelaciones previas, el país (Portugal) y \var{has\_company}. Que esta última
-variable derivada aparezca tan arriba \textbf{valida la hipótesis de la ausencia
-informativa} del EDA. La importancia interna del Random Forest
+\var{deposit\_type}~=~\var{Non Refund}, seguido del país (Portugal,
+\var{country\_PRT}), el \var{lead\_time}, el total de peticiones especiales, el segmento
+de mercado (\var{Online TA}) y las cancelaciones previas. Aparece también
+\var{agent\_Otros}, lo que confirma que el grupo de agencias condensado por la reducción
+de cardinalidad sí aporta señal. La importancia interna del Random Forest
 (Figura~\ref{fig:fimp}) ordena las variables de forma muy parecida: que dos familias
 de modelos distintas coincidan en lo que importa refuerza que el sistema aprende
 patrones reales, no artefactos de un algoritmo concreto.
 
-\begin{figure}[t]
+\begin{figure*}[tb]
   \centering
-  \includegraphics[width=\columnwidth]{shap_summary_beeswarm.png}
-  \caption{Resumen SHAP global (\emph{beeswarm}) del modelo ganador: aporte de cada
-  variable a la predicción. Confirma los hallazgos del EDA.}
-  \label{fig:shap}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{feature_importance.png}
-  \caption{Importancia de variables del Random Forest. Coincide en lo esencial con el
-  \emph{ranking} SHAP del ganador (depósito, \var{lead\_time}, país, cancelaciones
-  previas\dots), una validación cruzada entre familias de modelos.}
-  \label{fig:fimp}
-\end{figure}
+  \begin{subfigure}[t]{0.46\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{shap_summary_beeswarm.png}
+    \caption{Resumen SHAP global (\emph{beeswarm}) del modelo ganador: aporte y dirección
+    de cada variable. Confirma los hallazgos del EDA.}
+    \label{fig:shap}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.46\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{feature_importance.png}
+    \caption{Importancia de variables del Random Forest: coincide en lo esencial con el
+    \emph{ranking} SHAP del ganador (depósito, \var{lead\_time}, país, cancelaciones
+    previas\dots).}
+    \label{fig:fimp}
+  \end{subfigure}
+  \caption{Interpretabilidad global por dos familias de modelos: SHAP sobre el XGBoost
+  ganador (a) y la importancia interna del Random Forest (b). Su coincidencia refuerza
+  que el sistema aprende patrones reales, no artefactos de un algoritmo.}
+  \label{fig:interp}
+\end{figure*}
 
 \paragraph{A nivel local.} SHAP también explica reservas individuales. La
 Figura~\ref{fig:waterfall} desglosa una reserva de \textbf{altísimo riesgo}
-($p\approx1$): partiendo del riesgo medio, el depósito no reembolsable ($+3.2$) y las
-cancelaciones previas ($+2.8$) la empujan con fuerza hacia ``cancela'', y la elevada
-antelación añade más riesgo, mientras que pocos factores tiran en sentido contrario.
+($p\approx1$): partiendo del riesgo medio, el depósito no reembolsable ($+3.45$) y las
+cancelaciones previas ($+2.87$) la empujan con fuerza hacia ``cancela'', mientras que
+solo unos pocos factores tiran ligeramente en sentido contrario.
 Este tipo de explicación es lo que permite \textbf{justificar al negocio} por qué una
 reserva concreta se marca como dudosa.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{shap_waterfall_ejemplo1.png}
   \caption{Explicación local (\emph{waterfall} SHAP) de una reserva de ejemplo con
@@ -465,6 +540,17 @@ Como el valor de negocio está precisamente en \emph{priorizar} reservas por rie
 es la más adecuada. Se reportan además \emph{recall} y precisión por su lectura
 directa para el negocio.
 
+Formalmente, el ROC-AUC es el área bajo la curva que enfrenta la tasa de verdaderos
+positivos $\mathrm{TPR}(\tau)$ frente a la de falsos positivos $\mathrm{FPR}(\tau)$ al
+variar el umbral, $\mathrm{AUC} = \int_0^1 \mathrm{TPR}\bigl(\mathrm{FPR}^{-1}(u)\bigr)\,du$,
+y equivale al estadístico de Mann--Whitney\,\textsuperscript{[1]}: si $X_1$ es el riesgo
+predicho para una reserva cancelada al azar y $X_0$ el de una no cancelada,
+\begin{equation}
+\mathrm{AUC} = P(X_1 > X_0).
+\end{equation}
+Es decir, mide directamente la probabilidad de ordenar correctamente un par
+cancelada/no-cancelada, independientemente del umbral.
+
 \begin{table}[t]
   \centering
   \small
@@ -496,12 +582,7 @@ generar demasiadas falsas alarmas. El Random Forest es el más conservador (más
 precisión, menos \emph{recall}), preferible si una falsa alarma fuese muy costosa. Las
 curvas ROC (Figura~\ref{fig:roc}) confirman esta jerarquía.
 
-La matriz de confusión del ganador (Figura~\ref{fig:cm}) desglosa su comportamiento
-sobre las 23\,713 reservas de prueba: detecta \textbf{7193} de las 8835 cancelaciones
-reales y se le escapan 1642 (los falsos negativos), generando solo \textbf{1178}
-falsas alarmas sobre las reservas que no se cancelaban.
-
-\begin{figure}[t]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\columnwidth]{roc_curves.png}
   \caption{Curvas ROC comparativas. Cuanto más cerca de la esquina superior
@@ -509,7 +590,25 @@ falsas alarmas sobre las reservas que no se cancelaban.
   \label{fig:roc}
 \end{figure}
 
-\begin{figure}[t]
+Su ventaja teórica está en cómo optimiza: en cada iteración $t$ aproxima la pérdida con
+una expansión de Taylor de segundo orden y penaliza la complejidad del árbol,
+minimizando el objetivo regularizado de Chen y Guestrin\,\textsuperscript{[2]}
+\begin{equation}
+\mathcal{L}^{(t)} \approx \sum_{i=1}^{n}
+  \Bigl[ g_i\,f_t(\mathbf{x}_i) + \tfrac{1}{2} h_i\,f_t^{2}(\mathbf{x}_i) \Bigr]
+  + \gamma T + \tfrac{1}{2}\lambda \sum_{j=1}^{T} w_j^{2},
+\end{equation}
+donde $g_i$ y $h_i$ son los gradientes de primer y segundo orden de la pérdida en la
+predicción previa, $T$ es el número de hojas, $w_j$ sus pesos y $\gamma,\lambda$
+regularizadores. Esta penalización explícita de la complejidad explica su robustez y
+eficiencia en CPU.
+
+La matriz de confusión del ganador (Figura~\ref{fig:cm}) desglosa su comportamiento
+sobre las 23\,713 reservas de prueba: detecta \textbf{7193} de las 8835 cancelaciones
+reales y se le escapan 1642 (los falsos negativos), generando solo \textbf{1178}
+falsas alarmas sobre las reservas que no se cancelaban.
+
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.86\columnwidth]{confusion_matrix_best.png}
   \caption{Matriz de confusión del modelo ganador (XGBoost) sobre el conjunto de
@@ -517,25 +616,8 @@ falsas alarmas sobre las reservas que no se cancelaban.
   \label{fig:cm}
 \end{figure}
 
-\paragraph{Nota de honestidad.} Una versión previa reportaba ROC-AUC $0.9614$, pero
-incluía dos fugas de \emph{check-in} (sección 2): \var{required\_car\_parking\_spaces}
-y \var{assigned\_room\_type}. Al eliminar ambas, la cifra \emph{honesta} baja a
-$0.9529$. Las variables derivadas \var{has\_company}/\var{has\_agent} y la reducción
-de cardinalidad recuperan la mayor parte de la señal perdida.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{decision_regions_pls.png}
-  \caption{Regiones de decisión de los cinco modelos sobre una proyección 2D
-  supervisada (PLS). Permite comparar visualmente la frontera que aprende cada
-  familia de algoritmos sobre el mismo plano.}
-  \label{fig:pls}
-\end{figure}
-
 % ============================================================================
 \section{Reflexión crítica: limitaciones y mejoras}
-
-Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
 
 \textbf{Limitaciones actuales.}
 \begin{itemize}
@@ -563,8 +645,6 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
         patrones propios, a costa de mantener y servir dos modelos.
   \item \textbf{Validación temporal} para cifras más fiables que la partición
         aleatoria.
-  \item \textbf{Calibración de probabilidades} y ajuste del umbral según el coste de
-        una cancelación no detectada frente a una falsa alarma.
   \item \textbf{\emph{Embeddings}} para las categóricas de alta cardinalidad
         (\var{country}, \var{agent}), que preservarían más señal que el agrupamiento.
   \item \textbf{Infraestructura con más memoria} (p.\,ej. Hugging Face Spaces) para
@@ -572,11 +652,53 @@ Ser honestos con las limitaciones forma parte de un buen trabajo de ML.
         despliegue público, hoy limitado por la RAM del \emph{tier} gratuito.
 \end{itemize}
 
-\vspace{0.4em}
-\hrule
-\vspace{0.3em}
-{\small\textit{Reproducibilidad.} Los resultados se generan con
-\var{python -m ml\_hotel\_cancellations.ml.train} (Python 3.12) y las figuras del EDA
-con \var{python memoria/generar\_figuras\_eda.py}; el resto provienen de \var{outputs/}.}
+% ============================================================================
+\section{Conclusiones}
+
+Este trabajo ha abordado la predicción de cancelaciones de reservas hoteleras como un
+problema de clasificación binaria de principio a fin: desde un análisis exploratorio que
+\textbf{detecta y corrige fugas de información} ---el origen del optimismo de versiones
+previas--- hasta un sistema desplegado en producción. La decisión metodológica más
+relevante fue \emph{anteponer la honestidad al número}: eliminar las variables de
+\emph{check-in} (\var{required\_car\_parking\_spaces}, \var{assigned\_room\_type}) rebaja
+el ROC-AUC de un $0.9614$ engañoso a un \textbf{$0.9529$ realista}, una cifra que sí
+mide lo que el modelo podrá hacer ante una reserva futura.
+
+De las cinco familias comparadas en igualdad de condiciones, \textbf{XGBoost} resulta la
+ganadora, combinando la mejor métrica de ordenación con un coste de entrenamiento mínimo.
+Un componente relevante del \emph{pipeline} es el \texttt{RareCategoryGrouper}, un
+transformador propio ---no disponible en \texttt{scikit-learn}--- que aplica una reducción
+supervisada de cardinalidad: ajustado solo en entrenamiento, conserva las categorías con
+señal de cancelación extrema en \var{country}, \var{agent} y \var{company} y agrupa el resto,
+reduciendo de 902 a 144 columnas sin pérdida de poder predictivo. Junto con las variables
+derivadas de la ausencia informativa (\var{has\_company}/\var{has\_agent}), preserva la mayor
+parte de la señal. La interpretabilidad con SHAP confirma, además, que el modelo se apoya en
+factores con sentido de negocio (depósito no reembolsable, país, antelación, cancelaciones
+previas), no en artefactos.
+
+El resultado es un sistema reproducible y \textbf{accesible en línea} (API REST, interfaz
+web y registro de experimentos), que no solo predice sino que \emph{explica} cada decisión.
+Entre las líneas de mejora, la más respaldada por el análisis es \textbf{separar el sistema
+en dos modelos especializados}, uno por tipo de hotel (\emph{City} y \emph{Resort}): el EDA
+mostró que se comportan como negocios distintos, con estacionalidad y tasa de cancelación
+propias, por lo que un modelo por hotel capturaría mejor sus patrones. Otras vías
+---validación temporal o \emph{embeddings} para la alta cardinalidad--- complementan ese
+camino más allá del alcance de esta memoria.
+
+% ============================================================================
+\section*{Bibliografía}
+\small
+\begin{enumerate}[label={[\arabic*]}, leftmargin=2.2em]
+  \item \emph{Receiver operating characteristic} (curva ROC, AUC y su equivalencia con
+        el estadístico de Mann--Whitney). Wikipedia (consultado en junio de 2026).
+        \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic}
+  \item T. Chen y C. Guestrin. \emph{XGBoost: A Scalable Tree Boosting System}.
+        Proceedings of the 22nd ACM SIGKDD, 2016.
+        \url{https://doi.org/10.1145/2939672.2939785}
+  \item S. M. Lundberg y S.-I. Lee. \emph{A Unified Approach to Interpreting Model
+        Predictions}. Advances in Neural Information Processing Systems (NeurIPS), 2017.
+  \item N. Antonio, A. de Almeida y L. Nunes. \emph{Hotel booking demand datasets}.
+        Data in Brief, vol.\ 22, 2019. \url{https://doi.org/10.1016/j.dib.2018.11.126}
+\end{enumerate}
 
 \end{document}
