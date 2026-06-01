@@ -166,7 +166,77 @@ def main() -> None:
     ax.set_ylim(0, max(n_unique) * 1.15)
     guardar(fig, "eda_cardinalidad.png")
 
+    # ── 8. Categorías CONSERVADAS por la reducción supervisada ──────────────
+    #     (detalle por variable: qué categorías sobreviven y su tasa de cancelación)
+    generar_detalle_conservadas(df)
+
     print("Figuras del EDA generadas correctamente.")
+
+
+# ── Reducción supervisada de cardinalidad: detalle de lo conservado ──────────
+# Mismos umbrales que el transformador de producción (`config.RARE_*`): se conserva
+# una categoría si tiene soporte (n ≥ min_n) y tasa de cancelación extrema (alta,
+# > hi_frac·máx, o baja, < lo_frac·máx). Réplica del helper del cuaderno 01 (§13).
+from ml_hotel_cancellations import config  # noqa: E402  (import local: solo para esta figura)
+
+ROJO_KEEP = "#d7301f"   # KEEP alto riesgo
+AZUL_KEEP = "#2c7fb8"   # KEEP baja cancelación
+
+
+def _categorias_conservadas(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Devuelve las categorías conservadas de `col` con su tasa y soporte, ordenadas."""
+    g = df.groupby(col, observed=True)["is_canceled"].agg(rate="mean", n="size")
+    enough = g[g["n"] >= config.RARE_MIN_N]
+    top = enough["rate"].max()
+    hi_cut, lo_cut = config.RARE_HI_FRAC * top, config.RARE_LO_FRAC * top
+    keep = enough[(enough["rate"] > hi_cut) | (enough["rate"] < lo_cut)].copy()
+    keep["grupo_alto"] = keep["rate"] > hi_cut
+    # Etiquetas legibles: agent/company vienen como números (9.0 → "9").
+    keep = keep.reset_index()
+    if pd.api.types.is_numeric_dtype(keep[col]):
+        keep[col] = keep[col].astype("Int64").astype(str)
+    else:
+        keep[col] = keep[col].astype(str)
+    return keep.sort_values("rate")
+
+
+def _dibujar_conservadas(ax, det: pd.DataFrame, col: str) -> None:
+    """Barras horizontales de las categorías conservadas, coloreadas por grupo."""
+    colores = [ROJO_KEEP if alto else AZUL_KEEP for alto in det["grupo_alto"]]
+    barras = ax.barh(det[col], det["rate"] * 100, color=colores)
+    for b, r in zip(barras, det["rate"]):
+        ax.text(b.get_width() + 1, b.get_y() + b.get_height() / 2,
+                f"{r:.0%}", va="center", fontsize=7)
+    ax.set_xlabel("% cancelación")
+    ax.set_xlim(0, 108)
+    ax.margins(y=0.01)
+
+
+def generar_detalle_conservadas(df: pd.DataFrame) -> None:
+    # country (14) y company (10): una figura de columna cada una.
+    for col, nombre in [("country", "eda_keep_country.png"),
+                        ("company", "eda_keep_company.png")]:
+        det = _categorias_conservadas(df, col)
+        fig, ax = plt.subplots(figsize=(5.2, 0.30 * len(det) + 1.0))
+        ax.tick_params(axis="y", labelsize=8)
+        _dibujar_conservadas(ax, det, col)
+        ax.set_title(f"`{col}`: categorías conservadas y su tasa de cancelación")
+        guardar(fig, nombre)
+
+    # agent conserva ~55 categorías, demasiadas para una figura legible. Por
+    # VISUALIZACIÓN mostramos solo las 8 que más cancelan y las 8 que menos (las dos
+    # colas extremas); el resto de conservadas sigue el mismo criterio supervisado.
+    det = _categorias_conservadas(df, "agent")  # ya ordenadas por tasa ascendente
+    extremos = pd.concat([det.tail(8), det.head(8)]).sort_values("rate")
+    extremos = extremos.copy()
+    extremos["agent"] = "Ag. " + extremos["agent"]
+    fig, ax = plt.subplots(figsize=(5.2, 0.30 * len(extremos) + 1.0))
+    ax.tick_params(axis="y", labelsize=8)
+    _dibujar_conservadas(ax, extremos, "agent")
+    ax.set_title("`agent`: 8 agencias que más y que menos cancelan\n"
+                 f"(de las {len(det)} conservadas; recorte por visualización)",
+                 fontsize=10)
+    guardar(fig, "eda_keep_agent.png")
 
 
 if __name__ == "__main__":

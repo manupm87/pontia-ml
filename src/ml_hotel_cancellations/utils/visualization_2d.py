@@ -264,6 +264,46 @@ def generate_decision_regions_plot(
     return png_path
 
 
+HEADER_STRIP_PNG_PATH = config.OUTPUTS_DIR / "decision_regions_strip.png"
+
+
+def generate_header_strip_plot(
+    artifacts_path: Path = OUTPUT_ARTIFACTS_PATH,
+    png_path: Path = HEADER_STRIP_PNG_PATH,
+) -> Path:
+    """Versión de cabecera (1×5) de las regiones de decisión, para la portada de la memoria.
+
+    Una sola fila con los cinco modelos: regiones + dispersión de la clase real, solo el
+    título de cada modelo, sin ejes, sin barra de color y sin la celda extra de
+    "referencia". Reutiliza los artefactos ya persistidos (``decision_regions_pls.pkl``),
+    así que no reentrena nada.
+    """
+    artifacts = load_artifacts(artifacts_path)
+    xx, yy = artifacts["xx"], artifacts["yy"]
+    proba_grids = artifacts["proba_grids"]
+    pts, labels = artifacts["scatter_points"], artifacts["scatter_labels"]
+    x_range, y_range = artifacts["x_range"], artifacts["y_range"]
+    model_names = artifacts["model_names"]
+
+    levels = np.linspace(0, 1, 21)
+    fig, axes = plt.subplots(1, len(model_names), figsize=(16, 3.4),
+                             constrained_layout=True)
+    for ax, name in zip(np.atleast_1d(axes), model_names):
+        ax.contourf(xx, yy, proba_grids[name], levels=levels, cmap="RdBu_r", vmin=0, vmax=1)
+        ax.contour(xx, yy, proba_grids[name], levels=[0.5], colors="k", linewidths=1.2)
+        ax.scatter(pts[:, 0], pts[:, 1], c=labels, cmap=_POINT_CMAP, s=7,
+                   edgecolor="white", linewidth=0.2, alpha=0.75)
+        ax.set_title(name, fontsize=13)
+        ax.set_xlim(*x_range)
+        ax.set_ylim(*y_range)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.savefig(png_path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Figura de cabecera guardada en %s", png_path)
+    return png_path
+
+
 def load_artifacts(artifacts_path: Path = OUTPUT_ARTIFACTS_PATH) -> dict:
     """Carga el pickle con los artefactos del plano PLS (la consume la UI)."""
     if not artifacts_path.exists():
@@ -315,6 +355,9 @@ def plot_booking_on_2d(
 def main() -> None:
     config.configure_logging()
     generate_decision_regions_plot()
+    # Versión de cabecera (1×5) para la portada de la memoria, a partir de los
+    # artefactos que acaba de persistir generate_decision_regions_plot().
+    generate_header_strip_plot()
 
 
 if __name__ == "__main__":
