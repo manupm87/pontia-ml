@@ -28,7 +28,7 @@
 - Interfaz web con Streamlit (predicción, métricas, gráficos, SHAP)
 - Tracking de experimentos con MLflow + DagsHub
 - Interpretabilidad con SHAP (global y local)
-- Suite de 65 tests (pipeline, API, UI, contract tests)
+- Suite de 68 tests (pipeline, API, UI, contract tests)
 
 **Mejor resultado:** XGBoost — ROC-AUC **0.9529** en test.
 
@@ -271,7 +271,7 @@ Sin las variables de entorno los scripts funcionan igual (no-op silencioso). Si 
 ### 8. Tests
 
 ```bash
-python -m pytest                          # suite completa (65 tests)
+python -m pytest                          # suite completa (68 tests)
 python -m pytest -m "not slow"            # sin tests lentos
 python -m pytest tests/test_contracts.py  # contract tests
 ```

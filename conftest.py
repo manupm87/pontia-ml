@@ -1,8 +1,8 @@
 """Fixtures compartidas por toda la suite de tests.
 
-Vive en la raíz para que tanto `tests/` como `api/tests/` puedan reutilizar las
-mismas piezas: un DataFrame sintético de reservas, el modelo bundled cargado una
-sola vez por sesión y un cliente de la API.
+Vive en la raíz para que todos los tests de `tests/` reutilicen las mismas
+piezas: un DataFrame sintético de reservas, el modelo bundled cargado una sola
+vez por sesión y un cliente de la API.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import copy
 import pandas as pd
 import pytest
 
-from ml_hotel_cancellations.api.schemas import BOOKING_EXAMPLE
+from ml_hotel_cancellations.config import BOOKING_EXAMPLE
 
 
 def _make_booking(**overrides) -> dict:

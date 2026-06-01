@@ -94,7 +94,7 @@ streamlit run src/ml_hotel_cancellations/ui/app.py          # web UI
 ## Tests
 
 ```bash
-pytest                  # full suite (62 tests)
+pytest                  # full suite (68 tests)
 pytest -m "not slow"    # skip the ones that load the bundled model
 ```
 
