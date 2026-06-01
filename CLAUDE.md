@@ -121,15 +121,14 @@ pytest -m "not slow"    # skip the ones that load the bundled model
 
 - `README.md` — entry point (demo, problem, layout, how to run, results).
 - `docs/arquitectura.md` — architecture and diagrams. `docs/informe_final.md` —
-  academic report. `docs/glosario.md` — glossary. `docs/interpretabilidad.md` — SHAP.
-  `docs/visualizacion_2d.md` — PLS 2D decision-region visualization.
+  academic report (covers SHAP interpretability and the PLS 2D visualization).
+  `docs/glosario.md` — glossary.
 - `agents/deep_analysis_report.md` — forward-looking improvement ideas (not yet done).
-- `docs/superpowers/` — work artifacts (specs, plans); not user documentation.
 
 ## Notes
 
 - Winning model is **XGBoost** (ROC-AUC ≈ 0.9529, leakage-free: the EDA dropped
-  `required_car_parking_spaces` as a check-in leak — see notebooks/playground/01–02).
+  `required_car_parking_spaces` as a check-in leak — see notebooks/01–02).
   The decision threshold (`config.DECISION_THRESHOLD = 0.5`) and primary metric
   (`roc_auc`) live in `config`.
 - No GPU support (removed: CPU-only, reproducible with `RANDOM_STATE=42`).

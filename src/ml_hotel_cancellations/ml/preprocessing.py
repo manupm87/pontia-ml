@@ -1,6 +1,6 @@
 """Preprocesado de características como pasos de un ``Pipeline`` (fit-on-train).
 
-Aplica, en orden, las decisiones del EDA (ver notebooks/playground/02):
+Aplica, en orden, las decisiones del EDA (ver notebooks/02):
 1. :class:`FeatureBuilder` — features derivadas ``has_company``/``has_agent``/``noches``
    (ausencia informativa, EDA §5) y normaliza los IDs de alta cardinalidad.
 2. :class:`RareCategoryGrouper` — reducción **supervisada** de cardinalidad de
