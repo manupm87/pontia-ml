@@ -72,3 +72,10 @@ def test_predict_batch_returns_503_when_model_not_loaded(monkeypatch: pytest.Mon
     payload = {"bookings": [BOOKING_EXAMPLE]}
     response = client.post("/predict/batch", json=payload)
     assert response.status_code == 503
+
+
+def test_model_info_returns_503_when_model_not_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/model-info devuelve 503 si el modelo no está disponible."""
+    monkeypatch.setattr(service, "is_model_loaded", lambda: False)
+    response = client.get("/model-info")
+    assert response.status_code == 503
