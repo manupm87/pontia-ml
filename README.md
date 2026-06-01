@@ -9,6 +9,9 @@
 (antelación, tipo de hotel, país del cliente, precio, etc.) estima la
 **probabilidad de que esa reserva se cancele**.
 
+![Regiones de decisión de los cinco modelos](outputs/decision_regions_strip.png)
+
+
 ---
 
 ## 📋 Resumen del proyecto
