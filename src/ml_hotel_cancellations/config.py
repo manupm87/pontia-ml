@@ -172,7 +172,7 @@ RANDOM_FOREST_PARAMS: dict = {
     "random_state": RANDOM_STATE,
 }
 
-# Valores por defecto hallados en `notebooks/playground/`; el finetuning
+# Valores por defecto hallados en `notebooks/`; el finetuning
 # (XGBOOST_GRID) parte de esta zona e intenta mejorarla.
 XGBOOST_PARAMS: dict = {
     "n_estimators": 500,

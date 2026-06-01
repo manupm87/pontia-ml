@@ -177,7 +177,7 @@ ejecución pasa a publicar un árbol de *runs* en DagsHub.
 
 El diseño del preprocesado no es arbitrario: codifica las conclusiones de
 un trabajo previo de EDA. El proyecto mantiene una historia **en dos
-niveles**. Los notebooks de `notebooks/playground/` son autónomos (no
+niveles**. Los notebooks de `notebooks/` son autónomos (no
 importan `src`, replican el estilo de los recursos del curso) y son donde
 se **descubrieron** las decisiones de datos a través del análisis
 exploratorio (notebooks `01_eda_exploracion` y `02_preparacion_datos`).
@@ -400,7 +400,7 @@ en un `Pipeline` plano que reutilizan `models` y `tuning`) y
 nombres de features e importancias) y `named_steps["model"]` el estimador.
 
 Como se anticipó en §4.1, este preprocesado es la **generalización** de
-lo que el notebook `playground/02_preparacion_datos` prototipó a mano: la
+lo que el notebook `02_preparacion_datos` prototipó a mano: la
 lógica de ausencia informativa y de reducción supervisada de cardinalidad
 nació allí como exploración y aquí se consolidó como transformadores
 reutilizables y a prueba de fuga.

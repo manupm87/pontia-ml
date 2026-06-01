@@ -257,7 +257,7 @@ ayuda a **interpretar** qué factores predicen mejor la cancelación.
 reparte cada predicción entre las variables: dice cuánto ha empujado cada una hacia
 "cancela" o "no cancela". Se basa en los *valores de Shapley* (teoría de juegos).
 Permite una lectura **global** (qué pesa más en todo el conjunto) y **local** (por
-qué una reserva concreta se predice así). Ver `docs/interpretabilidad.md`.
+qué una reserva concreta se predice así). Ver [`informe_final.md`](informe_final.md) §3.4.
 
 **Importancia por permutación.** Forma sencilla y *agnóstica al modelo* de medir
 importancia: se baraja al azar una variable y se mira cuánto empeora la métrica; si
