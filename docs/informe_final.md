@@ -21,6 +21,7 @@ reserva con SHAP.
 
 **Autores.**
 Manuel Pérez Martínez (manugijon@gmail.com) · Joaquín Castro Salas (jcastrosalas03@gmail.com)
+Repositorio: https://github.com/manupm87/pontia-ml
 
 ![Regiones de decisión de los cinco modelos](../outputs/decision_regions_strip.png)
 *Regiones de decisión aprendidas por los cinco modelos sobre el mismo plano 2D supervisado
