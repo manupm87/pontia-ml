@@ -51,16 +51,18 @@ dataset listo para entrenar):
 ### Estilo de los cuadernos
 
 - **Plotly** para gráficos interactivos (`px.imshow`, `px.bar`, `px.area`, `px.scatter`)
-  con `pio.renderers.default = 'iframe'`; _matplotlib_ solo para `ConfusionMatrixDisplay`,
-  curvas de Keras y gráficos propios de SHAP.
+  con `pio.renderers.default = "plotly_mimetype+notebook_connected"`; _matplotlib_ solo
+  para `ConfusionMatrixDisplay`, curvas de Keras y gráficos propios de SHAP.
 - Codificación de categóricas con `pd.get_dummies`, partición estratificada
   (`train_test_split(..., stratify=y, random_state=42)`).
 - Prosa, comentarios y títulos en **español**; identificadores en **inglés**.
   Términos técnicos explicados; glosario en [`../docs/glosario.md`](../docs/glosario.md).
 
-> ℹ️ Los gráficos de Plotly usan el _renderer_ `iframe`: generan una carpeta
-> `iframe_figures/` (ignorada por git) y **no** se ven en la previsualización de
-> GitHub. Para verlos se ha de ejecutar el notebook en Jupyter.
+> ℹ️ Los gráficos de Plotly se incrustan con el _renderer_ `plotly_mimetype`, que
+> **JupyterLab renderiza de forma nativa** (extensión `jupyterlab-plotly`, incluso sin
+> conexión). En la **previsualización de GitHub**, en cambio, las figuras interactivas
+> de Plotly **no** se ven (GitHub no ejecuta JavaScript); para verlas, abre el notebook
+> en Jupyter.
 
 ---
 
