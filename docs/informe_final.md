@@ -23,6 +23,14 @@ reserva con SHAP.
 Manuel Pérez Martínez (manugijon@gmail.com) · Joaquín Castro Salas (jcastrosalas03@gmail.com)
 Repositorio: https://github.com/manupm87/pontia-ml
 
+**Roles y reparto del trabajo.** El proyecto se ha desarrollado de forma plenamente
+colaborativa: ambos integrantes participaron en **todas las fases** del trabajo —análisis
+exploratorio, diseño del _pipeline_, entrenamiento y comparación de modelos, productivización
+(API y UI) y documentación—. El método de trabajo fue principalmente el _pair programming_:
+las decisiones técnicas se tomaron y se pusieron en común de forma conjunta en sesiones
+compartidas, de modo que ambos asumen por igual la responsabilidad sobre el conjunto del
+sistema.
+
 ![Regiones de decisión de los cinco modelos](../outputs/decision_regions_strip.png)
 _Regiones de decisión aprendidas por los cinco modelos sobre el mismo plano 2D supervisado
 (PLS): el color es la probabilidad estimada de cancelación (azul→rojo) y los puntos,

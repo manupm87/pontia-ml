@@ -73,12 +73,19 @@ flowchart LR
 
 ---
 
-## 👥 Autores
+## 👥 Autores y roles
 
 | Autor                                         |
 | --------------------------------------------- |
 | **Manuel Pérez** (manugijon@gmail.com)        |
 | **Joaquin Castro** (jcastrosalas03@gmail.com) |
+
+**Reparto del trabajo.** El proyecto se ha desarrollado de forma plenamente
+colaborativa: ambos integrantes participaron en **todas las fases** —análisis
+exploratorio, diseño del _pipeline_, entrenamiento y comparación de modelos,
+productivización (API y UI) y documentación—, trabajando principalmente en
+sesiones de _pair programming_ en las que las decisiones técnicas se tomaron y se
+pusieron en común de forma conjunta.
 
 ---
 
@@ -96,8 +103,8 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   ├── informe_final.md      # Informe (EDA, diseño, resultados, mejoras)
 ├── memoria/            # Memoria académica en LaTeX y figuras
 ├── models/             # Modelos entrenados y guardados (ficheros .pkl)
-├── notebooks/          # playground (aprender) → src (generalizar) → API+UI (mostrar)
-│   ├── README.md                           # Explica el arco de dos niveles
+├── notebooks/          # aprender → src (generalizar) → API+UI (mostrar)
+│   ├── README.md                           # Explica el arco de tres niveles
 │   ├── 01_eda_exploracion.ipynb
 │   ├── 02_preparacion_datos.ipynb
 │   ├── 03_modelos_supervisados.ipynb
@@ -279,6 +286,19 @@ python -m pytest tests/test_contracts.py  # contract tests
 | Regresión logística  |  0.8031  |  0.7233   | 0.7636 | 0.7429 |   0.8862    |
 
 ⭐ **Mejor modelo: XGBoost** (ROC-AUC = 0.9529, hiperparámetros optimizados). Se guarda como `models/best_model.pkl`. Métricas sobre el 20 % de test. ROC-AUC como métrica principal por ser robusta ante el desbalance de clases e independiente del umbral. Ver [glosario](docs/glosario.md) para definiciones.
+
+### Conclusiones
+
+El sistema resuelve el problema de principio a fin: del dato crudo a un modelo
+servido y explicado en producción. La decisión de diseño más relevante fue
+**anteponer la honestidad al número** —eliminar las fugas de _check-in_ detectadas
+en el EDA rebaja el ROC-AUC de un 0.9614 engañoso a un **0.9529 realista**—, de
+modo que la métrica mide lo que el modelo podrá hacer ante una reserva futura. De
+las cinco familias comparadas en igualdad de condiciones gana **XGBoost**, y SHAP
+confirma que se apoya en factores con sentido de negocio (depósito no reembolsable,
+país, antelación, cancelaciones previas). La línea de mejora más respaldada por el
+análisis es **separar el sistema en dos modelos**, uno por tipo de hotel (_City_ y
+_Resort_). Análisis completo en [`docs/informe_final.md`](docs/informe_final.md).
 
 <p align="center">
   <img src="outputs/roc_curves.png" width="48%" alt="Curva ROC comparativa">
