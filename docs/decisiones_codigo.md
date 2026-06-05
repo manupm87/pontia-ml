@@ -237,6 +237,32 @@ make_pipeline(estimator) = Pipeline([
 `build_transform_pipeline()` es la variante **sin modelo**: para quien necesita únicamente la
 matriz de *features* ya preprocesada (mismo preprocesado, sin entrenar nada encima).
 
+### El `.pkl` lleva la *pipeline* entera (inferencia sin fuga ni *skew*)
+
+`save_models` y `best_model.pkl` serializan el `Pipeline` **ya ajustado**, no solo el estimador.
+Es decir, **todos los parámetros aprendidos en train viajan dentro del `.pkl`**: las categorías
+que conserva el `RareCategoryGrouper` (`keep_`), las **medianas** del imputer, la media/desviación
+del `StandardScaler` y el **vocabulario one-hot** (qué columnas y en qué orden). Verificable:
+
+```text
+best_model.pkl → Pipeline(features → rare → preprocessor → XGBClassifier)   # los 4 pasos, AJUSTADOS
+  rare.keep_  = {agent, country, company}      imputer.statistics_ = [70, 27, 16, …]
+  onehot.categories_ → 126 columnas fijadas en train
+```
+
+Por eso, al predecir basta `model.predict_proba(X)` sobre el DataFrame **crudo**: el propio
+`Pipeline` re-ejecuta toda la cadena con los parámetros de train. Misma garantía en dos escenarios:
+
+- **Sobre el test** (`evaluate` / `predict`): las filas de test se transforman con parámetros
+  **derivados solo de train** (no se re-ajusta nada) → la métrica `0.9529` es honesta, sin fuga.
+- **Sobre reservas futuras** (API / UI): mandas solo las **26 features crudas** de una reserva y
+  recibes la predicción; las features derivadas, la reducción de cardinalidad y el *one-hot* se
+  aplican **automáticamente e idénticos** a como se entrenó. No hay que preprocesar a mano → se
+  elimina el clásico *training/serving skew* (que el preprocesado al servir difiera del de
+  entrenamiento). Y como el vocabulario *one-hot* está **fijado** y el encoder usa
+  `handle_unknown="ignore"`, una categoría nueva (un país no visto) no rompe: el modelo siempre
+  recibe el **mismo espacio de features**.
+
 ---
 
 > **El patrón común.** Estas piezas responden a dos principios que recorren todo el `src`:
