@@ -252,6 +252,11 @@ flowchart TD
 persiste junto al modelo, de modo que predecir reproduce exactamente las transformaciones
 del entrenamiento.*
 
+> **Decisiones de ingeniería del código.** El *porqué* de cómo están escritas estas piezas —la
+> limpieza previa (`clean_data`), los tres pasos del preprocesado (`FeatureBuilder`,
+> `RareCategoryGrouper`, `ColumnTransformer`), la red Keras como estimador sklearn y el ensamblado
+> en un único `Pipeline`— se detalla en [`decisiones_codigo.md`](decisiones_codigo.md).
+
 ### 3.3. Etapa 3 — Productivización
 
 Finalmente, el modelo ganador se lleva a producción. El artefacto se persiste y se

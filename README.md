@@ -146,6 +146,8 @@ pontia-ml/                  # ← repo root (esta carpeta)
 └── README.md
 ```
 
+> 🧩 **Decisiones de ingeniería del código.** El *porqué* del diseño de las piezas clave del `src` —la limpieza previa, los tres pasos del preprocesado, la red Keras como estimador sklearn y el ensamblado del `Pipeline`— está en [`docs/decisiones_codigo.md`](docs/decisiones_codigo.md).
+
 ---
 
 ## ⚙️ Instalación
