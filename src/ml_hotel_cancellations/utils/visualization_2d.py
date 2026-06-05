@@ -23,7 +23,6 @@ import pandas as pd
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.neural_network import MLPClassifier
 
 from ml_hotel_cancellations.ml.data_loader import load_and_prepare
 from ml_hotel_cancellations.ml.preprocessing import build_transform_pipeline
@@ -44,12 +43,16 @@ _POINT_CMAP = ListedColormap(["#0b3d66", "#b32400"])
 def _build_2d_models() -> dict:
     """Devuelve los 5 modelos a reentrenar sobre el plano PLS.
 
-    Para la red neuronal se usa aquí un ``MLPClassifier`` de sklearn **ligero** como
-    sustituto rápido (la red de producción es Keras): reentrenar Keras por cada píxel de
-    la rejilla sería lento y este gráfico es solo ilustrativo (mismo criterio que el
-    notebook ``05``). Aquí solo aprende de 2 componentes.
+    La red neuronal es la **misma** ``KerasMLPClassifier`` que en producción y en el
+    notebook ``05`` (arquitectura del ``04``), no un sustituto sklearn: sobre 2
+    componentes, entrenarla y precomputar su ``predict_proba`` en la rejilla es
+    rápido. Esto solo se ejecuta al **generar** el artefacto (offline); la UI carga
+    las rejillas ya precomputadas, así que el runtime no necesita TensorFlow.
     """
-    from ml_hotel_cancellations.ml.models import build_classic_estimators
+    from ml_hotel_cancellations.ml.models import (
+        KerasMLPClassifier,
+        build_classic_estimators,
+    )
 
     classic_models = build_classic_estimators()
     return {
@@ -57,11 +60,7 @@ def _build_2d_models() -> dict:
         "Árbol de decisión": classic_models["Decision Tree"],
         "Random Forest": classic_models["Random Forest"],
         "XGBoost": classic_models["XGBoost"],
-        "Red neuronal (MLP)": MLPClassifier(
-            hidden_layer_sizes=(64, 32),
-            max_iter=400,
-            random_state=config.RANDOM_STATE,
-        ),
+        "Red neuronal (Keras)": KerasMLPClassifier(**config.NN_PARAMS),
     }
 
 
