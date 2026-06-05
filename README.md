@@ -32,7 +32,7 @@
 
 **Mejor resultado:** XGBoost — ROC-AUC **0.9529** en test.
 
-> 📖 Términos → [glosario.md](docs/glosario.md) · Sistema → [arquitectura.md](docs/arquitectura.md) · Análisis completo → [informe_final.md](docs/informe_final.md) · Bonus → [bonus.md](docs/bonus.md)
+> 📖 Términos → [glosario.md](docs/glosario.md) · Sistema → [arquitectura.md](docs/arquitectura.md) · Análisis completo → [informe_final.md](docs/informe_final.md) · Bonus → [bonus.md](docs/bonus.md) · Decisiones de código → [decisiones_codigo.md](docs/decisiones_codigo.md)
 
 ---
 
@@ -103,6 +103,7 @@ pontia-ml/                  # ← repo root (esta carpeta)
 ├── docs/
 │   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
 │   ├── bonus.md              # Bonus técnicos implementados y cómo ejecutarlos
+│   ├── decisiones_codigo.md  # Por qué se escriben así 3 piezas clave del src
 │   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
 │   ├── informe_final.md      # Informe (EDA, diseño, resultados, mejoras)
 ├── memoria/            # Memoria académica en LaTeX y figuras
