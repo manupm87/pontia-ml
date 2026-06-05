@@ -103,7 +103,7 @@ pontia-ml/                  # ← repo root (esta carpeta)
 ├── docs/
 │   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
 │   ├── bonus.md              # Bonus técnicos implementados y cómo ejecutarlos
-│   ├── decisiones_codigo.md  # Por qué se escriben así 3 piezas clave del src
+│   ├── decisiones_codigo.md  # Por qué se escriben así 4 piezas clave del src
 │   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
 │   ├── informe_final.md      # Informe (EDA, diseño, resultados, mejoras)
 ├── memoria/            # Memoria académica en LaTeX y figuras
