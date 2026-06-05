@@ -285,6 +285,12 @@ _Arquitectura en cuatro planos. El dato alimenta la experimentación local, que 
 modelo versionado (MLflow/DagsHub) y un artefacto en el repositorio; de ahí, el despliegue
 continuo publica la API y la interfaz que consume el usuario._
 
+> **Bonus técnicos.** Sobre los requisitos mínimos implementamos seis de los siete _bonus_ del
+> enunciado: optimización de hiperparámetros, balanceo de clases, interpretabilidad (SHAP), API
+> REST (FastAPI), interfaz visual (Streamlit) y registro de experimentos con MLflow (con _gate_ por
+> métrica al promover a producción). El detalle y los comandos para ejecutarlos están en
+> [`bonus.md`](bonus.md).
+
 ### 3.4. Interpretabilidad
 
 Un sistema que decide sobre el negocio debe poder **explicar** sus decisiones, no solo

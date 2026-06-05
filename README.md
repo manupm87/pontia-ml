@@ -32,7 +32,7 @@
 
 **Mejor resultado:** XGBoost — ROC-AUC **0.9529** en test.
 
-> 📖 Términos → [glosario.md](docs/glosario.md) · Sistema → [arquitectura.md](docs/arquitectura.md) · Análisis completo → [informe_final.md](docs/informe_final.md)
+> 📖 Términos → [glosario.md](docs/glosario.md) · Sistema → [arquitectura.md](docs/arquitectura.md) · Análisis completo → [informe_final.md](docs/informe_final.md) · Bonus → [bonus.md](docs/bonus.md)
 
 ---
 
@@ -102,6 +102,7 @@ pontia-ml/                  # ← repo root (esta carpeta)
 │   └── raw/            # Datos originales (dataset_practica_final.csv)
 ├── docs/
 │   ├── arquitectura.md       # Arquitectura del sistema (diagramas)
+│   ├── bonus.md              # Bonus técnicos implementados y cómo ejecutarlos
 │   ├── glosario.md           # 📖 Explicación de todos los términos técnicos
 │   ├── informe_final.md      # Informe (EDA, diseño, resultados, mejoras)
 ├── memoria/            # Memoria académica en LaTeX y figuras
@@ -198,6 +199,8 @@ jupyter lab
 ```
 
 Los notebooks están en `notebooks/` ([`notebooks/README.md`](notebooks/README.md)): EDA, preparación, modelos supervisados, red neuronal, comparativa, balanceo e interpretabilidad. Son autónomos (no importan `src`).
+
+> 🌟 **Bonus técnicos.** Implementamos 6 de los 7 del enunciado (hiperparámetros, balanceo, SHAP, API, Streamlit y MLflow). Resumen y cómo ejecutarlos en [`docs/bonus.md`](docs/bonus.md). Abajo se detallan los principales.
 
 ### 4. Interpretabilidad del modelo con SHAP (bonus)
 
