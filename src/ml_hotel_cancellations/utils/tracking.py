@@ -166,6 +166,14 @@ def log_sklearn_model(pipeline, input_example=None, artifact_path: str = "model"
     if input_example is not None:
         from mlflow.models import infer_signature
 
+        # Las columnas enteras que pueden venir NULAS en inferencia (p. ej. children)
+        # deben declararse como `double`: si la signature las fija como int, un NaN
+        # al servir dispara un error de schema enforcement. Casteamos los enteros del
+        # ejemplo a float64 (recomendación oficial de MLflow para enteros nullable).
+        example = input_example.copy()
+        int_cols = example.select_dtypes(include="integer").columns
+        example[int_cols] = example[int_cols].astype("float64")
+        input_example = example
         # El pipeline incluye el preprocesado, así que predice sobre crudo.
         signature = infer_signature(input_example, pipeline.predict(input_example))
 
