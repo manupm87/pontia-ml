@@ -32,6 +32,10 @@ models/*.pkl
 !models/.gitkeep
 !models/best_model.pkl
 
+# Modelos entrenados que exportan los notebooks 03/04 para que el 05 los cargue
+# (artefactos locales regenerables ejecutando los notebooks; no se versionan).
+notebooks/models/
+
 # --- Artefactos de la visualización 2D (regenerables con
 #     `python -m src.visualization_2d`). El PNG sí se versiona.
 #
