@@ -145,19 +145,36 @@ def log_artifact(path) -> None:
     mlflow.log_artifact(str(p))
 
 
-def log_sklearn_model(pipeline, artifact_path: str = "model") -> None:
+def log_sklearn_model(pipeline, input_example=None, artifact_path: str = "model") -> None:
     """Loguea un ``Pipeline`` de scikit-learn como artefacto MLflow.
 
     Acepta también pipelines con XGBoost dentro (los loguea como sklearn,
     porque están envueltos en ``Pipeline``). Si quieres registrar el modelo
     en el *registry*, llama después a ``mlflow.register_model(...)`` con el
     URI ``runs:/<run_id>/<artifact_path>``.
+
+    Si se pasa ``input_example`` (unas pocas filas de las features **crudas**),
+    se infiere y adjunta la *signature* del modelo (esquema de entrada/salida):
+    documenta las features que espera y permite a MLflow validar el input al
+    servir. El ejemplo se guarda como ``input_example.json`` junto al modelo.
     """
     if not _ENABLED:
         return
     import mlflow.sklearn
 
-    mlflow.sklearn.log_model(pipeline, artifact_path=artifact_path)
+    signature = None
+    if input_example is not None:
+        from mlflow.models import infer_signature
+
+        # El pipeline incluye el preprocesado, así que predice sobre crudo.
+        signature = infer_signature(input_example, pipeline.predict(input_example))
+
+    mlflow.sklearn.log_model(
+        pipeline,
+        artifact_path=artifact_path,
+        signature=signature,
+        input_example=input_example,
+    )
 
 
 def _stringify(value) -> str:

@@ -115,6 +115,92 @@ def register_model(
     return version
 
 
+def get_champion_metric(
+    metric_name: str,
+    model_name: str = DEFAULT_MODEL_NAME,
+    stage: str = DEFAULT_STAGE,
+) -> float | None:
+    """Devuelve la métrica del modelo actualmente en ``stage`` (Production), o ``None``.
+
+    La lee del tag homónimo de la versión (lo escribe ``register_if_better``); si no
+    está, cae a la métrica registrada en el run que originó esa versión. Devuelve
+    ``None`` si aún no hay modelo registrado o ninguna versión en ese stage.
+    """
+    from mlflow.tracking import MlflowClient
+
+    client = MlflowClient()
+    try:
+        versions = client.get_latest_versions(model_name, stages=[stage])
+    except Exception as exc:  # p. ej. el Registered Model aún no existe
+        logger.debug("Sin champion para '%s' en '%s' (%s).", model_name, stage, exc)
+        return None
+    if not versions:
+        return None
+
+    version = versions[0]
+    tagged = version.tags.get(metric_name)
+    if tagged is not None:
+        return float(tagged)
+    if version.run_id:
+        run = client.get_run(version.run_id)
+        value = run.data.metrics.get(metric_name)
+        if value is not None:
+            return float(value)
+    return None
+
+
+def register_if_better(
+    run_id: str,
+    metric_name: str,
+    metric_value: float,
+    model_name: str = DEFAULT_MODEL_NAME,
+    stage: str | None = DEFAULT_STAGE,
+    experiment_name: str = DEFAULT_EXPERIMENT,
+) -> "mlflow.entities.model_registry.ModelVersion | None":
+    """Registra el modelo del run SOLO si ``metric_value`` iguala o supera al champion.
+
+    Es el *gate* de calidad: no promueve a Production un modelo peor que el actual.
+    Etiqueta la versión nueva con la métrica para que el próximo gate la compare.
+    Devuelve la ``ModelVersion`` creada, o ``None`` si el gate la descarta.
+    """
+    if not tracking.init_tracking(experiment_name):
+        raise RuntimeError(
+            "❌ MLflow no está configurado. Define MLFLOW_TRACKING_URI/USERNAME/PASSWORD "
+            "(p. ej. con `set -a; source .env; set +a`)."
+        )
+
+    champion = get_champion_metric(metric_name, model_name=model_name, stage=stage or DEFAULT_STAGE)
+    if champion is not None and metric_value < champion:
+        logger.info(
+            "⏭️  Gate NO superado: %s nuevo=%.4f < champion=%.4f → no se registra.",
+            metric_name, metric_value, champion,
+        )
+        return None
+
+    if champion is None:
+        logger.info("No hay champion previo; se registra la primera versión.")
+    else:
+        logger.info(
+            "✅ Gate superado: %s nuevo=%.4f ≥ champion=%.4f → registrando…",
+            metric_name, metric_value, champion,
+        )
+
+    version = register_model(
+        run_id=run_id,
+        model_name=model_name,
+        stage=stage,
+        experiment_name=experiment_name,
+    )
+
+    # Guardamos la métrica en la versión para poder compararla en el próximo gate.
+    from mlflow.tracking import MlflowClient
+
+    MlflowClient().set_model_version_tag(
+        model_name, version.version, metric_name, f"{metric_value:.6f}"
+    )
+    return version
+
+
 def main() -> None:
     config.configure_logging()
     parser = argparse.ArgumentParser(

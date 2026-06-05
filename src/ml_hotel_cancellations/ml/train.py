@@ -68,11 +68,19 @@ def _generate_plots(results: dict, fitted: dict, y_test, best: str) -> None:
         plot_feature_importance(fitted["Random Forest"], config.OUTPUTS_DIR / "feature_importance.png")
 
 
-def _log_to_mlflow(fitted: dict, table: pd.DataFrame, best: str, *, tuned: bool) -> None:
-    """Publica el run del mejor modelo en MLflow (no-op si el tracking no está activo)."""
+def _log_to_mlflow(
+    fitted: dict, table: pd.DataFrame, best: str, *, tuned: bool, input_example=None
+) -> str | None:
+    """Publica el run del mejor modelo en MLflow y devuelve su ``run_id``.
+
+    Devuelve ``None`` si el tracking no está activo (no-op). ``input_example``
+    (unas filas de features crudas) se usa para adjuntar la *signature* del modelo.
+    """
     if not tracking.tracking_enabled():
-        return
-    with tracking.start_run(run_name="train_all_models"):
+        return None
+    run_id: str | None = None
+    with tracking.start_run(run_name="train_all_models") as run:
+        run_id = run.info.run_id if run is not None else None
         tracking.set_tags({"tuned": tuned, "best_model": best, "primary_metric": config.PRIMARY_METRIC})
         # Params y métricas del modelo ganador (la tabla con todos va como artefacto).
         tracking.log_params(fitted[best].named_steps["model"].get_params())
@@ -86,8 +94,33 @@ def _log_to_mlflow(fitted: dict, table: pd.DataFrame, best: str, *, tuned: bool)
             config.OUTPUTS_DIR / "feature_importance.png",
         ):
             tracking.log_artifact(artifact)
-        tracking.log_sklearn_model(fitted[best], artifact_path="model")
-        logger.info("MLflow: experimento publicado (mejor=%s).", best)
+        tracking.log_sklearn_model(fitted[best], input_example=input_example, artifact_path="model")
+        logger.info("MLflow: experimento publicado (mejor=%s, run_id=%s).", best, run_id)
+    return run_id
+
+
+def _maybe_register_best(run_id: str | None, table: pd.DataFrame, best: str) -> None:
+    """Registra el ganador en el Model Registry SOLO si supera al champion actual.
+
+    Pensado para `train --register`: encadena entrenamiento y registro en un único
+    paso, pero validado por métrica (no promueve un modelo peor que el de Production).
+    """
+    if not tracking.tracking_enabled():
+        logger.warning(
+            "--register ignorado: MLflow no está activo "
+            "(faltan MLFLOW_TRACKING_URI/USERNAME/PASSWORD)."
+        )
+        return
+    if run_id is None:
+        logger.warning("--register: no se obtuvo run_id; se omite el registro.")
+        return
+
+    from ..utils.register_model import register_if_better
+
+    metric = config.PRIMARY_METRIC
+    register_if_better(
+        run_id=run_id, metric_name=metric, metric_value=float(table.loc[best, metric])
+    )
 
 
 def _print_summary(table: pd.DataFrame, best: str) -> None:
@@ -104,10 +137,12 @@ def _print_summary(table: pd.DataFrame, best: str) -> None:
     print("=" * 70 + "\n")
 
 
-def run_pipeline(tune: bool = False) -> tuple[pd.DataFrame, str]:
+def run_pipeline(tune: bool = False, register: bool = False) -> tuple[pd.DataFrame, str]:
     """Ejecuta el pipeline completo y devuelve ``(tabla_comparativa, mejor_modelo)``.
 
-    Con ``tune=True`` optimiza hiperparámetros por CV antes de entrenar.
+    Con ``tune=True`` optimiza hiperparámetros por CV antes de entrenar. Con
+    ``register=True`` registra el ganador en el Model Registry si supera al
+    champion actual (requiere MLflow configurado).
     """
     config.ensure_directories()
     tracking.init_tracking("pontia-cancellations-train")  # no-op sin credenciales
@@ -130,11 +165,16 @@ def run_pipeline(tune: bool = False) -> tuple[pd.DataFrame, str]:
     _write_metric_tables(table)
     best = select_best(results)
 
-    # 4) Visualizaciones + guardado del mejor modelo + registro en MLflow.
+    # 4) Visualizaciones + guardado del mejor modelo + logging en MLflow.
     _generate_plots(results, fitted, y_test, best)
     joblib.dump(fitted[best], config.BEST_MODEL_PATH)
     logger.info("Mejor modelo guardado en: %s", config.BEST_MODEL_PATH)
-    _log_to_mlflow(fitted, table, best, tuned=tune)
+    # Ejemplo de entrada (features crudas) para adjuntar la signature al modelo.
+    run_id = _log_to_mlflow(fitted, table, best, tuned=tune, input_example=X_train.head(5))
+
+    # 5) (Opcional) registro validado del ganador en el Model Registry.
+    if register:
+        _maybe_register_best(run_id, table, best)
 
     _print_summary(table, best)
     return table, best
@@ -147,10 +187,19 @@ def main() -> None:
         action="store_true",
         help="Optimiza hiperparámetros por validación cruzada antes de entrenar (más lento).",
     )
+    parser.add_argument(
+        "--register",
+        action="store_true",
+        help=(
+            "Tras entrenar, registra el modelo ganador en el Model Registry de MLflow "
+            "y lo pasa a Production SOLO si su métrica principal iguala o supera a la "
+            "del modelo actual en Production (requiere credenciales MLflow)."
+        ),
+    )
     args = parser.parse_args()
 
     config.configure_logging()
-    run_pipeline(tune=args.tune)
+    run_pipeline(tune=args.tune, register=args.register)
 
 
 if __name__ == "__main__":
