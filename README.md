@@ -193,7 +193,9 @@ python -m ml_hotel_cancellations.ml.predict --input mis_reservas.csv --output pr
 ### 3. Abrir los notebooks (para explorar y aprender)
 
 ```bash
-# Registrar el entorno como "kernel" de Jupyter (solo la primera vez)
+make lab        # arranca JupyterLab con el kernel del .venv (opción simple)
+
+# Alternativa manual (p. ej. con un Jupyter global): registra el kernel y lanza
 python -m ipykernel install --user --name pontia-ml --display-name "Python (pontia-ml)"
 jupyter lab
 ```

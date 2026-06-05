@@ -23,7 +23,7 @@ ARGS    ?=
 export
 
 .DEFAULT_GOAL := help
-.PHONY: help venv setup setup-dev api ui run test clean \
+.PHONY: help venv setup setup-dev api ui run lab test clean \
         train tune predict register-model explain viz2d memo
 
 # Tectonic: motor LaTeX autocontenido (un único binario, sin instalar TeX Live).
@@ -62,6 +62,9 @@ run: ## Arranca API + UI juntas; Ctrl-C para ambas
 		API_PID=$$!; \
 		trap "kill $$API_PID 2>/dev/null" EXIT INT TERM; \
 		PONTIA_API_URL=$(API_URL) $(VENV)/bin/streamlit run $(UI_APP)
+
+lab: ## Arranca JupyterLab para los notebooks (kernel = .venv). Requiere setup-dev
+	$(VENV)/bin/jupyter lab
 
 test: ## Ejecuta la batería de tests (pytest). Requiere setup-dev
 	$(VENV)/bin/pytest
