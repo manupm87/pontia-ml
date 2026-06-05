@@ -1,9 +1,10 @@
 # Decisiones de ingeniería en el código
 
-Cuatro piezas del `src` cuyo **diseño no es obvio** a primera vista. Aquí se explica el
-**porqué** de cómo están escritas, no solo qué hacen. El hilo conductor de las cuatro es el
-mismo: **separar lo determinista de lo aprendido** (para no tener fuga) y **no cargar
-dependencias pesadas en runtime**.
+Piezas del `src` cuyo **diseño no es obvio** a primera vista: los pasos del preprocesado y cómo
+se ensamblan en el `Pipeline`, la red Keras como estimador sklearn y la limpieza previa. Aquí se
+explica el **porqué** de cómo están escritas, no solo qué hacen. El hilo conductor es el mismo:
+**separar lo determinista de lo aprendido** (para no tener fuga) y **no cargar dependencias
+pesadas en runtime**.
 
 ---
 
@@ -96,7 +97,35 @@ el preprocesador sin target** (p. ej. para la visualización 2D), donde no toca 
 
 ---
 
-## 4. `clean_data`: limpieza segura, paso a paso
+## 4. `build_preprocessor` / `ColumnTransformer` (Paso 3)
+
+📄 `ml/preprocessing.py`
+
+Último paso del preprocesado: un `ColumnTransformer` que trata por separado las numéricas y las
+categóricas (ya derivadas/reducidas por los Pasos 1-2).
+
+- **Numéricas** (`config.NUMERIC_FEATURES`, incluye las derivadas `noches`/`has_*`):
+  `SimpleImputer(strategy="median")` (rellena nulos con la mediana, robusta a *outliers*) →
+  `StandardScaler` (centra y escala).
+- **Categóricas** (`config.CATEGORICAL_COLUMNS`): `SimpleImputer(fill_value="Unknown")` →
+  `OneHotEncoder(handle_unknown="ignore", sparse_output=False)`.
+- `remainder="drop"` (lo no listado se descarta → **contrato de features fijo**) y
+  `verbose_feature_names_out=False` (nombres limpios, sin prefijos `num__`/`cat__`).
+
+**Decisiones clave:**
+- **`handle_unknown="ignore"`**: si en inferencia llega una categoría **no vista en train** (un
+  país nuevo), no falla — la codifica como todo-ceros. Imprescindible para servir.
+- **Se escala a TODOS los modelos a propósito**: en los notebooks el escalado es por modelo (solo
+  red y logística), pero aquí un único `Pipeline` comparte el preprocesado. El `StandardScaler` es
+  un **no-op para árboles/XGBoost** (transformación monótona por *feature* → los cortes solo se
+  reescalan, ROC-AUC idéntico), así que una sola ruta es más simple **sin coste** (comentado en el
+  código).
+- Espera el DataFrame **ya pasado por los Pasos 1-2** (usa `NUMERIC_FEATURES`, que incluye las
+  derivadas); por eso va el último.
+
+---
+
+## 5. `clean_data`: limpieza segura, paso a paso
 
 📄 `ml/data_loader.py`
 
@@ -166,7 +195,51 @@ nada, garantiza que la partición y el *fit-on-train* posteriores sean **honesto
 
 ---
 
-> **El patrón común.** Las cuatro piezas responden a dos principios que recorren todo el `src`:
+## 6. El `Pipeline`: cómo se ensambla y dónde se usa
+
+📄 `ml/preprocessing.py` → `make_pipeline` / `build_transform_pipeline`
+
+Los pasos anteriores se ensamblan en un `Pipeline` **plano**, uno por modelo:
+
+```python
+make_pipeline(estimator) = Pipeline([
+    ("features",     FeatureBuilder()),       # Paso 1: derivar + normalizar IDs
+    ("rare",         RareCategoryGrouper()),  # Paso 2: reducir cardinalidad (usa y)
+    ("preprocessor", build_preprocessor()),   # Paso 3: ColumnTransformer
+    ("model",        estimator),              # el modelo
+])
+```
+
+**Por qué preprocesado + modelo en un mismo `Pipeline`:**
+- **Sin fuga.** `pipeline.fit(X_train, y_train)` ajusta toda la cadena **en orden y solo con
+  train**: el `RareCategoryGrouper` ve `y` (supervisado), imputer/scaler aprenden de train, y el
+  modelo entrena sobre el resultado. En la CV de `tuning.py` cada *fold* **re-ajusta** el
+  preprocesado → la validación es honesta.
+- **Un único artefacto.** Al serializarlo con joblib, el modelo guardado **sabe preprocesar
+  reservas en crudo**: la API y `predict` reciben las **26 features crudas** y llaman
+  `predict_proba` directamente; el preprocesado viaja dentro del `.pkl`.
+- **Plano a propósito.** `named_steps["preprocessor"]` (el `ColumnTransformer`) y
+  `named_steps["model"]` (el estimador) se acceden directamente, sin anidamiento, para sacar
+  nombres de features, importancias o inspeccionar el modelo.
+
+**Dónde se usa (mapa):**
+
+| Lugar | Qué hace con el `Pipeline` |
+|---|---|
+| `models.build_models` | `make_pipeline(est)` para los **5 modelos** → `{nombre: Pipeline}` sin entrenar |
+| `train.train_models` | `pipeline.fit(X_train, y_train)` (fit-on-train de toda la cadena); `save_models` → `models/*.pkl` y el mejor → `best_model.pkl` |
+| `tuning` | `make_pipeline(est)` dentro de `GridSearchCV`/`RandomizedSearchCV` → CV sin fuga |
+| `predict` · `api/service` | `joblib.load(best_model.pkl)` → `predict_dataframe` llama `predict_proba` sobre el DataFrame crudo |
+| `evaluate` · `interpretability` | `named_steps["preprocessor"].get_feature_names_out()` y `named_steps["model"]` para importancias y SHAP |
+| `api /model-info` | `named_steps["model"]` para reportar qué familia de modelo se sirve |
+| `visualization_2d` | `build_transform_pipeline().fit(X, y)` — **solo el preprocesado** (Pasos 1-3, sin modelo), para proyectar a PLS |
+
+`build_transform_pipeline()` es la variante **sin modelo**: para quien necesita únicamente la
+matriz de *features* ya preprocesada (mismo preprocesado, sin entrenar nada encima).
+
+---
+
+> **El patrón común.** Estas piezas responden a dos principios que recorren todo el `src`:
 > (1) **fit-on-train / sin fuga** — lo que aprende de los datos vive en el `Pipeline` y se ajusta
 > solo con `train`; lo determinista va aparte; (2) **runtime esbelto** — TensorFlow (y MLflow,
 > SHAP…) se importan de forma perezosa para no cargarlos al servir. Ver también
