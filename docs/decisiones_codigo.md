@@ -1,39 +1,84 @@
 # Decisiones de ingeniería en el código
 
-Piezas del `src` cuyo **diseño no es obvio** a primera vista: los pasos del preprocesado y cómo
-se ensamblan en el `Pipeline`, la red Keras como estimador sklearn y la limpieza previa. Aquí se
-explica el **porqué** de cómo están escritas, no solo qué hacen. El hilo conductor es el mismo:
-**separar lo determinista de lo aprendido** (para no tener fuga) y **no cargar dependencias
-pesadas en runtime**.
+Piezas del `src` cuyo **diseño no es obvio** a primera vista, en el **orden del flujo de datos**:
+la limpieza previa, los tres pasos del preprocesado, la red Keras como estimador sklearn y cómo
+se ensambla todo en el `Pipeline`. Aquí se explica el **porqué** de cómo están escritas, no solo
+qué hacen. El hilo conductor es el mismo: **separar lo determinista de lo aprendido** (para no
+tener fuga) y **no cargar dependencias pesadas en runtime**.
+
+> Flujo: `clean_data` (antes del *split*) → **Paso 1** `FeatureBuilder` → **Paso 2**
+> `RareCategoryGrouper` → **Paso 3** `ColumnTransformer` → **modelo**, todo dentro de un `Pipeline`.
 
 ---
 
-## 1. `KerasMLPClassifier`: la red Keras vestida de estimador sklearn
+## 1. `clean_data`: limpieza segura, paso a paso
 
-📄 `ml/models.py`
+📄 `ml/data_loader.py`
 
-El enunciado **exige** una red multicapa con **Keras/TensorFlow**, pero todo el resto del
-sistema —comparación de modelos, `Pipeline` de preprocesado, serialización, MLflow— está
-construido sobre la **API de scikit-learn**. En vez de tratar la red como un caso especial
-por todas partes, la **envolvemos** en una clase que se comporta como un estimador sklearn
-(`fit` / `predict` / `predict_proba`, heredando de `ClassifierMixin, BaseEstimator`).
+Lo **primero** que ocurre, **antes del *split***. La decisión de diseño es la **frontera** entre
+dos tipos de trabajo:
 
-**Qué nos da esa decisión:**
+- **`clean_data`** hace lo **determinista y fila-a-fila** (no aprende parámetros) → va **antes
+  del split**, no puede causar fuga.
+- Lo que **aprende de los datos** (imputación, escalado, reducción de cardinalidad) vive en el
+  **`Pipeline`** y se ajusta **solo con `train`** (Pasos 1-3, más abajo).
 
-- **Encaja en el `Pipeline` común** → recibe el mismo preprocesado *fit-on-train* que los
-  otros cuatro modelos, sin código aparte.
-- **Se compara igual** → el mismo `evaluate` y la misma tabla de métricas sirven para los 5.
-- **Se serializa igual** → `joblib.dump` como los demás. Un modelo Keras no se *pickea*
-  directo, así que `__getstate__`/`__setstate__` guardan su formato nativo `.keras` **como
-  bytes dentro del propio pickle** (y lo reconstruyen al cargar). Detalle invisible para
-  quien usa la clase.
-- **Entra en MLflow igual** → se loguea y registra como cualquier `Pipeline` sklearn.
+Por eso `clean_data` es deliberadamente "tonta": no imputa, no escala, no toca `company`/`agent`
+(de eso se encargan `FeatureBuilder` y `RareCategoryGrouper` dentro del `Pipeline`).
 
-**La decisión clave de deployment:** TensorFlow se importa **dentro de los métodos**, no en
-la cabecera del módulo. Importar el paquete (lo que hace la **API en runtime**) **no carga
-TF** (cientos de MB). Como el modelo servido es XGBoost, TF solo se necesita al **entrenar**
-la red → la API en Render (512 MB) nunca lo toca. Misma idea que replican los notebooks 04/05
-(ver [`bonus.md`](bonus.md) y el módulo `notebooks/keras_mlp.py`).
+**Paso a paso:**
+
+1. **`df.copy()`** — no mutar el DataFrame de entrada (evita efectos colaterales).
+2. **Eliminar columnas de `config.DROP_COLUMNS`** que estén presentes. Son columnas con
+   **fuga** o que **no generalizan** (EDA §2):
+   - `reservation_status` / `reservation_status_date` → contienen el desenlace de la reserva;
+   - `required_car_parking_spaces`, `assigned_room_type` → se asignan en el **check-in** (fuga
+     de información futura);
+   - `arrival_date_year` → no generaliza a años nuevos.
+3. **Saneo de filas imposibles** (EDA §8), construyendo una máscara booleana `keep`:
+   - **sin huéspedes**: `adults + children + babies == 0` (rellenando nulos a 0);
+   - **sin noches**: `stays_in_week_nights + stays_in_weekend_nights == 0`;
+   - **`adr` absurdo**: negativo o `>= 5400` (tarifa diaria desorbitada).
+4. **`df.loc[keep].reset_index(drop=True)`** — se queda con las filas válidas y reindexa.
+5. **Devuelve** el DataFrame listo para separar en `X` / `y` (`get_feature_target`) y partir
+   de forma estratificada (`split_data`).
+
+### Las líneas clave de la máscara
+
+`keep` empieza como `pd.Series(True, index=df.index)` (una fila por registro, todas a `True`);
+cada regla le hace un **AND** (`&=`), así que solo puede **quitar** filas, nunca re-añadir.
+
+```python
+keep &= df[guest_cols].fillna(0).sum(axis=1) > 0      # sin huéspedes
+```
+`df[guest_cols]` (adults/children/babies) → `.fillna(0)` (un nulo cuenta como 0) → `.sum(axis=1)`
+suma **a lo ancho** (huéspedes por fila) → `> 0` da `True` si hay alguien. Descarta reservas con
+**0 personas**.
+
+```python
+nights = df["stays_in_week_nights"].fillna(0) + df["stays_in_weekend_nights"].fillna(0)
+keep &= nights > 0                                    # sin noches
+```
+El `fillna(0)` es clave: en pandas `NaN + 3 = NaN` y `NaN > 0` es `False`; sin él, una reserva
+con una columna de noches nula se borraría por error. Solo caen las que suman **0 noches**.
+
+```python
+keep &= ~((df["adr"] < 0) | (df["adr"] >= 5400))      # adr inválido
+```
+`(adr < 0) | (adr >= 5400)` marca el `adr` **malo** (negativo o disparatado); `~(...)` lo niega →
+`True` donde es **válido** (por las leyes de De Morgan, `adr >= 0` **y** `adr < 5400`).
+
+```python
+df = df.loc[keep].reset_index(drop=True)
+```
+`df.loc[keep]` → indexado booleano (solo las filas `True`); `.reset_index(drop=True)` renumera el
+índice (que quedó con huecos al borrar filas) y **descarta** el viejo en vez de guardarlo como
+columna.
+
+Todo es **vectorizado** (sin bucles de Python), por eso es rápido sobre las ~119 000 filas.
+
+Lo importante no es solo *qué* filtra, sino **dónde**: al ir antes del *split* y no aprender
+nada, garantiza que la partición y el *fit-on-train* posteriores sean **honestos**.
 
 ---
 
@@ -125,73 +170,33 @@ categóricas (ya derivadas/reducidas por los Pasos 1-2).
 
 ---
 
-## 5. `clean_data`: limpieza segura, paso a paso
+## 5. `KerasMLPClassifier`: la red Keras vestida de estimador sklearn
 
-📄 `ml/data_loader.py`
+📄 `ml/models.py`
 
-La decisión de diseño es la **frontera** entre dos tipos de trabajo:
+El **modelo** (último eslabón del `Pipeline`). El enunciado **exige** una red multicapa con
+**Keras/TensorFlow**, pero todo el resto del sistema —comparación de modelos, `Pipeline` de
+preprocesado, serialización, MLflow— está construido sobre la **API de scikit-learn**. En vez de
+tratar la red como un caso especial por todas partes, la **envolvemos** en una clase que se
+comporta como un estimador sklearn (`fit` / `predict` / `predict_proba`, heredando de
+`ClassifierMixin, BaseEstimator`).
 
-- **`clean_data`** hace lo **determinista y fila-a-fila** (no aprende parámetros) → va **antes
-  del split**, no puede causar fuga.
-- Lo que **aprende de los datos** (imputación, escalado, reducción de cardinalidad) vive en el
-  **`Pipeline`** y se ajusta **solo con `train`**.
+**Qué nos da esa decisión:**
 
-Por eso `clean_data` es deliberadamente "tonta": no imputa, no escala, no toca `company`/`agent`
-(de eso se encargan `FeatureBuilder` y `RareCategoryGrouper` dentro del `Pipeline`).
+- **Encaja en el `Pipeline` común** → recibe el mismo preprocesado *fit-on-train* que los
+  otros cuatro modelos, sin código aparte.
+- **Se compara igual** → el mismo `evaluate` y la misma tabla de métricas sirven para los 5.
+- **Se serializa igual** → `joblib.dump` como los demás. Un modelo Keras no se *pickea*
+  directo, así que `__getstate__`/`__setstate__` guardan su formato nativo `.keras` **como
+  bytes dentro del propio pickle** (y lo reconstruyen al cargar). Detalle invisible para
+  quien usa la clase.
+- **Entra en MLflow igual** → se loguea y registra como cualquier `Pipeline` sklearn.
 
-**Paso a paso:**
-
-1. **`df.copy()`** — no mutar el DataFrame de entrada (evita efectos colaterales).
-2. **Eliminar columnas de `config.DROP_COLUMNS`** que estén presentes. Son columnas con
-   **fuga** o que **no generalizan** (EDA §2):
-   - `reservation_status` / `reservation_status_date` → contienen el desenlace de la reserva;
-   - `required_car_parking_spaces`, `assigned_room_type` → se asignan en el **check-in** (fuga
-     de información futura);
-   - `arrival_date_year` → no generaliza a años nuevos.
-3. **Saneo de filas imposibles** (EDA §8), construyendo una máscara booleana `keep`:
-   - **sin huéspedes**: `adults + children + babies == 0` (rellenando nulos a 0);
-   - **sin noches**: `stays_in_week_nights + stays_in_weekend_nights == 0`;
-   - **`adr` absurdo**: negativo o `>= 5400` (tarifa diaria desorbitada).
-4. **`df.loc[keep].reset_index(drop=True)`** — se queda con las filas válidas y reindexa.
-5. **Devuelve** el DataFrame listo para separar en `X` / `y` (`get_feature_target`) y partir
-   de forma estratificada (`split_data`).
-
-### Las líneas clave de la máscara
-
-`keep` empieza como `pd.Series(True, index=df.index)` (una fila por registro, todas a `True`);
-cada regla le hace un **AND** (`&=`), así que solo puede **quitar** filas, nunca re-añadir.
-
-```python
-keep &= df[guest_cols].fillna(0).sum(axis=1) > 0      # sin huéspedes
-```
-`df[guest_cols]` (adults/children/babies) → `.fillna(0)` (un nulo cuenta como 0) → `.sum(axis=1)`
-suma **a lo ancho** (huéspedes por fila) → `> 0` da `True` si hay alguien. Descarta reservas con
-**0 personas**.
-
-```python
-nights = df["stays_in_week_nights"].fillna(0) + df["stays_in_weekend_nights"].fillna(0)
-keep &= nights > 0                                    # sin noches
-```
-El `fillna(0)` es clave: en pandas `NaN + 3 = NaN` y `NaN > 0` es `False`; sin él, una reserva
-con una columna de noches nula se borraría por error. Solo caen las que suman **0 noches**.
-
-```python
-keep &= ~((df["adr"] < 0) | (df["adr"] >= 5400))      # adr inválido
-```
-`(adr < 0) | (adr >= 5400)` marca el `adr` **malo** (negativo o disparatado); `~(...)` lo niega →
-`True` donde es **válido** (por las leyes de De Morgan, `adr >= 0` **y** `adr < 5400`).
-
-```python
-df = df.loc[keep].reset_index(drop=True)
-```
-`df.loc[keep]` → indexado booleano (solo las filas `True`); `.reset_index(drop=True)` renumera el
-índice (que quedó con huecos al borrar filas) y **descarta** el viejo en vez de guardarlo como
-columna.
-
-Todo es **vectorizado** (sin bucles de Python), por eso es rápido sobre las ~119 000 filas.
-
-Lo importante no es solo *qué* filtra, sino **dónde**: al ir antes del *split* y no aprender
-nada, garantiza que la partición y el *fit-on-train* posteriores sean **honestos**.
+**La decisión clave de deployment:** TensorFlow se importa **dentro de los métodos**, no en
+la cabecera del módulo. Importar el paquete (lo que hace la **API en runtime**) **no carga
+TF** (cientos de MB). Como el modelo servido es XGBoost, TF solo se necesita al **entrenar**
+la red → la API en Render (512 MB) nunca lo toca. Misma idea que replican los notebooks 04/05
+(ver [`bonus.md`](bonus.md) y el módulo `notebooks/keras_mlp.py`).
 
 ---
 
@@ -199,7 +204,7 @@ nada, garantiza que la partición y el *fit-on-train* posteriores sean **honesto
 
 📄 `ml/preprocessing.py` → `make_pipeline` / `build_transform_pipeline`
 
-Los pasos anteriores se ensamblan en un `Pipeline` **plano**, uno por modelo:
+Las piezas anteriores se ensamblan en un `Pipeline` **plano**, uno por modelo:
 
 ```python
 make_pipeline(estimator) = Pipeline([
