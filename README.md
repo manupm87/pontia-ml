@@ -97,7 +97,6 @@ pusieron en común de forma conjunta.
 ```text
 pontia-ml/                  # ← repo root (esta carpeta)
 ├── .devcontainer/      # Configuración de contenedor de desarrollo (VS Code)
-├── agents/             # Informes y análisis auxiliares del proyecto
 ├── data/
 │   └── raw/            # Datos originales (dataset_practica_final.csv)
 ├── docs/

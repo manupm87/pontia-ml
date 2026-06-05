@@ -123,7 +123,6 @@ pytest -m "not slow"    # skip the ones that load the bundled model
 - `docs/arquitectura.md` — architecture and diagrams. `docs/informe_final.md` —
   academic report (covers SHAP interpretability and the PLS 2D visualization).
   `docs/glosario.md` — glossary.
-- `agents/deep_analysis_report.md` — forward-looking improvement ideas (not yet done).
 
 ## Notes
 
