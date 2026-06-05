@@ -13,6 +13,15 @@ API_URL := http://127.0.0.1:8000
 # Argumentos extra para los CLIs: `make train ARGS="--tune"`, `make predict ARGS="--sample 5"`.
 ARGS    ?=
 
+# Carga automática de .env (si existe): evita tener que hacer
+# `set -a; source .env; set +a` a mano antes de `make train` / `register-model`.
+# `-include` lee las líneas KEY=value como variables de make (y no falla si el
+# fichero no existe); `export` las pasa al entorno de TODAS las recetas, así los
+# CLIs ven las variables MLflow. OJO: los valores no deben llevar comillas ni `#`
+# en línea (sintaxis de make); el .env.example ya cumple esto.
+-include .env
+export
+
 .DEFAULT_GOAL := help
 .PHONY: help venv setup setup-dev api ui run test clean \
         train tune predict register-model explain viz2d memo
@@ -23,7 +32,7 @@ TECTONIC_VER := 0.16.9
 TECTONIC     := $(VENV)/bin/tectonic
 
 help: ## Muestra esta ayuda
-	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 $(PY): ## (interno) valida la versión de Python y crea el venv si no existe
